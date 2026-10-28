@@ -1,0 +1,17 @@
+name: CobbleComfortSync
+version: '${version}'
+main: dev.cobblecomfort.sync.CobbleComfortSync
+api-version: '1.21'
+description: Shares player positions with clients that have the Cobble Comfort mod (opt-in per player).
+commands:
+  cobblecomfort:
+    description: Shows who shares their position, or reloads the config.
+    usage: /cobblecomfort [status|reload]
+    permission: cobblecomfort.admin
+permissions:
+  cobblecomfort.share:
+    description: May share their position with other mod users (and see theirs).
+    default: true
+  cobblecomfort.admin:
+    description: May use /cobblecomfort.
+    default: op

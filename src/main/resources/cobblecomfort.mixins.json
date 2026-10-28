@@ -1,0 +1,41 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "dev.cobblecomfort.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"AbstractContainerScreenMixin",
+		"CameraMixin",
+		"ChatComponentAccessor",
+		"ChatComponentMixin",
+		"ChatListenerMixin",
+		"ChatScreenMixin",
+		"ClientPacketListenerMixin",
+		"AbstractFurnaceMenuAccessor",
+		"EffectsInInventoryMixin",
+		"ContainerScreenAccessor",
+		"EnchantmentScreenMixin",
+		"FoodDataAccessor",
+		"GameRendererMixin",
+		"GuiGraphicsExtractorMixin",
+		"GuiGraphicsTooltipMixin",
+		"GuiMixin",
+		"HudInvoker",
+		"HudMixin",
+		"ItemEnchantmentsMixin",
+		"ItemStackShulkerMixin",
+		"LightmapMixin",
+		"MouseHandlerMixin",
+		"MultiPlayerGameModeAccessor",
+		"MultiPlayerGameModeMixin",
+		"NightVisionMixin",
+		"OptionsMixin",
+		"PlayerExhaustionMixin",
+		"ScreenBackgroundMixin",
+		"SpriteContentsAccessor",
+		"TooltipRenderUtilMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

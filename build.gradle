@@ -1,0 +1,85 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	maven {
+		name = 'Xander Maven (YACL)'
+		url = 'https://maven.isxander.dev/releases'
+	}
+	maven {
+		name = 'Terraformers (Mod Menu)'
+		url = 'https://maven.terraformersmc.com/releases'
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+
+	// Mod Menu is optional at runtime: compile against it, run with it in dev.
+	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	localRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
+}
+
+// Client game tests live in src/gametest and run with `./gradlew runClientGameTest`.
+// They open a test world and take screenshots (run/screenshots) of every feature.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "cobblecomfort-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+processResources {
+	def props = [
+		version: project.version,
+		minecraft_version: project.minecraft_version,
+		loader_version: project.loader_version,
+		yacl_version: project.yacl_version
+	]
+	inputs.properties props
+
+	filesMatching("fabric.mod.json") {
+		expand props
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Copies each build into local launcher profiles (dev_profile_mods_dir in gradle.properties, ';'-separated), replacing older versions.
+def devProfileModsDirs = (project.findProperty("dev_profile_mods_dir") ?: "").split(";")*.trim().findAll { it }
+if (devProfileModsDirs) {
+	def removeOldDevJars = tasks.register("removeOldDevJars", Delete) {
+		devProfileModsDirs.each { dir -> delete fileTree(dir) { include "${project.archives_base_name}-*.jar" } }
+	}
+	def installDevJar = tasks.register("installDevJar") { dependsOn removeOldDevJars }
+	devProfileModsDirs.eachWithIndex { dir, i ->
+		def copyJar = tasks.register("installDevJar${i}", Copy) {
+			dependsOn removeOldDevJars
+			from tasks.named("jar").flatMap { it.archiveFile }
+			into dir
+		}
+		installDevJar.configure { dependsOn copyJar }
+	}
+	tasks.named("build") { finalizedBy installDevJar }
+}

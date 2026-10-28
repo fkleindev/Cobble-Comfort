@@ -1,0 +1,9 @@
+# How often positions are sent, in ticks (20 = once a second). Lower is smoother but sends more.
+interval-ticks: 10
+# Only share players within this many blocks of each other in the same world (0 = no limit, all worlds).
+max-distance: 0
+# Do not share players in spectator mode or with the invisibility effect.
+hide-spectators: true
+hide-invisible: true
+# Send health and armour along with the position.
+share-health: true

@@ -1,0 +1,42 @@
+// Spigot/Bukkit plugin that shares player positions between clients with Cobble Comfort installed.
+// Build with `./gradlew :server-plugin:build`; the jar lands in server-plugin/build/libs.
+plugins {
+	id 'java'
+}
+
+base {
+	archivesName = 'cobble-comfort-sync'
+}
+
+version = rootProject.version
+
+repositories {
+	mavenLocal()
+	maven {
+		name = 'Spigot'
+		url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+	}
+	maven {
+		name = 'Sonatype'
+		url = 'https://oss.sonatype.org/content/repositories/central'
+	}
+	mavenCentral()
+}
+
+dependencies {
+	compileOnly "org.spigotmc:spigot-api:${project.spigot_api_version}"
+}
+
+// Java 21 so the plugin also loads on 1.21 servers.
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+	it.options.encoding = 'UTF-8'
+}
+
+processResources {
+	def props = [version: project.version]
+	inputs.properties props
+	filesMatching('plugin.yml') {
+		expand props
+	}
+}

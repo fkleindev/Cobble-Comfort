@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "cobblecomfort-gametest",
+	"version": "1.0.0",
+	"name": "Cobble Comfort Game Tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["dev.cobblecomfort.gametest.FeatureScreenshotTest", "dev.cobblecomfort.gametest.MapScreenshotTest", "dev.cobblecomfort.gametest.ChatScreenshotTest", "dev.cobblecomfort.gametest.PickupLogScreenshotTest", "dev.cobblecomfort.gametest.FurnaceScreenshotTest", "dev.cobblecomfort.gametest.RespawnScreenshotTest"]
+	},
+	"depends": {
+		"cobblecomfort": "*"
+	}
+}

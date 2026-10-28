@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "cobblecomfort",
+	"version": "${version}",
+	"name": "Cobble Comfort",
+	"description": "Client-side quality of life and UI enhancements. Every feature can be toggled and configured.",
+	"authors": ["Florian"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["dev.cobblecomfort.CobbleComfortClient"],
+		"modmenu": ["dev.cobblecomfort.compat.ModMenuIntegration"]
+	},
+	"mixins": ["cobblecomfort.mixins.json"],
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=25",
+		"fabric-api": "*",
+		"yet_another_config_lib_v3": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}
