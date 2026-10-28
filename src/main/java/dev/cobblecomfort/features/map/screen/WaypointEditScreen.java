@@ -45,6 +45,7 @@ public class WaypointEditScreen extends Screen {
 	private EditBox x, y, z;
 	private EditBox set;
 	private int color;
+	private boolean locatorBar;
 	private int left, top, panelHeight;
 	private final List<Chip> chips = new ArrayList<>();
 
@@ -61,6 +62,14 @@ public class WaypointEditScreen extends Screen {
 		this.waypoint = waypoint;
 		this.isNew = isNew;
 		this.color = waypoint.color;
+		this.locatorBar = waypoint.locatorBar;
+	}
+
+	/** The "In locator bar" switch to the right of the initials field: {x0, y0, x1, y1} of its clickable area. */
+	private int[] locatorArea() {
+		int x1 = fieldX() + fieldWidth();
+		int x0 = x1 - 18 - font.width(Component.translatable("cobblecomfort.waypoint.locator_bar"));
+		return new int[]{x0, rowY(1), x1, rowY(1) + FIELD_HEIGHT};
 	}
 
 	private int fieldX() {
@@ -158,6 +167,7 @@ public class WaypointEditScreen extends Screen {
 		String yText = y.getValue().trim();
 		waypoint.y = yText.isEmpty() || yText.equals("~") ? null : parse(yText, waypoint.y == null ? 64 : waypoint.y);
 		waypoint.color = color;
+		waypoint.locatorBar = locatorBar;
 		waypoint.set = MapFeature.INSTANCE.waypoints().setFor(set.getValue());
 	}
 
@@ -227,6 +237,11 @@ public class WaypointEditScreen extends Screen {
 		}
 		drawPalette(g, mouseX, mouseY);
 		drawChips(g, mouseX, mouseY);
+		int[] locator = locatorArea();
+		boolean locatorHovered = mouseX >= locator[0] && mouseX < locator[2] && mouseY >= locator[1] && mouseY < locator[3];
+		g.text(font, Component.translatable("cobblecomfort.waypoint.locator_bar"), locator[0], locator[1] + 4,
+				locatorHovered ? MapUi.TEXT : MapUi.TEXT_DIM, false);
+		MapUi.toggle(g, locator[2] - 14, locator[1] + FIELD_HEIGHT / 2, locatorBar, true, MapUi.ACCENT);
 		suggestSet(set.getValue());
 		super.extractRenderState(g, mouseX, mouseY, delta);
 	}
@@ -286,6 +301,11 @@ public class WaypointEditScreen extends Screen {
 					set.setValue(chip.label());
 					return true;
 				}
+			}
+			int[] locator = locatorArea();
+			if (event.x() >= locator[0] && event.x() < locator[2] && event.y() >= locator[1] && event.y() < locator[3]) {
+				locatorBar = !locatorBar;
+				return true;
 			}
 		}
 		return super.mouseClicked(event, doubleClick);

@@ -2,11 +2,13 @@ package dev.cobblecomfort.features.smoothgui;
 
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.anim.Easing;
+import dev.cobblecomfort.features.transitions.TransitionsFeature;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
@@ -60,6 +62,10 @@ public final class SmoothGuiFeature extends Feature<SmoothGuiConfig> {
 			return;
 		}
 		if (config.onlyFromGame && previous != null) {
+			return;
+		}
+		// The death screen has its own, slower fade.
+		if (next instanceof DeathScreen && TransitionsFeature.INSTANCE.animatesDeath()) {
 			return;
 		}
 		Kind nextKind = next instanceof AbstractContainerScreen<?> ? Kind.CONTAINER

@@ -8,6 +8,7 @@ import dev.cobblecomfort.features.effects.EffectHudFeature;
 import dev.cobblecomfort.features.food.FoodHudFeature;
 import dev.cobblecomfort.features.hotbar.HotbarFeature;
 import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
+import dev.cobblecomfort.features.map.render.LocatorBarMarkers;
 import dev.cobblecomfort.features.rarity.RarityFeature;
 import dev.cobblecomfort.features.shulker.ShulkerPreviewFeature;
 import dev.cobblecomfort.features.zoom.ZoomFeature;
@@ -15,6 +16,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.client.gui.components.ChatComponent;
+import net.minecraft.client.waypoints.ClientWaypointManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -132,5 +134,12 @@ public abstract class HudMixin {
 		} else {
 			original.call(chat, clearHistory);
 		}
+	}
+
+	/** The locator bar replaces the experience bar while map waypoints are in it, as it does for other players. */
+	@WrapOperation(method = "nextContextualInfoState", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/waypoints/ClientWaypointManager;hasWaypoints()Z"))
+	private boolean cobblecomfort$locatorBarForWaypoints(ClientWaypointManager manager, Operation<Boolean> original) {
+		return original.call(manager) || LocatorBarMarkers.hasWaypoints();
 	}
 }

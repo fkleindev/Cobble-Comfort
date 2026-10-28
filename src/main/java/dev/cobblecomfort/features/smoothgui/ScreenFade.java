@@ -19,6 +19,17 @@ public final class ScreenFade {
 		return alpha;
 	}
 
+	/** Fades everything drawn from now on by {@code factor} on top of the current fade; returns what to {@link #restore}. */
+	public static float push(float factor) {
+		float previous = alpha;
+		set(previous * factor);
+		return previous;
+	}
+
+	public static void restore(float previous) {
+		set(previous);
+	}
+
 	public static int modulate(int argb) {
 		if (alpha >= 1f) {
 			return argb;

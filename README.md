@@ -29,6 +29,8 @@ There is also a key for the HUD editor.
 - Waypoints (**B** for a new one, **U** for the list) with categories, colours, beams in the world, name and distance.
   Right-click the map for a menu, double-click to set one.
 - Automatic waypoints for your death points and for your current respawn point (bed or respawn anchor).
+- Waypoints appear in the vanilla locator bar above the hotbar, and other players there show as their heads. Look
+  straight at one to see its name and distance.
 - Waypoints shared in chat in the Xaero format become clickable, and Xaero waypoints can be imported.
 - With the world seed: unexplored terrain and structure markers (villages, temples, strongholds, ...). Structures you
   find while exploring are marked too.
@@ -41,6 +43,16 @@ There is also a key for the HUD editor.
   map, and a compass arrow points the way.
 - Name your containers. See their contents in the look info and get a hint in your inventory when more of an item is
   stored elsewhere.
+
+### Trade memory
+- Remembers the offers of every villager and wandering trader you trade with: price (with your discounts), stock,
+  job and level.
+- Search them in the storage memory's **Traders** tab ("Where was the librarian with Mending?"), cheapest first.
+  Click a trader to see it on the map.
+- Traders show up on the map with their job block. Hover one to see its offers.
+- Item tooltips name who sells the item or buys it for emeralds, with price and distance.
+- Name your traders in the trading screen. Traders are followed while they walk around nearby, and forgotten when
+  they die or change jobs.
 
 ### Furnace memory
 - Furnaces, blast furnaces, smokers and brewing stands you look into are remembered with an estimate of when they will
@@ -62,14 +74,26 @@ There is also a key for the HUD editor.
   chests.
 - **Pickup log:** a small list like "+32 Cobblestone" that merges amounts and shows your total.
 - **Smooth hotbar:** gliding selection, a slightly enlarged selected item and slot numbers.
+- **HUD animations:** lost health stays bright for a moment and then runs down, healed hearts pop, the experience bar
+  fills smoothly with a counting, pulsing level and a "+7" for picked-up experience, shanks and armour pop and fade,
+  bubbles pop back, and boss bars glide and run down like the hearts.
 
 ### Inventory
 - **Inventory tools:** search field (also searches tooltips and shulker contents), sort buttons or middle click to sort,
   and slot locks that protect items from being moved or dropped.
 - **Shulker preview:** see the contents in the tooltip, as a panel while holding the box, and a fill bar.
+- **Map and book preview:** maps show their picture in the tooltip, with markers, your own position, scale, centre
+  and distance. Written books and books and quills show a page (scroll to turn pages), and enchanted books a compact
+  list of enchantments with their level. Hold Shift for a larger view.
 - **Rarity:** coloured frames for uncommon, rare and epic items, with optional pulse and shimmer.
 - **Inventory effects:** the carried item tilts and pops, slots squash and flash, items fly, with particles and sounds.
-- **Smooth GUIs:** inventories, menus and chat open with a short animation.
+- **Smooth GUIs:** inventories, menus and chat open with a short animation. Tooltips fade in, follow the mouse softly and glide from
+  one item to the next. Lists, the chat, the creative inventory and the mod's own screens scroll smoothly, and recipe book
+  pages slide in.
+  Buttons fade their highlight, sliders glide, checkboxes and switches animate, and creative and recipe book tabs slide
+  out when picked.
+- **Durability and cooldowns:** durability bars glide down and blink shortly before the item breaks; cooldowns (ender
+  pearl, shield, wind charge, ...) close a ring around the slot instead of covering the item, with a flash when ready.
 
 ### Enchanting
 - **Enchantment descriptions:** what each enchantment does, its maximum level, what it applies to and what it conflicts
@@ -83,6 +107,21 @@ There is also a key for the HUD editor.
 - Your name and your own keywords highlighted, with a sound.
 - Chat search (**Ctrl+F**) and right-click to copy a message.
 - Longer history that is kept when you disconnect.
+
+### Toasts and player list
+- Toasts slide in and out smoothly, and the others move up when one has gone. Advancements made in a row stack onto one
+  toast with a "+2", recipe toasts show how many recipes they hold, toasts stay a shorter time, and recipe toasts can be
+  switched off.
+- The player list fades in, shows the ping as a coloured number, lets players glide to their new place and fade in when
+  they join, and frames heads in their team colour.
+
+### Crosshair and transitions
+- **Hit marker:** short strokes around the crosshair when an attack lands, yellow for critical hits and red and larger
+  for kills.
+- **Cooldown ring:** with the attack indicator set to Crosshair, a thin ring around the crosshair closes while the attack
+  charges.
+- **Transitions:** the world fades in from black after loading and changing dimension, the death screen fades in over a
+  greyed world, waking up fades back in, and titles and action bar messages slide in (new action bar messages cross-fade).
 
 ### Other
 - **Zoom (C):** hold or toggle, scroll to change the zoom level, smooth transition, optional cinematic bars.

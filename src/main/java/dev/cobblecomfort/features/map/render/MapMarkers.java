@@ -72,13 +72,18 @@ public final class MapMarkers {
 	 * small tip below pointing at (x, y). Drawn at {@code scale} around the tip (smaller for far waypoints).
 	 */
 	public static void waypoint(GuiGraphicsExtractor g, Font font, Waypoint waypoint, float x, float y, float alpha, boolean small, float scale) {
+		waypoint(g, font, waypoint, waypoint.iconStack(), x, y, alpha, small, scale);
+	}
+
+	/** Like the marker above, with {@code icon} (if not empty) drawn instead of the initials. */
+	public static void waypoint(GuiGraphicsExtractor g, Font font, Waypoint waypoint, ItemStack icon, float x, float y, float alpha, boolean small,
+			float scale) {
 		Component text = Component.literal(waypoint.initials.isEmpty() ? "?" : waypoint.initials);
 		int rgb = waypoint.rgb();
 		Matrix3x2fStack pose = g.pose();
 		pose.pushMatrix();
 		pose.translate(Math.round(x), Math.round(y));
 		pose.scale(scale);
-		ItemStack icon = waypoint.iconStack();
 		int height = small ? WAYPOINT_SMALL_H : WAYPOINT_H;
 		int width = icon.isEmpty() ? waypointWidth(font, text, small) : height;
 		int tip = small ? WAYPOINT_SMALL_TIP : WAYPOINT_TIP;

@@ -1,6 +1,7 @@
 package dev.cobblecomfort.mixin;
 
 import dev.cobblecomfort.features.food.FoodHudFeature;
+import dev.cobblecomfort.features.preview.ItemPreviewFeature;
 import dev.cobblecomfort.features.shulker.ShulkerPreviewFeature;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
@@ -20,12 +21,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/** Shulker preview: a tooltip image with the contents instead of vanilla's text list. */
+/** Shulker, map and book previews: tooltip images, replacing vanilla's text lists where they show the same. */
 @Mixin(ItemStack.class)
 public abstract class ItemStackShulkerMixin {
 	@Inject(method = "getTooltipImage", at = @At("HEAD"), cancellable = true)
 	private void cobblecomfort$shulkerPreview(CallbackInfoReturnable<Optional<TooltipComponent>> cir) {
 		Optional<TooltipComponent> image = ShulkerPreviewFeature.INSTANCE.tooltipImage((ItemStack) (Object) this);
+		if (image.isEmpty()) {
+			image = ItemPreviewFeature.INSTANCE.tooltipImage((ItemStack) (Object) this);
+		}
 		if (image.isPresent()) {
 			cir.setReturnValue(image);
 		}
@@ -46,7 +50,8 @@ public abstract class ItemStackShulkerMixin {
 			at = @At("HEAD"), cancellable = true)
 	private <T> void cobblecomfort$hideContentLines(DataComponentType<T> type, TooltipProvider.Getter<T> getter,
 			Item.TooltipContext context, TooltipDisplay display, Consumer<Component> out, TooltipFlag flag, CallbackInfo ci) {
-		if (type == DataComponents.CONTAINER && ShulkerPreviewFeature.INSTANCE.replacesTooltip(this)) {
+		if (type == DataComponents.CONTAINER && ShulkerPreviewFeature.INSTANCE.replacesTooltip(this)
+				|| type == DataComponents.STORED_ENCHANTMENTS && ItemPreviewFeature.INSTANCE.replacesEnchantLines(this)) {
 			ci.cancel();
 		}
 	}

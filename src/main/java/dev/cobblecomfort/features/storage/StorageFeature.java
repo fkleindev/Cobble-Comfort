@@ -470,6 +470,10 @@ public final class StorageFeature extends Feature<StorageConfig> {
 			button.setX(labelEnd + 3);
 			button.setY(titleY - 2);
 			button.visible = !box.isVisible();
+			// The screen focuses the clicked pencil after it opened the field; hand the focus on so typing reaches it.
+			if (box.isVisible() && s.getFocused() == button) {
+				s.setFocused(box);
+			}
 			box.setX(titleX + 2);
 			box.setY(titleY);
 			box.setWidth(Math.max(60, gui.cobblecomfort$leftPos() + gui.cobblecomfort$imageWidth() - 22 - titleX));

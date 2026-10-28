@@ -17,6 +17,8 @@ import dev.cobblecomfort.features.map.waypoint.Waypoint;
 import dev.cobblecomfort.features.map.waypoint.WaypointStore;
 import dev.cobblecomfort.features.furnace.FurnaceEntry;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
+import dev.cobblecomfort.features.trade.TradeFeature;
+import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.storage.StorageFeature;
 import dev.cobblecomfort.features.storage.StorageItems;
 import dev.cobblecomfort.features.storage.StoredContainer;
@@ -44,6 +46,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -84,6 +87,7 @@ public class MapScreen extends Screen {
 	private static final int LAYERS_WIDTH = 124;
 	private static final int LAYER_ROW = 13;
 	private static final int LAYERS_HEADER = 16;
+	private static final int TRADER_TOOLTIP_OFFERS = 6;
 	private static final RegionTextures TEXTURES = new RegionTextures("full");
 	private static float lastZoom = 2f;
 
@@ -114,7 +118,7 @@ public class MapScreen extends Screen {
 	private final Map<KeyMapping, Boolean> passedKeys = new HashMap<>();
 	/** The layer sidebar's place (set while drawing) and how far its list is scrolled. */
 	private int layersX0, layersX1, layersTop, layersBottom;
-	private double layersScroll;
+	private final SmoothScroll layersScroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
 
 	private enum WindowDrag {
 		NONE, MOVE, RESIZE
@@ -411,6 +415,7 @@ public class MapScreen extends Screen {
 		StructureMarker structure = drawStructures(g, here, mouseX, mouseY);
 		StoredContainer storage = drawStorage(g, mouseX, mouseY);
 		FurnaceEntry furnace = drawFurnaces(g, mouseX, mouseY);
+		TradeMerchant trader = drawTraders(g, mouseX, mouseY);
 		HoveredPlayer hoveredPlayer = drawEntities(g, level, player, here, delta, mouseX, mouseY);
 		Waypoint hovered = drawWaypoints(g, player, mouseX, mouseY);
 		drawPlayer(g, player, position, here);
@@ -441,6 +446,8 @@ public class MapScreen extends Screen {
 			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
 		} else if (hoveredPlayer != null) {
 			g.setComponentTooltipForNextFrame(font, playerTooltip(hoveredPlayer, player, here), mouseX, mouseY);
+		} else if (trader != null) {
+			g.setComponentTooltipForNextFrame(font, traderTooltip(trader, player, here), mouseX, mouseY);
 		} else if (furnace != null) {
 			g.setComponentTooltipForNextFrame(font, furnaceTooltip(furnace), mouseX, mouseY);
 		} else if (storage != null) {
@@ -654,6 +661,45 @@ public class MapScreen extends Screen {
 			}
 		}
 		return hovered;
+	}
+
+	/** Remembered traders, with their job block (green ring) or as wandering traders (blue ring). */
+	private TradeMerchant drawTraders(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		TradeMerchant hovered = null;
+		for (TradeMerchant merchant : TradeFeature.INSTANCE.mapEntries(viewDim)) {
+			float x = screenX(merchant.x);
+			float y = screenY(merchant.z);
+			if (!onMap(x, y, 10)) {
+				continue;
+			}
+			MapMarkers.badge(g, TradeFeature.icon(merchant), x, y, false, TradeFeature.color(merchant));
+			if (Math.abs(mouseX - x) <= 8 && Math.abs(mouseY - y) <= 8) {
+				hovered = merchant;
+			}
+		}
+		return hovered;
+	}
+
+	private List<Component> traderTooltip(TradeMerchant merchant, LocalPlayer player, boolean here) {
+		List<Component> lines = new ArrayList<>();
+		lines.add(TradeFeature.INSTANCE.title(merchant));
+		if (!merchant.name.isEmpty()) {
+			lines.add(TradeFeature.INSTANCE.displayName(merchant));
+		}
+		MutableComponent where = Component.literal((int) Math.floor(merchant.x) + ", " + (int) Math.floor(merchant.y) + ", " + (int) Math.floor(merchant.z));
+		if (here) {
+			where.append(" · " + MapFeature.formatDistance(merchant.distanceTo(player.position())));
+		}
+		lines.add(where.withStyle(ChatFormatting.GRAY));
+		int shown = Math.min(TRADER_TOOLTIP_OFFERS, merchant.offers.size());
+		for (int i = 0; i < shown; i++) {
+			lines.add(TradeFeature.offerText(merchant.offers.get(i)));
+		}
+		if (merchant.offers.size() > shown) {
+			lines.add(Component.translatable("cobblecomfort.trade.tooltip.more", merchant.offers.size() - shown).withStyle(ChatFormatting.DARK_GRAY));
+		}
+		lines.add(Component.translatable("cobblecomfort.storage.seen", TradeFeature.age(merchant)).withStyle(ChatFormatting.DARK_GRAY));
+		return lines;
 	}
 
 	/** Remembered furnaces and brewing stands, ringed in their status colour. */
@@ -918,6 +964,14 @@ public class MapScreen extends Screen {
 						furnaces.save();
 					}));
 		}
+		TradeFeature trades = TradeFeature.INSTANCE;
+		if (trades.isEnabled()) {
+			list.add(new Layer(layerLabel("traders"), 0, itemIcon(Items.EMERALD), trades.mapEntries(viewDim).size(), true,
+					() -> trades.config().mapMarkers, () -> {
+						trades.config().mapMarkers = !trades.config().mapMarkers;
+						trades.save();
+					}));
+		}
 		list.add(new Layer(layerLabel("entities"), 0, itemIcon(Items.ZOMBIE_HEAD), -1, true,
 				() -> c.showEntities, () -> c.showEntities = !c.showEntities));
 		list.add(new Layer(layerLabel("players"), 1, itemIcon(Items.PLAYER_HEAD), -1, c.showEntities,
@@ -967,7 +1021,7 @@ public class MapScreen extends Screen {
 		int maxBottom = (toolbarRight > layersX0 ? toolbarTop : mapY + mapH - GRIP) - 6;
 		layersBottom = open ? Math.min(layersTop + LAYERS_HEADER + rows * LAYER_ROW + 4, maxBottom) : layersTop + TOOL + 4;
 		int visible = layersBottom - layersTop - LAYERS_HEADER - 4;
-		layersScroll = Math.clamp(layersScroll, 0, Math.max(0, rows * LAYER_ROW - visible));
+		layersScroll.update(Math.max(0, rows * LAYER_ROW - visible));
 	}
 
 	private boolean overLayers(double x, double y) {
@@ -1004,7 +1058,7 @@ public class MapScreen extends Screen {
 		g.enableScissor(layersX0, listTop, layersX1, layersBottom - 2);
 		for (int i = 0; i < layers.size(); i++) {
 			Layer layer = layers.get(i);
-			int y = listTop + i * LAYER_ROW - (int) layersScroll;
+			int y = listTop + i * LAYER_ROW - (int) layersScroll.value();
 			if (y + LAYER_ROW < listTop || y > layersBottom) {
 				continue;
 			}
@@ -1030,24 +1084,16 @@ public class MapScreen extends Screen {
 			if (count != null) {
 				MapUi.smallText(g, font, count, labelX + font.width(label) + 3, cy - 2, MapUi.TEXT_FAINT, 0.75f);
 			}
-			drawSwitch(g, layersX1 - 20, cy, shown, layer.active(), accent);
+			MapUi.toggle(g, layersX1 - 20, cy, shown, layer.active(), accent);
 		}
 		g.disableScissor();
 		int visible = layersBottom - 2 - listTop;
 		int content = layers.size() * LAYER_ROW;
 		if (content > visible) {
 			int barH = Math.max(10, visible * visible / content);
-			int barY = listTop + (int) ((visible - barH) * (layersScroll / (content - visible)));
+			int barY = listTop + (int) ((visible - barH) * (layersScroll.value() / (content - visible)));
 			RenderUtil.roundedFill(g, layersX1 - 4, barY, layersX1 - 2, barY + barH, 1, 0x60FFFFFF);
 		}
-	}
-
-	/** A small on/off switch whose left edge is at x, centred on cy; faint when its parent layer is off. */
-	private static void drawSwitch(GuiGraphicsExtractor g, int x, int cy, boolean on, boolean active, int accent) {
-		int track = on ? RenderUtil.withAlpha(accent, active ? 0.85f : 0.3f) : active ? 0x38FFFFFF : 0x18FFFFFF;
-		RenderUtil.roundedFill(g, x, cy - 4, x + 14, cy + 4, 4, track);
-		int knob = x + (on ? 7 : 1);
-		RenderUtil.roundedFill(g, knob, cy - 3, knob + 6, cy + 3, 3, active ? 0xFFFFFFFF : 0x80FFFFFF);
 	}
 
 	private void clickLayers(double mx, double my) {
@@ -1061,7 +1107,7 @@ public class MapScreen extends Screen {
 			return;
 		}
 		List<Layer> layers = layers();
-		int index = (int) Math.floor((my - listTop + layersScroll) / LAYER_ROW);
+		int index = (int) Math.floor((my - listTop + layersScroll.value()) / LAYER_ROW);
 		if (index >= 0 && index < layers.size()) {
 			layers.get(index).toggle().run();
 			MapFeature.INSTANCE.save();
@@ -1303,7 +1349,7 @@ public class MapScreen extends Screen {
 			return false;
 		}
 		if (overLayers(mouseX, mouseY)) {
-			layersScroll -= scrollY * LAYER_ROW * 2;
+			layersScroll.scroll(-(scrollY * LAYER_ROW * 2));
 			return true;
 		}
 		double beforeX = worldX(mouseX);

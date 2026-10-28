@@ -14,6 +14,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
+import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,7 +34,7 @@ public class WaypointListScreen extends Screen {
 
 	private final Screen parent;
 	private int left, top, panelHeight, listTop, listHeight;
-	private double scroll;
+	private final SmoothScroll scroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
 
 	/** One line of the list: a set header or a waypoint. */
 	private record Line(String set, Waypoint waypoint, int count) {
@@ -108,14 +109,14 @@ public class WaypointListScreen extends Screen {
 		g.text(font, count, cx + 4, top + 9, MapUi.TEXT_DIM, false);
 		g.fill(left + 8, listTop - 4, left + PANEL_WIDTH - 8, listTop - 3, 0x18FFFFFF);
 		int content = contentHeight(lines);
-		scroll = Math.clamp(scroll, 0, Math.max(0, content - listHeight));
+		scroll.update(Math.max(0, content - listHeight));
 		if (lines.isEmpty()) {
 			g.centeredText(font, Component.translatable("cobblecomfort.waypoint.none"), left + PANEL_WIDTH / 2, listTop + 20, MapUi.TEXT_FAINT);
 		}
 		LocalPlayer player = minecraft.player;
 		WaypointStore store = MapFeature.INSTANCE.waypoints();
 		g.enableScissor(left + 4, listTop, left + PANEL_WIDTH - 4, listTop + listHeight);
-		int y = listTop - (int) scroll;
+		int y = listTop - (int) scroll.value();
 		String tooltip = null;
 		for (Line line : lines) {
 			int h = line.height();
@@ -176,7 +177,7 @@ public class WaypointListScreen extends Screen {
 		g.disableScissor();
 		if (content > listHeight) {
 			int barH = Math.max(16, listHeight * listHeight / content);
-			int barY = listTop + (int) ((listHeight - barH) * (scroll / (content - listHeight)));
+			int barY = listTop + (int) ((listHeight - barH) * (scroll.value() / (content - listHeight)));
 			int barX = left + PANEL_WIDTH - 7;
 			RenderUtil.roundedFill(g, barX, listTop, barX + 3, listTop + listHeight, 1, 0x14FFFFFF);
 			RenderUtil.roundedFill(g, barX, barY, barX + 3, barY + barH, 1, 0x60FFFFFF);
@@ -195,7 +196,7 @@ public class WaypointListScreen extends Screen {
 		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || event.y() < listTop || event.y() >= listTop + listHeight) {
 			return false;
 		}
-		int y = listTop - (int) scroll;
+		int y = listTop - (int) scroll.value();
 		WaypointStore store = MapFeature.INSTANCE.waypoints();
 		for (Line line : lines()) {
 			int h = line.height();
@@ -239,7 +240,7 @@ public class WaypointListScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-		scroll -= scrollY * ROW;
+		scroll.scroll(-(scrollY * ROW));
 		return true;
 	}
 

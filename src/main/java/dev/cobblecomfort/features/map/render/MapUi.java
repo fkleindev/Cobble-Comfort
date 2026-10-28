@@ -1,14 +1,20 @@
 package dev.cobblecomfort.features.map.render;
 
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.smoothgui.SmoothScroll;
+import dev.cobblecomfort.features.smoothgui.WidgetAnim;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.joml.Matrix3x2fStack;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /** The look of the map screens: dark, slightly see-through floating panels with rounded corners and an accent colour. */
 public final class MapUi {
@@ -38,6 +44,41 @@ public final class MapUi {
 		RenderUtil.roundedFill(g, x0, y0 + 1, x1, y1 + 2, RADIUS + 1, SHADOW);
 		RenderUtil.roundedFill(g, x0, y0, x1, y1, RADIUS, color);
 		RenderUtil.roundedOutline(g, x0, y0, x1, y1, RADIUS, PANEL_EDGE_TOP, PANEL_EDGE_BOTTOM);
+	}
+
+	/** A small on/off switch whose left edge is at x, centred on cy; faint when its parent layer is off. */
+	public static void toggle(GuiGraphicsExtractor g, int x, int cy, boolean on, boolean active, int accent) {
+		float slide = toggleSlide(x, cy, on);
+		int offTrack = active ? 0x38FFFFFF : 0x18FFFFFF;
+		int onTrack = RenderUtil.withAlpha(accent, active ? 0.85f : 0.3f);
+		RenderUtil.roundedFill(g, x, cy - 4, x + 14, cy + 4, 4, ARGB.srgbLerp(slide, offTrack, onTrack));
+		int knob = x + 1 + Math.round(6 * slide);
+		RenderUtil.roundedFill(g, knob, cy - 3, knob + 6, cy + 3, 3, active ? 0xFFFFFFFF : 0x80FFFFFF);
+	}
+
+	/** A switch's knob glides over, remembered by where the switch is drawn. */
+	private static final class Slide {
+		float value;
+		long nanos;
+	}
+
+	private static final Map<Long, Slide> SLIDES = new HashMap<>();
+	private static final long SLIDE_FORGET_NANOS = 2_000_000_000L;
+
+	private static float toggleSlide(int x, int cy, boolean on) {
+		float target = on ? 1f : 0f;
+		if (!WidgetAnim.enabled(WidgetAnim.Kind.CHECKBOXES)) {
+			return target;
+		}
+		long now = System.nanoTime();
+		if (SLIDES.size() > 64) {
+			SLIDES.values().removeIf(s -> now - s.nanos > SLIDE_FORGET_NANOS);
+		}
+		Slide slide = SLIDES.computeIfAbsent(((long) x << 32) | (cy & 0xFFFFFFFFL), k -> new Slide());
+		float seconds = slide.nanos == 0 || now - slide.nanos > SLIDE_FORGET_NANOS ? -1f : SmoothScroll.elapsed(slide.nanos, now);
+		slide.value = seconds < 0f ? target : WidgetAnim.step(slide.value, target, seconds);
+		slide.nanos = now;
+		return slide.value;
 	}
 
 	/** A fully rounded pill, used for small labels. */

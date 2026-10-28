@@ -52,6 +52,11 @@ public class MapConfig extends FeatureConfig {
 	public boolean chatWaypoints = true;
 	public boolean importXaero = true;
 
+	// Locator bar
+	public boolean locatorWaypoints = true;
+	public boolean locatorHeads = true;
+	public boolean locatorNames = true;
+
 	// Seed
 	public boolean seedTerrain = true;
 	public float unexploredBrightness = 0.45f;

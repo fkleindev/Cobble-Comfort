@@ -41,6 +41,32 @@ public final class SmoothGuiConfigUi {
 						.option(Opts.slider("smooth_gui.background_duration", d.backgroundDuration, 0.05f, 0.5f, 0.01f,
 								() -> c(feature).backgroundDuration, v -> c(feature).backgroundDuration = v))
 						.build())
+				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.smooth_gui.tooltips"))
+						.option(Opts.bool("smooth_gui.tooltip_fade", d.tooltipFade, () -> c(feature).tooltipFade, v -> c(feature).tooltipFade = v))
+						.option(Opts.bool("smooth_gui.tooltip_follow", d.tooltipFollow, () -> c(feature).tooltipFollow, v -> c(feature).tooltipFollow = v))
+						.option(Opts.bool("smooth_gui.tooltip_morph", d.tooltipMorph, () -> c(feature).tooltipMorph, v -> c(feature).tooltipMorph = v))
+						.build())
+				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.smooth_gui.widgets"))
+						.option(Opts.bool("smooth_gui.button_hover", d.buttonHover, () -> c(feature).buttonHover, v -> c(feature).buttonHover = v))
+						.option(Opts.bool("smooth_gui.slider_glide", d.sliderGlide, () -> c(feature).sliderGlide, v -> c(feature).sliderGlide = v))
+						.option(Opts.bool("smooth_gui.checkbox_anim", d.checkboxAnim, () -> c(feature).checkboxAnim, v -> c(feature).checkboxAnim = v))
+						.option(Opts.bool("smooth_gui.tab_transitions", d.tabTransitions,
+								() -> c(feature).tabTransitions, v -> c(feature).tabTransitions = v))
+						.build())
+				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.smooth_gui.scrolling"))
+						.option(Opts.bool("smooth_gui.scroll_lists", d.scrollLists, () -> c(feature).scrollLists, v -> c(feature).scrollLists = v))
+						.option(Opts.bool("smooth_gui.scroll_chat", d.scrollChat, () -> c(feature).scrollChat, v -> c(feature).scrollChat = v))
+						.option(Opts.bool("smooth_gui.scroll_creative", d.scrollCreative,
+								() -> c(feature).scrollCreative, v -> c(feature).scrollCreative = v))
+						.option(Opts.bool("smooth_gui.recipe_pages", d.recipePages, () -> c(feature).recipePages, v -> c(feature).recipePages = v))
+						.option(Opts.bool("smooth_gui.scroll_mod_screens", d.scrollModScreens,
+								() -> c(feature).scrollModScreens, v -> c(feature).scrollModScreens = v))
+						.option(Opts.slider("smooth_gui.scroll_speed", d.scrollSpeed, 0.25f, 3f, 0.05f,
+								() -> c(feature).scrollSpeed, v -> c(feature).scrollSpeed = v))
+						.build())
 				.build();
 	}
 

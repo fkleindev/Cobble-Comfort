@@ -64,6 +64,13 @@ public final class MapConfigUi {
 						.option(Opts.bool("map.import_xaero", d.importXaero, () -> c(feature).importXaero, v -> c(feature).importXaero = v))
 						.build())
 				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.map.locator"))
+						.option(Opts.bool("map.locator_waypoints", d.locatorWaypoints,
+								() -> c(feature).locatorWaypoints, v -> c(feature).locatorWaypoints = v))
+						.option(Opts.bool("map.locator_heads", d.locatorHeads, () -> c(feature).locatorHeads, v -> c(feature).locatorHeads = v))
+						.option(Opts.bool("map.locator_names", d.locatorNames, () -> c(feature).locatorNames, v -> c(feature).locatorNames = v))
+						.build())
+				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.map.seed"))
 						.option(Opts.bool("map.seed_terrain", d.seedTerrain, () -> c(feature).seedTerrain, v -> c(feature).seedTerrain = v))
 						.option(Opts.percent("map.unexplored_brightness", d.unexploredBrightness,

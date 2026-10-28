@@ -8,6 +8,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -19,12 +20,29 @@ import java.util.WeakHashMap;
 public final class ItemSearch {
 	private final Map<ItemStack, Boolean> cache = new WeakHashMap<>();
 	private String query = "";
+	/** True while tooltips are built for searching, so features that restyle tooltip text keep vanilla's lines. */
+	private static boolean searching;
+
+	public static boolean searching() {
+		return searching;
+	}
 
 	public void setQuery(String value) {
 		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
 		if (!normalized.equals(query)) {
 			query = normalized;
 			cache.clear();
+		}
+	}
+
+	/** Vanilla's tooltip text of a stack, without the lines features add or replace (as searches see it). */
+	public static List<Component> plainTooltip(ItemStack stack) {
+		Minecraft mc = Minecraft.getInstance();
+		searching = true;
+		try {
+			return stack.getTooltipLines(Item.TooltipContext.of(mc.level), mc.player, TooltipFlag.NORMAL);
+		} finally {
+			searching = false;
 		}
 	}
 
@@ -71,7 +89,7 @@ public final class ItemSearch {
 		if (mc.level == null || mc.player == null) {
 			return false;
 		}
-		for (Component line : stack.getTooltipLines(Item.TooltipContext.of(mc.level), mc.player, TooltipFlag.NORMAL)) {
+		for (Component line : plainTooltip(stack)) {
 			if (line.getString().toLowerCase(Locale.ROOT).contains(query)) {
 				return true;
 			}

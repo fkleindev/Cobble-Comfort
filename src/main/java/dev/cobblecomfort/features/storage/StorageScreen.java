@@ -6,6 +6,9 @@ import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import dev.cobblecomfort.features.invtools.ItemSearch;
 import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.features.map.screen.MapScreen;
+import dev.cobblecomfort.features.trade.TradeFeature;
+import dev.cobblecomfort.features.trade.TradeMerchant;
+import dev.cobblecomfort.features.trade.TradeTab;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -16,6 +19,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,7 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Searches the remembered containers. "Items" sums up everything stored; "Containers" lists where matching items are.
+ * Searches the remembered containers. "Items" sums up everything stored; "Containers" lists where matching items are;
+ * "Traders" lists remembered villagers and wandering traders with matching offers (see {@link TradeTab}).
  * Clicking a container marks it in the world, right-clicking shows it on the map.
  */
 public class StorageScreen extends Screen {
@@ -41,7 +46,7 @@ public class StorageScreen extends Screen {
 	private static final int ROW_HOVER = 0x30FFFFFF;
 
 	private enum Mode {
-		ITEMS, CONTAINERS
+		ITEMS, CONTAINERS, TRADERS
 	}
 
 	/** One summed-up item for the overview. */
@@ -78,11 +83,13 @@ public class StorageScreen extends Screen {
 	private EditBox box;
 	private Button itemsTab;
 	private Button containersTab;
+	private Button tradersTab;
 	private Button markAllButton;
+	private final TradeTab tradeTab = new TradeTab();
 	private Mode mode;
 	private ItemStack selected;
 	private int left, top, panelWidth, panelHeight;
-	private double scroll;
+	private final SmoothScroll scroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
 
 	private int builtVersion = -1;
 	private String builtQuery;
@@ -107,20 +114,27 @@ public class StorageScreen extends Screen {
 		left = (width - panelWidth) / 2;
 		top = 10;
 		String value = box == null ? initialQuery : box.getValue();
-		box = new EditBox(font, left + 8, top + 8, panelWidth - 16 - 2 * 74 - 8, 16, Component.translatable("cobblecomfort.storage.search"));
+		boolean traders = TradeFeature.INSTANCE.active();
+		if (!traders && mode == Mode.TRADERS) {
+			mode = Mode.ITEMS;
+		}
+		int tabs = traders ? 3 : 2;
+		box = new EditBox(font, left + 8, top + 8, panelWidth - 16 - tabs * 74 - 8, 16, Component.translatable("cobblecomfort.storage.search"));
 		box.setHint(Component.translatable("cobblecomfort.invtools.search_hint").withColor(0xFF808080));
 		box.setMaxLength(50);
 		box.setValue(value);
 		box.setResponder(v -> {
 			selected = null;
-			scroll = 0;
+			scroll.set(0);
 			updateTabs();
 		});
 		addRenderableWidget(box);
 		itemsTab = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.items"), b -> setMode(Mode.ITEMS))
-				.bounds(left + panelWidth - 8 - 2 * 74 + 4, top + 6, 70, 20).build());
+				.bounds(left + panelWidth - 8 - tabs * 74 + 4, top + 6, 70, 20).build());
 		containersTab = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.containers"),
-				b -> setMode(Mode.CONTAINERS)).bounds(left + panelWidth - 8 - 74 + 4, top + 6, 70, 20).build());
+				b -> setMode(Mode.CONTAINERS)).bounds(left + panelWidth - 8 - (tabs - 1) * 74 + 4, top + 6, 70, 20).build());
+		tradersTab = traders ? addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.traders"),
+				b -> setMode(Mode.TRADERS)).bounds(left + panelWidth - 8 - 74 + 4, top + 6, 70, 20).build()) : null;
 		markAllButton = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mark_all"), b -> markAll())
 				.bounds(left + panelWidth - 8 - 110, top + panelHeight - FOOTER + 4, 110, 18).build());
 		setInitialFocus(box);
@@ -132,7 +146,7 @@ public class StorageScreen extends Screen {
 		if (value == Mode.ITEMS) {
 			selected = null;
 		}
-		scroll = 0;
+		scroll.set(0);
 		updateTabs();
 	}
 
@@ -140,6 +154,9 @@ public class StorageScreen extends Screen {
 		if (itemsTab != null) {
 			itemsTab.active = mode != Mode.ITEMS;
 			containersTab.active = mode != Mode.CONTAINERS || selected != null;
+			if (tradersTab != null) {
+				tradersTab.active = mode != Mode.TRADERS;
+			}
 			markAllButton.visible = mode == Mode.CONTAINERS;
 		}
 	}
@@ -151,6 +168,10 @@ public class StorageScreen extends Screen {
 	}
 
 	private void rebuildIfNeeded() {
+		if (mode == Mode.TRADERS) {
+			tradeTab.rebuild(box.getValue());
+			return;
+		}
 		StorageStore store = feature().store();
 		String query = box.getValue() + "|" + (selected == null ? "" : selected.getItem() + "" + selected.getComponents());
 		if (store.version() == builtVersion && query.equals(builtQuery)) {
@@ -257,6 +278,10 @@ public class StorageScreen extends Screen {
 		}
 	}
 
+	private void showOnMap(TradeMerchant merchant) {
+		minecraft.gui.setScreen(new MapScreen(null, merchant.x, merchant.z, merchant.dimension));
+	}
+
 	private void showOnMap(StoredContainer container) {
 		if (container.located()) {
 			feature().highlight(List.of(container));
@@ -283,12 +308,12 @@ public class StorageScreen extends Screen {
 		if (mode == Mode.ITEMS) {
 			return (totals.size() + columns() - 1) / columns() * CELL;
 		}
-		return results.size() * ROW;
+		return (mode == Mode.TRADERS ? tradeTab.results().size() : results.size()) * ROW;
 	}
 
 	private void clampScroll() {
 		int max = Math.max(0, contentHeight() - (bodyBottom() - bodyTop()));
-		scroll = Math.clamp(scroll, 0, max);
+		scroll.update(max);
 	}
 
 	// ---------------------------------------------------------------- rendering
@@ -306,7 +331,11 @@ public class StorageScreen extends Screen {
 		g.enableScissor(left + 4, y0, left + panelWidth - 4, y1);
 		Object hovered;
 		try {
-			hovered = mode == Mode.ITEMS ? drawTotals(g, mouseX, mouseY) : drawResults(g, mouseX, mouseY);
+			hovered = switch (mode) {
+				case ITEMS -> drawTotals(g, mouseX, mouseY);
+				case CONTAINERS -> drawResults(g, mouseX, mouseY);
+				case TRADERS -> drawTraders(g, mouseX, mouseY);
+			};
 		} finally {
 			g.disableScissor();
 		}
@@ -324,7 +353,7 @@ public class StorageScreen extends Screen {
 		}
 		int columns = columns();
 		int x0 = left + 8 + (panelWidth - 16 - columns * CELL) / 2;
-		int y0 = bodyTop() + 2 - (int) scroll;
+		int y0 = bodyTop() + 2 - (int) scroll.value();
 		Total hovered = null;
 		for (int i = 0; i < totals.size(); i++) {
 			int x = x0 + (i % columns) * CELL;
@@ -354,7 +383,7 @@ public class StorageScreen extends Screen {
 		String dim = minecraft.level == null ? "" : MapFeature.dimensionId(minecraft.level);
 		int x0 = left + 8;
 		int x1 = left + panelWidth - 8;
-		int y = bodyTop() + 2 - (int) scroll;
+		int y = bodyTop() + 2 - (int) scroll.value();
 		Result hovered = null;
 		for (Result result : results) {
 			if (y + ROW >= bodyTop() && y <= bodyBottom()) {
@@ -380,6 +409,15 @@ public class StorageScreen extends Screen {
 			y += ROW;
 		}
 		return hovered;
+	}
+
+	private TradeTab.Hovered drawTraders(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		if (tradeTab.results().isEmpty()) {
+			drawEmpty(g);
+			return null;
+		}
+		return tradeTab.draw(g, font, left + 8, left + panelWidth - 8, bodyTop() + 2 - (int) scroll.value(), bodyTop(), bodyBottom(), ROW,
+				mouseX, mouseY);
 	}
 
 	private void drawRowItems(GuiGraphicsExtractor g, Result result, int right, int y) {
@@ -425,7 +463,7 @@ public class StorageScreen extends Screen {
 	}
 
 	private void drawEmpty(GuiGraphicsExtractor g) {
-		Component text = feature().store().all().isEmpty()
+		Component text = mode == Mode.TRADERS ? tradeTab.emptyText() : feature().store().all().isEmpty()
 				? Component.translatable("cobblecomfort.storage.nothing_yet")
 				: Component.translatable("cobblecomfort.storage.no_results");
 		g.centeredText(font, text, left + panelWidth / 2, bodyTop() + 20, 0xFF9A9AA8);
@@ -437,12 +475,17 @@ public class StorageScreen extends Screen {
 		if (mode == Mode.ITEMS) {
 			int sum = totals.stream().mapToInt(t -> t.count).sum();
 			info = Component.translatable("cobblecomfort.storage.footer.items", totals.size(), sum, feature().store().all().size());
+		} else if (mode == Mode.TRADERS) {
+			info = Component.translatable("cobblecomfort.trade.footer", tradeTab.results().size());
 		} else {
 			info = Component.translatable("cobblecomfort.storage.footer.containers", results.size());
 		}
 		g.text(font, info, left + 8, y, 0xFFC0C0C0, false);
-		Component hint = Component.translatable(mode == Mode.ITEMS ? "cobblecomfort.storage.hint.items" : "cobblecomfort.storage.hint.containers")
-				.withStyle(ChatFormatting.DARK_GRAY);
+		Component hint = Component.translatable(switch (mode) {
+			case ITEMS -> "cobblecomfort.storage.hint.items";
+			case CONTAINERS -> "cobblecomfort.storage.hint.containers";
+			case TRADERS -> "cobblecomfort.trade.hint";
+		}).withStyle(ChatFormatting.DARK_GRAY);
 		g.text(font, hint, left + 8, y + 10, 0xFFFFFFFF, false);
 		if (selected != null) {
 			g.text(font, Component.translatable("cobblecomfort.storage.filter", selected.getHoverName()),
@@ -451,7 +494,11 @@ public class StorageScreen extends Screen {
 	}
 
 	private void drawTooltip(GuiGraphicsExtractor g, Object hovered, int mouseX, int mouseY) {
-		if (hovered instanceof Total total) {
+		if (hovered instanceof TradeTab.Hovered trader) {
+			if (trader.offer() != null) {
+				g.setComponentTooltipForNextFrame(font, TradeTab.offerTooltip(trader.result().merchant(), trader.offer()), mouseX, mouseY);
+			}
+		} else if (hovered instanceof Total total) {
 			List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, total.stack));
 			lines.add(Component.translatable("cobblecomfort.storage.total", total.count, total.containers).withStyle(ChatFormatting.YELLOW));
 			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
@@ -485,18 +532,25 @@ public class StorageScreen extends Screen {
 			int columns = columns();
 			int x0 = left + 8 + (panelWidth - 16 - columns * CELL) / 2;
 			int col = (int) Math.floor((mouseX - x0) / CELL);
-			int row = (int) Math.floor((mouseY - bodyTop() - 2 + scroll) / CELL);
+			int row = (int) Math.floor((mouseY - bodyTop() - 2 + scroll.value()) / CELL);
 			int index = row * columns + col;
 			if (col >= 0 && col < columns && row >= 0 && index < totals.size()) {
 				selected = totals.get(index).stack;
 				mode = Mode.CONTAINERS;
-				scroll = 0;
+				scroll.set(0);
 				updateTabs();
 				return true;
 			}
 			return false;
 		}
-		int index = (int) Math.floor((mouseY - bodyTop() - 2 + scroll) / ROW);
+		int index = (int) Math.floor((mouseY - bodyTop() - 2 + scroll.value()) / ROW);
+		if (mode == Mode.TRADERS) {
+			if (index >= 0 && index < tradeTab.results().size() && mouseX >= left + 6 && mouseX < left + panelWidth - 6) {
+				showOnMap(tradeTab.results().get(index).merchant());
+				return true;
+			}
+			return false;
+		}
 		if (index >= 0 && index < results.size() && mouseX >= left + 6 && mouseX < left + panelWidth - 6) {
 			StoredContainer container = results.get(index).container();
 			if (event.button() == 1) {
@@ -511,7 +565,7 @@ public class StorageScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-		scroll -= scrollY * (mode == Mode.ITEMS ? CELL : ROW);
+		scroll.scroll(-(scrollY * (mode == Mode.ITEMS ? CELL : ROW)));
 		clampScroll();
 		return true;
 	}

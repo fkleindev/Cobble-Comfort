@@ -27,6 +27,8 @@ public final class Waypoint {
 	public boolean death;
 	/** The bed or respawn anchor the player respawns at; there is at most one. */
 	public boolean respawn;
+	/** Shown in the vanilla locator bar (above the hotbar). */
+	public boolean locatorBar = true;
 	/** An item id drawn in the marker instead of the initials, or null. */
 	public String icon;
 	public long created = System.currentTimeMillis();
