@@ -10,6 +10,8 @@ public class HudAnimConfig extends FeatureConfig {
 	// Experience
 	public boolean smoothXp = true;
 	public boolean levelPulse = true;
+	/** A light beam on a level up, and an enchanting table glowing next to the level on reaching 30. */
+	public boolean levelBeam = true;
 	public boolean xpGain = true;
 
 	// Food, armour and air

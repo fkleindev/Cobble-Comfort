@@ -6,6 +6,13 @@
 	"client": [
 		"AbstractContainerScreenMixin",
 		"CrosshairMixin",
+		"LivingEntityMixin",
+		"AbstractFurnaceScreenMixin",
+		"AnvilScreenMixin",
+		"MerchantScreenMixin",
+		"MerchantScreenAccessor",
+		"TradeOfferButtonAccessor",
+		"AbstractWidgetMixin",
 		"TransitionsMixin",
 		"AdvancementToastInvoker",
 		"AdvancementToastMixin",

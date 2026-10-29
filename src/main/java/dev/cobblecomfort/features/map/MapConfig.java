@@ -24,6 +24,8 @@ public class MapConfig extends FeatureConfig {
 	public boolean sharePosition = false;
 	public boolean viewCone = true;
 	public boolean minimapCardinals = true;
+	/** Waypoints beyond the minimap's edge as small arrows on the edge; off hides them. */
+	public boolean minimapEdgeWaypoints = true;
 	public int borderColor = 0xFF1A1A1A;
 
 	// Map
@@ -31,6 +33,8 @@ public class MapConfig extends FeatureConfig {
 	public boolean netherUnderRoof = true;
 	public boolean heightShading = true;
 	public boolean showGrid = false;
+	/** The map opens out of the minimap, new waypoints drop in, edge arrows pulse when a waypoint leaves the minimap. */
+	public boolean mapAnimations = true;
 	/** Whether the layer sidebar on the full map is open. */
 	public boolean mapLayers = true;
 	/** Map as a movable, see-through window instead of full screen; its place and size (-1 / 0 = default). */
@@ -48,6 +52,11 @@ public class MapConfig extends FeatureConfig {
 	public int waypointLabelRange = 2000;
 	public boolean deathWaypoints = true;
 	public int maxDeathWaypoints = 3;
+	/** Remember what was dropped at a death, with a despawn timer, shown in the death waypoint's tooltip. */
+	public boolean deathInventory = true;
+	/** Toasts when the dropped items are about to despawn, have despawned or are all back. */
+	public boolean deathWarning = true;
+	public int deathWarnSeconds = 60;
 	public boolean respawnWaypoint = true;
 	public boolean chatWaypoints = true;
 	public boolean importXaero = true;

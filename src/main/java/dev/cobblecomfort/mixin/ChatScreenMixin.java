@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -37,6 +38,22 @@ public abstract class ChatScreenMixin extends Screen {
 			input.setCanLoseFocus(true);
 			addRenderableWidget(cobblecomfort$search);
 		}
+		ChatFeature.INSTANCE.setChatOpen(true);
+	}
+
+	/** The tabs in the row above the input, left of the search; drawn first so command suggestions cover them. */
+	@Inject(method = "extractRenderState", at = @At("HEAD"))
+	private void cobblecomfort$tabs(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+		// While searching, the hit count sits left of the search field.
+		int right = cobblecomfort$search == null ? width - 4
+				: cobblecomfort$search.getX() - (ChatFeature.INSTANCE.search().isEmpty() ? 4 : 50);
+		ChatFeature.INSTANCE.drawTabs(g, font, mouseX, mouseY, height, right);
+	}
+
+	/** In the private tab, plain text goes to the last partner as /msg. */
+	@ModifyVariable(method = "handleChatInput", at = @At("HEAD"), argsOnly = true)
+	private String cobblecomfort$privateReply(String message) {
+		return ChatFeature.INSTANCE.rewriteInput(message);
 	}
 
 	/** Ctrl+F jumps to the search; while it is focused, keys edit it instead of sending or scrolling the chat. */
@@ -75,6 +92,8 @@ public abstract class ChatScreenMixin extends Screen {
 	private void cobblecomfort$copyLine(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
 		if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && ChatFeature.INSTANCE.copyAt(event.x(), event.y())) {
 			cir.setReturnValue(true);
+		} else if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && ChatFeature.INSTANCE.clickTab(event.x(), event.y())) {
+			cir.setReturnValue(true);
 		}
 	}
 
@@ -90,6 +109,7 @@ public abstract class ChatScreenMixin extends Screen {
 
 	@Inject(method = "removed", at = @At("TAIL"))
 	private void cobblecomfort$clearSearch(CallbackInfo ci) {
+		ChatFeature.INSTANCE.setChatOpen(false);
 		if (cobblecomfort$search != null) {
 			ChatFeature.INSTANCE.setSearch("");
 		}

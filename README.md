@@ -25,10 +25,17 @@ There is also a key for the HUD editor.
 ### Map and minimap
 - Minimap (round or square, optionally rotating) with coordinates, biome, players, mobs with their faces, a view cone
   and your movement trail.
-- Full-screen map (**M**) with cave view, the area below the Nether roof, height shading and a chunk grid.
+- Full-screen map (**M**) with cave view, the area below the Nether roof, height shading and a chunk grid. It opens
+  out of the minimap, turning north-up as it grows.
 - Waypoints (**B** for a new one, **U** for the list) with categories, colours, beams in the world, name and distance.
-  Right-click the map for a menu, double-click to set one.
+  Right-click the map for a menu, double-click to set one. New waypoints drop onto the map with a small bounce.
+  Waypoints outside the minimap show as small arrows on its edge, which pulse when a waypoint leaves the view.
 - Automatic waypoints for your death points and for your current respawn point (bed or respawn anchor).
+- **Death inventory:** hover a death waypoint on the map to see what you dropped, with valuable items first. Items you
+  pick up again are ticked off ("7/11 stacks back"). A timer shows when the rest despawns. It only runs while you are
+  near, because items only despawn while their chunk is loaded, and it also gives the earliest time in case the chunk
+  stayed loaded. A popup warns shortly before the despawn. The waypoint turns green when everything is back and grey
+  when the items are lost.
 - Waypoints appear in the vanilla locator bar above the hotbar, and other players there show as their heads. Look
   straight at one to see its name and distance.
 - Waypoints shared in chat in the Xaero format become clickable, and Xaero waypoints can be imported.
@@ -54,6 +61,15 @@ There is also a key for the HUD editor.
 - Name your traders in the trading screen. Traders are followed while they walk around nearby, and forgotten when
   they die or change jobs.
 
+### Pet memory
+- Remembers your wolves, cats, parrots and nautiluses (the ones you tamed), and the horses, donkeys, mules, llamas,
+  camels and happy ghasts you have ridden or opened, each with its name and where you last saw it.
+- They show on the map. Hover one to see its health, whether it sits or is leashed, and a horse's speed and jump
+  height.
+- Search them in the storage memory's **Pets** tab and click one to see it on the map.
+- When a pet dies, a popup tells you, and a grey grave with the death message stays on the map until you remove it.
+  Living pets breathe softly on the map, and a fresh grave rises from a little puff of dust.
+
 ### Furnace memory
 - Furnaces, blast furnaces, smokers and brewing stands you look into are remembered with an estimate of when they will
   be done.
@@ -67,26 +83,37 @@ There is also a key for the HUD editor.
 - **Info HUD:** pick your lines from coordinates (also in the other dimension), direction, biome, light level, time and
   day (with a hint when you can sleep), weather, FPS, ping, chunk, speed, real time and the targeted block. **F6**
   copies your coordinates.
+- **Phantom warning:** an info HUD line shows how long ago you last slept, from the second day on, with a
+  countdown to when phantoms can spawn. During the last day a small countdown appears on the HUD, and a popup tells you
+  once phantoms can come. Then little phantoms glide through the panel.
 - **Armour HUD** with durability, a low-durability warning and an arrow counter.
 - **Effect HUD** with remaining time, good and bad effects kept apart, and a warning before an effect runs out.
 - **Food HUD:** saturation, exhaustion, a preview of what eating restores, and the best food in your inventory.
 - **Resource tracker (K):** set collection goals and watch your progress, counting shulker boxes, bundles and nearby
   chests.
 - **Pickup log:** a small list like "+32 Cobblestone" that merges amounts and shows your total.
-- **Smooth hotbar:** gliding selection, a slightly enlarged selected item and slot numbers.
+- **Smooth hotbar:** gliding selection, a slightly enlarged selected item and slot numbers. A tool that breaks
+  shatters into shards in its slot.
 - **HUD animations:** lost health stays bright for a moment and then runs down, healed hearts pop, the experience bar
   fills smoothly with a counting, pulsing level and a "+7" for picked-up experience, shanks and armour pop and fade,
-  bubbles pop back, and boss bars glide and run down like the hearts.
+  bubbles pop back, and boss bars glide and run down like the hearts. A level up sends a beam of light up from the
+  level number, and at level 30 an enchanting table glows above it.
 
 ### Inventory
 - **Inventory tools:** search field (also searches tooltips and shulker contents), sort buttons or middle click to sort,
   and slot locks that protect items from being moved or dropped.
+- **Moving items:** in chests, barrels, shulker boxes and other storage, one button deposits everything the container
+  already holds some of, another tops up your stacks from it; the items fly over one after another. Hold Shift and drag
+  over slots to move them all at once.
 - **Shulker preview:** see the contents in the tooltip, as a panel while holding the box, and a fill bar.
 - **Map and book preview:** maps show their picture in the tooltip, with markers, your own position, scale, centre
   and distance. Written books and books and quills show a page (scroll to turn pages), and enchanted books a compact
   list of enchantments with their level. Hold Shift for a larger view.
 - **Rarity:** coloured frames for uncommon, rare and epic items, with optional pulse and shimmer.
 - **Inventory effects:** the carried item tilts and pops, slots squash and flash, items fly, with particles and sounds.
+- **Workstations and trading:** furnace flames and arrows move smoothly instead of in pixel steps and a finished item
+  glints. Results in the anvil, grindstone and smithing table land with a clonk and sparks, and the anvil's XP cost
+  counts up. Offers a villager unlocks slide into the list, and its level bar fills smoothly.
 - **Smooth GUIs:** inventories, menus and chat open with a short animation. Tooltips fade in, follow the mouse softly and glide from
   one item to the next. Lists, the chat, the creative inventory and the mod's own screens scroll smoothly, and recipe book
   pages slide in.
@@ -106,6 +133,9 @@ There is also a key for the HUD editor.
 - Timestamps, and repeated messages stacked as "×3".
 - Your name and your own keywords highlighted, with a sound.
 - Chat search (**Ctrl+F**) and right-click to copy a message.
+- Chat tabs: All, Chat, Private, Trade, System and your own tabs by keyword, with unread counts. The closed chat still
+  shows everything. In the Private tab, what you type goes to your last partner, and incoming private messages ping
+  and blink violet. The marker glides to the chosen tab, and counts hop when something new comes in.
 - Longer history that is kept when you disconnect.
 
 ### Toasts and player list

@@ -31,6 +31,7 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 
 	private static final int HALF_ITEM = 8;
 	private static final float SLOT_ANIM_SECONDS = 0.6f;
+	private static final int CLONK_SPARKS = 14;
 	private static final float MAX_TILT = 0.5f;
 	private static final float MOVE_PARTICLES_PER_PIXEL = 0.12f;
 
@@ -41,7 +42,7 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 	}
 
 	private enum SlotAnimType {
-		DROP, POP
+		DROP, POP, CLONK
 	}
 
 	private record SlotAnim(SlotAnimType type, long startMs) {
@@ -55,9 +56,11 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 	}
 
 	private final ScreenParticles particles = new ScreenParticles();
+	private final StationFx stations = new StationFx(this);
 	private final Map<Slot, SlotAnim> slotAnims = new WeakHashMap<>();
 	private final List<Ghost> ghosts = new ArrayList<>();
 	private List<ItemStack> beforeInput;
+	private List<ItemStack> batchBefore;
 	private final Random random = new Random();
 
 	private Object screen;
@@ -77,6 +80,28 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 
 	@Override
 	public void init() {
+		stations.init();
+	}
+
+	/** Furnace, anvil, grindstone and trading animations. */
+	public StationFx stations() {
+		return stations;
+	}
+
+	/** A result appearing in a workstation: it lands with a clonk and sparks fly. */
+	public void clonk(Slot slot) {
+		if (!isEnabled() || screen == null) {
+			return;
+		}
+		slotAnims.put(slot, new SlotAnim(SlotAnimType.CLONK, System.currentTimeMillis()));
+		if (config.particles) {
+			for (int i = 0; i < CLONK_SPARKS; i++) {
+				float side = random.nextBoolean() ? 1f : -1f;
+				int color = random.nextFloat() < 0.5f ? 0xFFFFD27A : 0xFFFFFFFF;
+				particles.spawn(screenX(slot) + side * 7f, screenY(slot) + 7f, side * (30f + random.nextFloat() * 50f),
+						-40f - random.nextFloat() * 60f, 15f, color, true, 0.45f, config.maxParticles);
+			}
+		}
 	}
 
 	@Override
@@ -260,8 +285,67 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 
 	// ---------------------------------------------------------------- shortcuts
 
+	/**
+	 * Starts a run of clicks that is animated as one move (deposit, restock): the single clicks are not animated, and
+	 * {@link #endBatch} lets the items fly. Returns false when flying items are off.
+	 */
+	public boolean beginBatch(AbstractContainerMenu menu) {
+		batchBefore = null;
+		if (!isEnabled() || !config.shortcutFx || !config.flyingItems || screen == null) {
+			return false;
+		}
+		batchBefore = new ArrayList<>(menu.slots.size());
+		for (Slot slot : menu.slots) {
+			batchBefore.add(slot.getItem().copy());
+		}
+		return true;
+	}
+
+	/**
+	 * Ends a run of clicks: every slot that gained an item gets one flying from a slot that lost the same item, one
+	 * after another {@code staggerMs} apart.
+	 */
+	public void endBatch(AbstractContainerMenu menu, int staggerMs) {
+		List<ItemStack> before = batchBefore;
+		batchBefore = null;
+		if (before == null || before.size() != menu.slots.size()) {
+			return;
+		}
+		List<Slot> lost = new ArrayList<>();
+		for (int i = 0; i < before.size(); i++) {
+			ItemStack old = before.get(i);
+			ItemStack now = menu.slots.get(i).getItem();
+			if (!old.isEmpty() && (!ItemStack.isSameItemSameComponents(old, now) || now.getCount() < old.getCount())) {
+				lost.add(menu.slots.get(i));
+			}
+		}
+		long start = System.currentTimeMillis();
+		int launched = 0;
+		for (int i = 0; i < before.size(); i++) {
+			Slot target = menu.slots.get(i);
+			ItemStack old = before.get(i);
+			ItemStack now = target.getItem();
+			if (now.isEmpty() || (ItemStack.isSameItemSameComponents(old, now) && now.getCount() <= old.getCount())) {
+				continue;
+			}
+			Slot source = lost.stream().filter(s -> ItemStack.isSameItemSameComponents(before.get(menu.slots.indexOf(s)), now))
+					.findFirst().orElse(null);
+			if (source == null) {
+				land(now, target);
+			} else {
+				ghosts.add(new Ghost(now.copyWithCount(1), source, target, old.isEmpty(), start + (long) launched * staggerMs));
+				launched++;
+			}
+		}
+	}
+
 	/** Remembers the slot contents before a container input, which the client applies locally right away. */
 	public void beforeInput(AbstractContainerMenu menu) {
+		if (batchBefore != null) {
+			// Part of a run of clicks animated as a whole.
+			beforeInput = null;
+			return;
+		}
 		if (!isEnabled() || !config.shortcutFx) {
 			beforeInput = null;
 			return;
@@ -361,7 +445,8 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 		Iterator<Ghost> it = ghosts.iterator();
 		while (it.hasNext()) {
 			Ghost ghost = it.next();
-			float t = (now - ghost.startMs()) / duration;
+			// Ghosts of a run of clicks wait in their slot until it is their turn.
+			float t = Math.max(0f, (now - ghost.startMs()) / duration);
 			if (t >= 1f) {
 				it.remove();
 				if (ghost.to() != null) {
@@ -442,6 +527,18 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 		float wave = (float) (Math.exp(-9 * t) * Math.cos(22 * t));
 		float sx;
 		float sy;
+		float cx = slot.x + HALF_ITEM;
+		float cy = slot.y + HALF_ITEM;
+		if (anim.type() == SlotAnimType.CLONK) {
+			// Lands with a thud: squashed flat at first, then rocks from side to side.
+			float rock = (float) (Math.exp(-7 * t) * Math.sin(28 * t));
+			float squash = 0.35f * (float) Math.exp(-14 * t);
+			g.pose().translate(cx, cy + 8);
+			g.pose().rotate(0.35f * rock);
+			g.pose().scale(1f + squash, 1f - squash);
+			g.pose().translate(-cx, -cy - 8);
+			return;
+		}
 		if (anim.type() == SlotAnimType.DROP) {
 			if (!config.dropSquash) {
 				return;
@@ -452,8 +549,6 @@ public final class InventoryFxFeature extends Feature<InventoryFxConfig> {
 		} else {
 			sx = sy = 1f + 0.25f * wave;
 		}
-		float cx = slot.x + HALF_ITEM;
-		float cy = slot.y + HALF_ITEM;
 		g.pose().translate(cx, cy);
 		g.pose().scale(sx, sy);
 		g.pose().translate(-cx, -cy);

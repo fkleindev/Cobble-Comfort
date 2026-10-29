@@ -6,6 +6,7 @@ import dev.cobblecomfort.features.fullbright.FullbrightFeature;
 import dev.cobblecomfort.features.infohud.InfoHudFeature;
 import dev.cobblecomfort.features.lookinfo.LookInfoFeature;
 import dev.cobblecomfort.features.map.MapFeature;
+import dev.cobblecomfort.features.phantom.PhantomFeature;
 import dev.cobblecomfort.features.pickup.PickupLogFeature;
 import dev.cobblecomfort.features.shulker.ShulkerPreviewFeature;
 import dev.cobblecomfort.features.tracker.TrackerFeature;
@@ -63,6 +64,9 @@ public final class HudElements {
 	/** Not vanilla: the coordinates and info panel of {@link InfoHudFeature}. */
 	public static final HudElementDef INFO_HUD = add("info_hud", Anchor.TOP_LEFT,
 			(w, h) -> InfoHudFeature.INSTANCE.defaultBounds(w, h), null, InfoHudFeature.LAYER_ID);
+	/** Not vanilla: the phantom countdown of {@link PhantomFeature}. */
+	public static final HudElementDef PHANTOM = add("phantom", Anchor.TOP_LEFT,
+			(w, h) -> PhantomFeature.INSTANCE.defaultBounds(w, h), null, PhantomFeature.LAYER_ID);
 	/** Not vanilla: the minimap of {@link MapFeature}. */
 	public static final HudElementDef MINIMAP = add("minimap", Anchor.TOP_RIGHT,
 			(w, h) -> MapFeature.INSTANCE.defaultBounds(w, h), null, MapFeature.LAYER_ID);

@@ -3,6 +3,10 @@ package dev.cobblecomfort.features.map;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
+import dev.cobblecomfort.features.hud.HudCustomizerFeature;
+import dev.cobblecomfort.features.hud.HudElementConfig;
+import dev.cobblecomfort.features.hud.HudElements;
+import dev.cobblecomfort.features.hud.HudLayout;
 import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.map.data.MapLayer;
@@ -25,6 +29,7 @@ import dev.cobblecomfort.features.map.render.MapUi;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import dev.cobblecomfort.features.map.render.MinimapRenderer;
+import dev.cobblecomfort.features.map.render.WaypointAnim;
 import dev.cobblecomfort.features.map.screen.MapScreen;
 import dev.cobblecomfort.features.map.screen.WaypointEditScreen;
 import dev.cobblecomfort.features.map.screen.WaypointListScreen;
@@ -33,6 +38,10 @@ import dev.cobblecomfort.features.map.waypoint.WaypointStore;
 import dev.cobblecomfort.features.map.waypoint.RespawnTracker;
 import dev.cobblecomfort.features.map.waypoint.XaeroImport;
 import dev.cobblecomfort.features.map.waypoint.XaeroChat;
+import dev.cobblecomfort.features.map.death.DeathInventory;
+import dev.cobblecomfort.features.map.death.DeathTooltip;
+import dev.cobblecomfort.features.tracker.TrackerStorage;
+import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
 import dev.cobblecomfort.features.furnace.FurnaceEntry;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
 import dev.cobblecomfort.features.storage.StorageFeature;
@@ -64,6 +73,8 @@ import org.joml.Matrix3x2fStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /** World map (M), minimap, waypoints with beams, death points and Xaero chat/import compatibility. */
 public final class MapFeature extends Feature<MapConfig> {
@@ -80,7 +91,6 @@ public final class MapFeature extends Feature<MapConfig> {
 	private static final float FADE_MIN = 0.3f;
 	private static final float LABEL_TEXT = 0.7f;
 	/** Waypoints outside the minimap, clamped to its edge, are drawn this much smaller and fainter. */
-	private static final float FAR_WAYPOINT_SCALE = 0.75f;
 	private static final float FAR_WAYPOINT_ALPHA = 0.75f;
 	private static final float BEAM_HALF_WIDTH = 0.15f;
 	private static final float BEAM_HEIGHT = 256f;
@@ -91,9 +101,13 @@ public final class MapFeature extends Feature<MapConfig> {
 	private final MapWorld world = new MapWorld();
 	private final WaypointStore waypoints = new WaypointStore();
 	private final RespawnTracker respawn = new RespawnTracker(waypoints);
+	private final DeathInventory deaths = new DeathInventory(waypoints);
 	private final MinimapRenderer minimap = new MinimapRenderer();
 	private final MovementTrail trail = new MovementTrail();
 	private final PositionSync sync = new PositionSync();
+	/** Whether each waypoint was inside the minimap last frame, and when it last left it (for the edge arrow pulse). */
+	private final Map<Waypoint, Boolean> insideMinimap = new WeakHashMap<>();
+	private final Map<Waypoint, Long> leftMinimap = new WeakHashMap<>();
 	private KeyMapping mapKey;
 	private KeyMapping waypointKey;
 	private KeyMapping listKey;
@@ -117,6 +131,7 @@ public final class MapFeature extends Feature<MapConfig> {
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
 			world.join();
 			waypoints.load();
+			deaths.load(TrackerStorage.currentWorldKey(), handler.registryAccess(), mc.hasSingleplayerServer());
 			detected.load(world.worldKey());
 			finder.clear();
 			if (config.importXaero && !waypoints.xaeroImported()) {
@@ -127,6 +142,7 @@ public final class MapFeature extends Feature<MapConfig> {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
 			mc.execute(sync::clear);
 			world.leave();
+			deaths.unload();
 			waypoints.unload();
 			detected.unload();
 			trail.clear();
@@ -155,6 +171,7 @@ public final class MapFeature extends Feature<MapConfig> {
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
 		HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, LAYER_ID, (g, delta) -> drawMinimap(g));
 		XaeroChat.register();
+		ClientTooltipComponentCallback.EVENT.register(data -> data instanceof DeathTooltip.Data death ? new DeathTooltip(death) : null);
 		world.setScanListener((chunk, level) -> {
 			if (config.structures && config.structuresDetected) {
 				detected.scan(chunk, dimensionId(level));
@@ -187,6 +204,10 @@ public final class MapFeature extends Feature<MapConfig> {
 
 	public WaypointStore waypoints() {
 		return waypoints;
+	}
+
+	public DeathInventory deaths() {
+		return deaths;
 	}
 
 	/** Converts a world coordinate to a screen coordinate on the full map. */
@@ -345,6 +366,19 @@ public final class MapFeature extends Feature<MapConfig> {
 		return level.dimension().identifier().toString();
 	}
 
+	/** Whether the server ticks this block now: same dimension, loaded and within the simulation distance. */
+	public static boolean simulated(Minecraft mc, String dimension, int x, int z) {
+		LocalPlayer player = mc.player;
+		ClientLevel level = mc.level;
+		if (player == null || level == null || !dimension.equals(dimensionId(level)) || !level.hasChunk(x >> 4, z >> 4)) {
+			return false;
+		}
+		int distance = level.getServerSimulationDistance();
+		int dx = Math.abs((x >> 4) - player.chunkPosition().x());
+		int dz = Math.abs((z >> 4) - player.chunkPosition().z());
+		return distance <= 0 || Math.max(dx, dz) <= distance;
+	}
+
 	// ---------------------------------------------------------------- tick
 
 	private void tick(Minecraft mc) {
@@ -373,6 +407,9 @@ public final class MapFeature extends Feature<MapConfig> {
 		}
 		trail.tick(dimensionId(mc.level), player.getX(), player.getZ());
 		recordDeath(mc, player);
+		if (config.deathInventory) {
+			deaths.tick(mc, config);
+		}
 		if (config.waypoints && config.respawnWaypoint) {
 			respawn.tick(mc, player, dimensionId(mc.level), mc.gui.screen() instanceof DeathScreen || player.isDeadOrDying());
 		}
@@ -389,6 +426,7 @@ public final class MapFeature extends Feature<MapConfig> {
 			death.color = 12;
 			death.initials = "✝";
 			waypoints.addDeath(death, config.maxDeathWaypoints);
+			deaths.attach(death, player);
 		} else if (!dead) {
 			deathRecorded = false;
 		}
@@ -434,6 +472,30 @@ public final class MapFeature extends Feature<MapConfig> {
 		int size = config.minimapSize;
 		int text = (config.minimapCoords ? TEXT_LINE : 0) + (config.minimapBiome ? TEXT_LINE : 0);
 		return new Rect(width - size - MARGIN, MARGIN, size, size + text + (text > 0 ? 2 : 0));
+	}
+
+	/**
+	 * Where the minimap's map square is on screen right now (moved and scaled by the HUD editor), or null when it is
+	 * not shown. The full map opens out of it.
+	 */
+	public Rect minimapRect(float width, float height) {
+		Minecraft mc = Minecraft.getInstance();
+		if (!isEnabled() || !config.minimap || mc.gui.hud.isHidden() || mc.debugEntries.isOverlayVisible()) {
+			return null;
+		}
+		Rect bounds = defaultBounds(width, height);
+		Rect square = new Rect(bounds.x(), bounds.y(), config.minimapSize, config.minimapSize);
+		HudCustomizerFeature hud = HudCustomizerFeature.INSTANCE;
+		if (!hud.isEnabled()) {
+			return square;
+		}
+		HudElementConfig cfg = hud.config().element(HudElements.MINIMAP);
+		return cfg.visible ? HudLayout.place(HudElements.MINIMAP, cfg, width, height).toScreen(square) : null;
+	}
+
+	/** The minimap's rotation against north-up, in radians (0 when it does not rotate). */
+	public float minimapRotation(float yaw) {
+		return config.rotateMinimap ? (float) -(Math.toRadians(yaw) + Math.PI) : 0f;
 	}
 
 	/** Width the minimap takes at the top right, so other top-right elements can step aside. */
@@ -526,24 +588,32 @@ public final class MapFeature extends Feature<MapConfig> {
 			float[] s = clampToEdge(toScreen(center.x - player.getX(), center.z - player.getZ(), fx, fz, rx, rz), zoom, radius - 7);
 			MapMarkers.badge(g, container.icon(), cx + s[0], cy + s[1], true, highlight);
 		}
-		// Waypoints: markers at their place; outside clamped to the edge (the tip points at the edge), smaller, fainter
-		// and with their distance, so they stand apart from the ones that are really there.
+		// Waypoints: markers at their place; outside only a small arrow in their colour on the edge pointing their way,
+		// or nothing if switched off.
 		if (config.waypoints && waypoints.loaded()) {
+			long now = System.currentTimeMillis();
 			for (Waypoint waypoint : waypoints.visible(dimensionId(level))) {
-				double ox = waypoint.x + 0.5 - player.getX();
-				double oz = waypoint.z + 0.5 - player.getZ();
-				float[] offset = toScreen(ox, oz, fx, fz, rx, rz);
-				boolean far = !inside(offset[0] * zoom, offset[1] * zoom, radius - 4);
-				float[] s = clampToEdge(offset, zoom, radius - 4);
-				float x = cx + s[0];
-				float y = cy + s[1];
-				MapMarkers.waypoint(g, font, waypoint, x, y, far ? FAR_WAYPOINT_ALPHA : 1f, true, far ? FAR_WAYPOINT_SCALE : 1f);
-				if (far) {
-					// Below the tip in the upper half, above the marker in the lower half, so it stays on the map.
-					int markerHeight = Math.round(MapMarkers.waypointHeight(true) * FAR_WAYPOINT_SCALE);
-					int ty = s[1] <= 0 ? Math.round(y) + 1 : Math.round(y) - markerHeight - 10;
-					MapUi.label(g, font, Component.literal(formatDistance(Math.sqrt(ox * ox + oz * oz))), Math.round(x), ty,
-							RenderUtil.withAlpha(MapUi.TEXT, FAR_WAYPOINT_ALPHA), 0.5f, 0x90101318);
+				float[] offset = toScreen(waypoint.x + 0.5 - player.getX(), waypoint.z + 0.5 - player.getZ(), fx, fz, rx, rz);
+				boolean inView = inside(offset[0] * zoom, offset[1] * zoom, radius - 4);
+				// Leaving the view starts the edge arrow's pulse (not when it was never inside).
+				Boolean before = insideMinimap.put(waypoint, inView);
+				if (!inView && Boolean.TRUE.equals(before)) {
+					leftMinimap.put(waypoint, now);
+				}
+				if (inView) {
+					float x = cx + offset[0] * zoom;
+					float y = cy + offset[1] * zoom;
+					if (config.mapAnimations) {
+						WaypointAnim.impact(g, waypoint, x, y, now, 0.7f);
+						y += WaypointAnim.dropOffset(waypoint, now) * 0.7f;
+					}
+					MapMarkers.waypoint(g, font, waypoint, x, y, 1f, true, 1f);
+				} else if (config.minimapEdgeWaypoints) {
+					float[] s = clampToEdge(offset, zoom, radius - 5);
+					int color = waypoint.rgb() | 0xFF000000;
+					long left = config.mapAnimations ? leftMinimap.getOrDefault(waypoint, 0L) : 0L;
+					WaypointAnim.pulseRing(g, cx + s[0], cy + s[1], left, now, color);
+					MapMarkers.edgeArrow(g, cx + s[0], cy + s[1], s[0], s[1], color, WaypointAnim.pulse(left, now));
 				}
 			}
 		}

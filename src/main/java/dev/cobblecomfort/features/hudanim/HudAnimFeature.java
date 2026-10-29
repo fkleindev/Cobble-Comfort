@@ -11,6 +11,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.joml.Matrix3x2fStack;
 
 import java.util.HashMap;
@@ -39,6 +41,12 @@ public final class HudAnimFeature extends Feature<HudAnimConfig> {
 	private static final float LEVEL_PULSE_SECONDS = 0.45f;
 	private static final float LEVEL_PULSE = 0.45f;
 	private static final float XP_FLASH_SECONDS = 0.5f;
+	/** Level up: a light beam rising from the level number; at 30, an enchanting table glows next to it. */
+	private static final float BEAM_SECONDS = 0.9f;
+	private static final float BEAM_HEIGHT = 46f;
+	private static final int ENCHANT_LEVEL = 30;
+	private static final float ENCHANT_HINT_SECONDS = 4f;
+	private static final int ENCHANT_GLOW = 0xFFB070FF;
 	private static final long XP_GAIN_WINDOW_MS = 1500;
 	private static final float XP_GAIN_RISE = 10f;
 	private static final float XP_GAIN_SCALE = 0.75f;
@@ -68,6 +76,8 @@ public final class HudAnimFeature extends Feature<HudAnimConfig> {
 	private double xpShown = -1;
 	private int levelShown = -1;
 	private long levelUpAt;
+	/** When the level reached 30, for the enchanting table hint. */
+	private long enchantReadyAt;
 	private int lastTotal = -1;
 	private int gain;
 	private long gainAt;
@@ -297,6 +307,9 @@ public final class HudAnimFeature extends Feature<HudAnimConfig> {
 		int level = (int) Math.floor(xpShown + 1e-6);
 		if (level > levelShown) {
 			levelUpAt = now;
+			if (levelShown < ENCHANT_LEVEL && level >= ENCHANT_LEVEL) {
+				enchantReadyAt = now;
+			}
 		}
 		levelShown = level;
 		if (player.totalExperience > lastTotal) {
@@ -342,9 +355,13 @@ public final class HudAnimFeature extends Feature<HudAnimConfig> {
 		if (shown <= 0) {
 			return;
 		}
+		if (config.levelBeam) {
+			drawBeam(g);
+		}
 		float t = config.levelPulse ? since(levelUpAt, seconds(LEVEL_PULSE_SECONDS)) : -1f;
 		if (t < 0f) {
 			draw.accept(shown);
+			drawEnchantHint(g, shown);
 			return;
 		}
 		float scale = 1f + LEVEL_PULSE * (float) Math.sin(Math.PI * t);
@@ -356,6 +373,46 @@ public final class HudAnimFeature extends Feature<HudAnimConfig> {
 		pose.scale(scale);
 		pose.translate(-cx, -cy);
 		draw.accept(shown);
+		pose.popMatrix();
+		drawEnchantHint(g, shown);
+	}
+
+	/** A soft column of light rising from the level number and fading, wider at the bottom. */
+	private void drawBeam(GuiGraphicsExtractor g) {
+		float t = since(levelUpAt, seconds(BEAM_SECONDS));
+		if (t < 0f) {
+			return;
+		}
+		int cx = g.guiWidth() / 2;
+		int bottom = levelY(g) + 4;
+		float rise = 1f - (1f - t) * (1f - t);
+		int top = Math.round(bottom - BEAM_HEIGHT * rise);
+		float alpha = t < 0.15f ? t / 0.15f : 1f - (t - 0.15f) / 0.85f;
+		int core = RenderUtil.withAlpha(0xFFFFFFE0, 0.85f * alpha);
+		int glow = RenderUtil.withAlpha(XP_COLOR, 0.45f * alpha);
+		int half = 1 + Math.round(3 * (1f - t));
+		g.fillGradient(cx - half - 3, top, cx + half + 3, bottom, 0, glow);
+		g.fillGradient(cx - half, top, cx + half, bottom, 0, core);
+	}
+
+	/** At level 30 a small enchanting table glows above the level number for a few seconds. */
+	private void drawEnchantHint(GuiGraphicsExtractor g, int level) {
+		float t = config.levelBeam ? since(enchantReadyAt, seconds(ENCHANT_HINT_SECONDS)) : -1f;
+		if (t < 0f || level < ENCHANT_LEVEL) {
+			return;
+		}
+		float fade = Math.min(1f, Math.min(t * 6f, (1f - t) * 4f));
+		// Above the number, in the gap between hearts and food.
+		float x = g.guiWidth() / 2f;
+		float y = levelY(g) - 6f;
+		float pulse = 0.5f + 0.5f * (float) Math.sin(t * Math.PI * 6);
+		int glow = RenderUtil.withAlpha(ENCHANT_GLOW, (0.4f + 0.4f * pulse) * fade);
+		RenderUtil.roundedFill(g, Math.round(x - 8), Math.round(y - 8), Math.round(x + 8), Math.round(y + 8), 6, glow);
+		Matrix3x2fStack pose = g.pose();
+		pose.pushMatrix();
+		pose.translate(x, y - 2f * (float) Math.sin(Math.PI * Math.min(1f, t * 4f)));
+		pose.scale(0.75f * (0.7f + 0.3f * fade));
+		g.item(new ItemStack(Items.ENCHANTING_TABLE), -8, -8);
 		pose.popMatrix();
 	}
 

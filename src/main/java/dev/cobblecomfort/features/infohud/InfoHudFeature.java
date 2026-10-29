@@ -5,6 +5,7 @@ import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.phantom.PhantomFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -147,6 +148,7 @@ public final class InfoHudFeature extends Feature<InfoHudConfig> {
 						.append(Component.translatable("cobblecomfort.info.speed_unit"));
 				case REAL_TIME -> Component.literal(String.format("%tH:%<tM", LocalTime.now()));
 				case TARGET -> target(mc);
+				case REST -> PhantomFeature.INSTANCE.infoValue(mc, config.colorValues);
 			};
 			rows.add(new Row(entry, Component.translatable("cobblecomfort.info.label." + entry.name().toLowerCase(Locale.ROOT)), value));
 		}

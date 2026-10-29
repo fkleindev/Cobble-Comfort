@@ -41,6 +41,14 @@ public final class InventoryToolsConfigUi {
 								() -> c(feature).sortAnimation, v -> c(feature).sortAnimation = v))
 						.build())
 				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.invtools.transfer"))
+						.option(Opts.bool("invtools.transfer_buttons", d.transferButtons,
+								() -> c(feature).transferButtons, v -> c(feature).transferButtons = v))
+						.option(Opts.bool("invtools.deposit_hotbar", d.depositHotbar,
+								() -> c(feature).depositHotbar, v -> c(feature).depositHotbar = v))
+						.option(Opts.bool("invtools.shift_drag", d.shiftDrag, () -> c(feature).shiftDrag, v -> c(feature).shiftDrag = v))
+						.build())
+				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.invtools.locks"))
 						.option(Opts.bool("invtools.locks", d.locks, () -> c(feature).locks, v -> c(feature).locks = v))
 						.option(Opts.bool("invtools.lock_protection", d.lockProtection,

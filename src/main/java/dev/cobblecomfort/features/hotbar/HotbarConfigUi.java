@@ -53,6 +53,8 @@ public final class HotbarConfigUi {
 								() -> c(feature).switchParticles, v -> c(feature).switchParticles = v))
 						.option(Opts.intSlider("hotbar.particle_count", d.particleCount, 2, 16, 1,
 								() -> c(feature).particleCount, v -> c(feature).particleCount = v))
+						.option(Opts.bool("hotbar.break_shatter", d.breakShatter,
+								() -> c(feature).breakShatter, v -> c(feature).breakShatter = v))
 						.build())
 				.build();
 	}

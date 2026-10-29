@@ -3,11 +3,13 @@ package dev.cobblecomfort.features.chat;
 import com.google.common.collect.MapMaker;
 import com.mojang.authlib.GameProfile;
 import dev.cobblecomfort.core.Feature;
+import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.mixin.ChatComponentAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -16,6 +18,7 @@ import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.multiplayer.chat.GuiMessageSource;
 import net.minecraft.client.multiplayer.chat.GuiMessageTag;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MessageSignature;
@@ -55,10 +58,11 @@ public final class ChatFeature extends Feature<ChatConfig> {
 	private static final int SEARCH_HEIGHT = 14;
 
 	/** What a decorated message was before decorating, keyed by identity (records compare by value). */
-	private record Entry(String raw, UUID sender, String senderName, int count) {
+	private record Entry(String raw, UUID sender, String senderName, int count, ChatTabs.Sorting sorting, long added) {
 	}
 
 	private final Map<GuiMessage, Entry> entries = new MapMaker().weakKeys().makeMap();
+	private final ChatTabs tabs = new ChatTabs(this);
 	private GameProfile pendingSender;
 	private String search = "";
 	private int searchHits;
@@ -102,6 +106,7 @@ public final class ChatFeature extends Feature<ChatConfig> {
 			return true;
 		}
 		String raw = content.getString();
+		ChatTabs.Sorting sorting = tabs.sort(source, content, raw);
 		GameProfile sender = sender(source, raw);
 		UUID senderId = sender == null ? null : sender.id();
 
@@ -149,16 +154,30 @@ public final class ChatFeature extends Feature<ChatConfig> {
 		}
 
 		GuiMessage message = new GuiMessage(ticks, line, signature, source, tag);
-		entries.put(message, new Entry(raw, senderId, sender == null ? null : sender.name(), count));
+		entries.put(message, new Entry(raw, senderId, sender == null ? null : sender.name(), count, sorting, System.currentTimeMillis()));
 		access.cobblecomfort$log(plain);
-		if (matchesSearch(message)) {
+		boolean shown = isShown(message);
+		if (shown) {
 			access.cobblecomfort$addToDisplay(message);
 		}
 		access.cobblecomfort$addToHistory(message);
-		if (!search.isEmpty() && matchesSearch(message)) {
+		if (!search.isEmpty() && shown) {
 			searchHits++;
 		}
+		tabs.onAdded(sorting, count > 1);
 		return true;
+	}
+
+	/** The chat type of the player message being shown right now, for sorting private messages. */
+	public void setPendingType(ChatType.Bound bound) {
+		tabs.setPendingType(bound);
+	}
+
+	/** A disguised message (no signed sender) with its chat type, shown now or a little later. */
+	public void onDisguised(Component message, ChatType.Bound bound) {
+		if (isEnabled()) {
+			tabs.addDisguised(bound.decorate(message), bound);
+		}
 	}
 
 	/** The signed sender, or (for plugin-formatted chat) the online player whose name comes first in the text. */
@@ -189,7 +208,7 @@ public final class ChatFeature extends Feature<ChatConfig> {
 	}
 
 	/** First occurrence of {@code word} in {@code text} that is not part of a longer name, or -1. */
-	private static int wordIndex(String text, String word) {
+	static int wordIndex(String text, String word) {
 		int from = 0;
 		while (true) {
 			int index = text.indexOf(word, from);
@@ -301,24 +320,87 @@ public final class ChatFeature extends Feature<ChatConfig> {
 		return text.toLowerCase(Locale.ROOT).contains(search);
 	}
 
+	/** Whether a message is in the chat display: it matches the search and, while the chat is open, the tab. */
+	public boolean isShown(GuiMessage message) {
+		if (!matchesSearch(message)) {
+			return false;
+		}
+		Entry entry = entries.get(message);
+		return tabs.shows(entry == null ? null : entry.sorting);
+	}
+
 	public void setSearch(String value) {
 		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
 		if (normalized.equals(search)) {
 			return;
 		}
 		search = normalized;
+		refresh();
+	}
+
+	/** Rebuilds the chat display after the search or the tab changed. */
+	void refresh() {
 		ChatComponent chat = Minecraft.getInstance().gui.hud.getChat();
 		ChatComponentAccessor access = (ChatComponentAccessor) chat;
 		searchHits = 0;
 		if (!search.isEmpty()) {
 			for (GuiMessage message : access.cobblecomfort$allMessages()) {
-				if (matchesSearch(message)) {
+				if (isShown(message)) {
 					searchHits++;
 				}
 			}
 		}
 		access.cobblecomfort$refresh();
 		chat.resetChatScroll();
+	}
+
+	// ---------------------------------------------------------------- tabs
+
+	public boolean tabsEnabled() {
+		return isEnabled() && config.tabs;
+	}
+
+	public void setChatOpen(boolean open) {
+		if (isEnabled()) {
+			tabs.setOpen(open);
+		}
+	}
+
+	public String rewriteInput(String message) {
+		return isEnabled() ? tabs.rewriteInput(message) : message;
+	}
+
+	public void drawTabs(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, int screenHeight, int right) {
+		if (isEnabled()) {
+			tabs.draw(g, font, mouseX, mouseY, screenHeight, right);
+		}
+	}
+
+	public boolean clickTab(double mouseX, double mouseY) {
+		return isEnabled() && tabs.click(mouseX, mouseY);
+	}
+
+	/** The id of the selected tab ("all", "chat", "private", "trade", "system" or "custom:Name"). */
+	public String selectedTab() {
+		return tabs.selected();
+	}
+
+	/** The background of a chat line: a new incoming private message blinks violet twice. */
+	public int lineBackground(GuiMessage.Line line, int color) {
+		if (!isEnabled()) {
+			return color;
+		}
+		Entry entry = entries.get(line.parent());
+		if (entry == null || entry.sorting == null || entry.sorting.category() != ChatTabs.Category.PRIVATE || !entry.sorting.incoming()) {
+			return color;
+		}
+		float flash = ChatTabs.flash(System.currentTimeMillis() - entry.added);
+		if (flash <= 0f) {
+			return color;
+		}
+		int alpha = color >>> 24;
+		int blended = RenderUtil.lerpColor(color | 0xFF000000, ChatTabs.PRIVATE_COLOR, Math.min(1f, 1.3f * flash));
+		return (Math.max(alpha, Math.round(0xD0 * flash)) << 24) | (blended & 0xFFFFFF);
 	}
 
 	public String search() {

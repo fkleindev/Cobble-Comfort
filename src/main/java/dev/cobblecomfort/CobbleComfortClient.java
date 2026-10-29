@@ -25,6 +25,8 @@ import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.features.pickup.PickupLogFeature;
 import dev.cobblecomfort.features.preview.ItemPreviewFeature;
 import dev.cobblecomfort.features.storage.StorageFeature;
+import dev.cobblecomfort.features.pets.PetFeature;
+import dev.cobblecomfort.features.phantom.PhantomFeature;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.toasts.ToastsFeature;
 import dev.cobblecomfort.features.transitions.TransitionsFeature;
@@ -74,6 +76,7 @@ public class CobbleComfortClient implements ClientModInitializer {
 		FeatureManager.register(InfoHudFeature.INSTANCE);
 		FeatureManager.register(MapFeature.INSTANCE);
 		FeatureManager.register(PickupLogFeature.INSTANCE);
+		FeatureManager.register(PhantomFeature.INSTANCE);
 		FeatureManager.register(HudCustomizerFeature.INSTANCE);
 		FeatureManager.register(RarityFeature.INSTANCE);
 		FeatureManager.register(InventoryFxFeature.INSTANCE);
@@ -91,6 +94,7 @@ public class CobbleComfortClient implements ClientModInitializer {
 		FeatureManager.register(StorageFeature.INSTANCE);
 		FeatureManager.register(FurnaceFeature.INSTANCE);
 		FeatureManager.register(TradeFeature.INSTANCE);
+		FeatureManager.register(PetFeature.INSTANCE);
 		FeatureManager.register(ChatFeature.INSTANCE);
 		FeatureManager.init();
 

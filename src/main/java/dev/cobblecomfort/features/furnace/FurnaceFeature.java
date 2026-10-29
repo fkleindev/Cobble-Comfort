@@ -292,15 +292,7 @@ public final class FurnaceFeature extends Feature<FurnaceConfig> {
 
 	/** Whether the server ticks this block now: same dimension and within the simulation distance. */
 	private static boolean simulated(Minecraft mc, FurnaceEntry entry) {
-		LocalPlayer player = mc.player;
-		ClientLevel level = mc.level;
-		if (player == null || level == null || !entry.dimension.equals(MapFeature.dimensionId(level)) || !level.isLoaded(entry.pos())) {
-			return false;
-		}
-		int distance = level.getServerSimulationDistance();
-		int dx = Math.abs((entry.x >> 4) - player.chunkPosition().x());
-		int dz = Math.abs((entry.z >> 4) - player.chunkPosition().z());
-		return distance <= 0 || Math.max(dx, dz) <= distance;
+		return MapFeature.simulated(mc, entry.dimension, entry.x, entry.z);
 	}
 
 	private void finish(Minecraft mc, FurnaceEntry entry) {

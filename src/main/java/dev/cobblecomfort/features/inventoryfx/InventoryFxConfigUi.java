@@ -41,6 +41,11 @@ public final class InventoryFxConfigUi {
 						.option(Opts.intSlider("invfx.fly_arc", d.flyArc, 0, 40, 2, () -> c(feature).flyArc, v -> c(feature).flyArc = v))
 						.build())
 				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.invfx.stations"))
+						.option(Opts.bool("invfx.stations", d.stations, () -> c(feature).stations, v -> c(feature).stations = v))
+						.option(Opts.bool("invfx.trading", d.trading, () -> c(feature).trading, v -> c(feature).trading = v))
+						.build())
+				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.invfx.particles"))
 						.option(Opts.bool("invfx.particles", d.particles, () -> c(feature).particles, v -> c(feature).particles = v))
 						.option(Opts.enumOpt("invfx.particle_style", ParticleStyle.class, d.particleStyle,

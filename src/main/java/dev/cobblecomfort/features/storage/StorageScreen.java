@@ -6,6 +6,9 @@ import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import dev.cobblecomfort.features.invtools.ItemSearch;
 import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.features.map.screen.MapScreen;
+import dev.cobblecomfort.features.pets.PetEntry;
+import dev.cobblecomfort.features.pets.PetFeature;
+import dev.cobblecomfort.features.pets.PetTab;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.trade.TradeTab;
@@ -30,7 +33,8 @@ import java.util.Map;
 
 /**
  * Searches the remembered containers. "Items" sums up everything stored; "Containers" lists where matching items are;
- * "Traders" lists remembered villagers and wandering traders with matching offers (see {@link TradeTab}).
+ * "Traders" lists remembered villagers and wandering traders with matching offers (see {@link TradeTab}); "Pets" lists
+ * remembered pets and mounts (see {@link PetTab}).
  * Clicking a container marks it in the world, right-clicking shows it on the map.
  */
 public class StorageScreen extends Screen {
@@ -46,7 +50,7 @@ public class StorageScreen extends Screen {
 	private static final int ROW_HOVER = 0x30FFFFFF;
 
 	private enum Mode {
-		ITEMS, CONTAINERS, TRADERS
+		ITEMS, CONTAINERS, TRADERS, PETS
 	}
 
 	/** One summed-up item for the overview. */
@@ -84,8 +88,10 @@ public class StorageScreen extends Screen {
 	private Button itemsTab;
 	private Button containersTab;
 	private Button tradersTab;
+	private Button petsTab;
 	private Button markAllButton;
 	private final TradeTab tradeTab = new TradeTab();
+	private final PetTab petTab = new PetTab();
 	private Mode mode;
 	private ItemStack selected;
 	private int left, top, panelWidth, panelHeight;
@@ -115,11 +121,14 @@ public class StorageScreen extends Screen {
 		top = 10;
 		String value = box == null ? initialQuery : box.getValue();
 		boolean traders = TradeFeature.INSTANCE.active();
-		if (!traders && mode == Mode.TRADERS) {
+		boolean pets = PetFeature.INSTANCE.active();
+		if (!traders && mode == Mode.TRADERS || !pets && mode == Mode.PETS) {
 			mode = Mode.ITEMS;
 		}
-		int tabs = traders ? 3 : 2;
-		box = new EditBox(font, left + 8, top + 8, panelWidth - 16 - tabs * 74 - 8, 16, Component.translatable("cobblecomfort.storage.search"));
+		int tabs = 2 + (traders ? 1 : 0) + (pets ? 1 : 0);
+		// Narrower tabs when there are four, so the search field keeps some room.
+		int tab = tabs > 3 ? 62 : 74;
+		box = new EditBox(font, left + 8, top + 8, panelWidth - 16 - tabs * tab - 8, 16, Component.translatable("cobblecomfort.storage.search"));
 		box.setHint(Component.translatable("cobblecomfort.invtools.search_hint").withColor(0xFF808080));
 		box.setMaxLength(50);
 		box.setValue(value);
@@ -129,12 +138,18 @@ public class StorageScreen extends Screen {
 			updateTabs();
 		});
 		addRenderableWidget(box);
+		int tabX = left + panelWidth - 8 - tabs * tab + 4;
 		itemsTab = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.items"), b -> setMode(Mode.ITEMS))
-				.bounds(left + panelWidth - 8 - tabs * 74 + 4, top + 6, 70, 20).build());
+				.bounds(tabX, top + 6, tab - 4, 20).build());
+		tabX += tab;
 		containersTab = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.containers"),
-				b -> setMode(Mode.CONTAINERS)).bounds(left + panelWidth - 8 - (tabs - 1) * 74 + 4, top + 6, 70, 20).build());
+				b -> setMode(Mode.CONTAINERS)).bounds(tabX, top + 6, tab - 4, 20).build());
+		tabX += tab;
 		tradersTab = traders ? addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.traders"),
-				b -> setMode(Mode.TRADERS)).bounds(left + panelWidth - 8 - 74 + 4, top + 6, 70, 20).build()) : null;
+				b -> setMode(Mode.TRADERS)).bounds(tabX, top + 6, tab - 4, 20).build()) : null;
+		tabX += traders ? tab : 0;
+		petsTab = pets ? addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mode.pets"),
+				b -> setMode(Mode.PETS)).bounds(tabX, top + 6, tab - 4, 20).build()) : null;
 		markAllButton = addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.storage.mark_all"), b -> markAll())
 				.bounds(left + panelWidth - 8 - 110, top + panelHeight - FOOTER + 4, 110, 18).build());
 		setInitialFocus(box);
@@ -157,6 +172,9 @@ public class StorageScreen extends Screen {
 			if (tradersTab != null) {
 				tradersTab.active = mode != Mode.TRADERS;
 			}
+			if (petsTab != null) {
+				petsTab.active = mode != Mode.PETS;
+			}
 			markAllButton.visible = mode == Mode.CONTAINERS;
 		}
 	}
@@ -170,6 +188,10 @@ public class StorageScreen extends Screen {
 	private void rebuildIfNeeded() {
 		if (mode == Mode.TRADERS) {
 			tradeTab.rebuild(box.getValue());
+			return;
+		}
+		if (mode == Mode.PETS) {
+			petTab.rebuild(box.getValue());
 			return;
 		}
 		StorageStore store = feature().store();
@@ -282,6 +304,10 @@ public class StorageScreen extends Screen {
 		minecraft.gui.setScreen(new MapScreen(null, merchant.x, merchant.z, merchant.dimension));
 	}
 
+	private void showOnMap(PetEntry pet) {
+		minecraft.gui.setScreen(new MapScreen(null, pet.x, pet.z, pet.dimension));
+	}
+
 	private void showOnMap(StoredContainer container) {
 		if (container.located()) {
 			feature().highlight(List.of(container));
@@ -308,7 +334,7 @@ public class StorageScreen extends Screen {
 		if (mode == Mode.ITEMS) {
 			return (totals.size() + columns() - 1) / columns() * CELL;
 		}
-		return (mode == Mode.TRADERS ? tradeTab.results().size() : results.size()) * ROW;
+		return (mode == Mode.TRADERS ? tradeTab.results().size() : mode == Mode.PETS ? petTab.results().size() : results.size()) * ROW;
 	}
 
 	private void clampScroll() {
@@ -335,6 +361,7 @@ public class StorageScreen extends Screen {
 				case ITEMS -> drawTotals(g, mouseX, mouseY);
 				case CONTAINERS -> drawResults(g, mouseX, mouseY);
 				case TRADERS -> drawTraders(g, mouseX, mouseY);
+				case PETS -> drawPets(g, mouseX, mouseY);
 			};
 		} finally {
 			g.disableScissor();
@@ -420,6 +447,15 @@ public class StorageScreen extends Screen {
 				mouseX, mouseY);
 	}
 
+	private PetTab.Hovered drawPets(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		if (petTab.results().isEmpty()) {
+			drawEmpty(g);
+			return null;
+		}
+		return petTab.draw(g, font, left + 8, left + panelWidth - 8, bodyTop() + 2 - (int) scroll.value(), bodyTop(), bodyBottom(), ROW,
+				mouseX, mouseY);
+	}
+
 	private void drawRowItems(GuiGraphicsExtractor g, Result result, int right, int y) {
 		int count = Math.min(ROW_ITEMS, result.shown().size());
 		int x = right - count * 18;
@@ -463,7 +499,7 @@ public class StorageScreen extends Screen {
 	}
 
 	private void drawEmpty(GuiGraphicsExtractor g) {
-		Component text = mode == Mode.TRADERS ? tradeTab.emptyText() : feature().store().all().isEmpty()
+		Component text = mode == Mode.TRADERS ? tradeTab.emptyText() : mode == Mode.PETS ? petTab.emptyText() : feature().store().all().isEmpty()
 				? Component.translatable("cobblecomfort.storage.nothing_yet")
 				: Component.translatable("cobblecomfort.storage.no_results");
 		g.centeredText(font, text, left + panelWidth / 2, bodyTop() + 20, 0xFF9A9AA8);
@@ -477,6 +513,8 @@ public class StorageScreen extends Screen {
 			info = Component.translatable("cobblecomfort.storage.footer.items", totals.size(), sum, feature().store().all().size());
 		} else if (mode == Mode.TRADERS) {
 			info = Component.translatable("cobblecomfort.trade.footer", tradeTab.results().size());
+		} else if (mode == Mode.PETS) {
+			info = Component.translatable("cobblecomfort.pets.footer", petTab.results().size());
 		} else {
 			info = Component.translatable("cobblecomfort.storage.footer.containers", results.size());
 		}
@@ -485,6 +523,7 @@ public class StorageScreen extends Screen {
 			case ITEMS -> "cobblecomfort.storage.hint.items";
 			case CONTAINERS -> "cobblecomfort.storage.hint.containers";
 			case TRADERS -> "cobblecomfort.trade.hint";
+			case PETS -> "cobblecomfort.pets.hint";
 		}).withStyle(ChatFormatting.DARK_GRAY);
 		g.text(font, hint, left + 8, y + 10, 0xFFFFFFFF, false);
 		if (selected != null) {
@@ -494,7 +533,9 @@ public class StorageScreen extends Screen {
 	}
 
 	private void drawTooltip(GuiGraphicsExtractor g, Object hovered, int mouseX, int mouseY) {
-		if (hovered instanceof TradeTab.Hovered trader) {
+		if (hovered instanceof PetTab.Hovered pet) {
+			g.setComponentTooltipForNextFrame(font, PetTab.tooltip(pet), mouseX, mouseY);
+		} else if (hovered instanceof TradeTab.Hovered trader) {
 			if (trader.offer() != null) {
 				g.setComponentTooltipForNextFrame(font, TradeTab.offerTooltip(trader.result().merchant(), trader.offer()), mouseX, mouseY);
 			}
@@ -547,6 +588,18 @@ public class StorageScreen extends Screen {
 		if (mode == Mode.TRADERS) {
 			if (index >= 0 && index < tradeTab.results().size() && mouseX >= left + 6 && mouseX < left + panelWidth - 6) {
 				showOnMap(tradeTab.results().get(index).merchant());
+				return true;
+			}
+			return false;
+		}
+		if (mode == Mode.PETS) {
+			if (index >= 0 && index < petTab.results().size() && mouseX >= left + 6 && mouseX < left + panelWidth - 6) {
+				PetEntry pet = petTab.results().get(index);
+				if (PetTab.overForget(left + panelWidth - 8, mouseX)) {
+					PetFeature.INSTANCE.forget(pet);
+				} else {
+					showOnMap(pet);
+				}
 				return true;
 			}
 			return false;

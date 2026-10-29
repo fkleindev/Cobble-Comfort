@@ -23,6 +23,12 @@ public class InventoryFxConfig extends FeatureConfig {
 	public float flyDuration = 0.25f;
 	public int flyArc = 10;
 
+	// Workstations
+	/** Smooth furnace progress with a glint on finished items; anvil, grindstone and smithing results land with a clonk. */
+	public boolean stations = true;
+	/** New trades slide into the list and the trader's level bar fills smoothly. */
+	public boolean trading = true;
+
 	// Particles
 	public boolean particles = true;
 	public ParticleStyle particleStyle = ParticleStyle.BOTH;

@@ -26,4 +26,6 @@ public class HotbarConfig extends FeatureConfig {
 	public float dimAmount = 0.35f;
 	public boolean switchParticles = true;
 	public int particleCount = 6;
+	/** A hotbar item that breaks swells, flashes and bursts into shards. */
+	public boolean breakShatter = true;
 }

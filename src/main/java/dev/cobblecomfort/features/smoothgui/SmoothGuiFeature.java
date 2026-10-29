@@ -2,6 +2,7 @@ package dev.cobblecomfort.features.smoothgui;
 
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.anim.Easing;
+import dev.cobblecomfort.features.map.screen.MapScreen;
 import dev.cobblecomfort.features.transitions.TransitionsFeature;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
@@ -62,6 +63,10 @@ public final class SmoothGuiFeature extends Feature<SmoothGuiConfig> {
 			return;
 		}
 		if (config.onlyFromGame && previous != null) {
+			return;
+		}
+		// The map opens out of the minimap by itself.
+		if (next instanceof MapScreen map && map.opensFromMinimap()) {
 			return;
 		}
 		// The death screen has its own, slower fade.

@@ -20,7 +20,8 @@ public enum InfoEntry implements NameableEnum {
 	CHUNK(Items.MAP),
 	SPEED(Items.FEATHER),
 	REAL_TIME(Items.CLOCK),
-	TARGET(Items.SPYGLASS);
+	TARGET(Items.SPYGLASS),
+	REST(Items.PHANTOM_MEMBRANE);
 
 	private final Item icon;
 

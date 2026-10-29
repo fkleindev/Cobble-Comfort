@@ -2,6 +2,7 @@ package dev.cobblecomfort.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
 import dev.cobblecomfort.features.chat.ChatFeature;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
@@ -34,10 +35,18 @@ public abstract class ChatComponentMixin {
 		return ChatFeature.INSTANCE.historyLength(vanilla);
 	}
 
-	/** Rebuilding the visible lines also applies the chat search. */
+	/** The background behind each chat line: new private messages blink violet. */
+	@WrapOperation(method = "lambda$extractRenderState$1", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/gui/components/ChatComponent$ChatGraphicsAccess;fill(IIIII)V"))
+	private static void cobblecomfort$lineBackground(ChatComponent.ChatGraphicsAccess access, int x0, int y0, int x1, int y1, int color,
+			Operation<Void> original, @Local(argsOnly = true) GuiMessage.Line line) {
+		original.call(access, x0, y0, x1, y1, ChatFeature.INSTANCE.lineBackground(line, color));
+	}
+
+	/** Rebuilding the visible lines also applies the chat search and, while the chat is open, the selected tab. */
 	@WrapOperation(method = "refreshTrimmedMessages",
 			at = @At(value = "INVOKE", target = "Ljava/util/function/Predicate;test(Ljava/lang/Object;)Z"))
 	private boolean cobblecomfort$searchFilter(Predicate<Object> filter, Object message, Operation<Boolean> original) {
-		return original.call(filter, message) && ChatFeature.INSTANCE.matchesSearch((GuiMessage) message);
+		return original.call(filter, message) && ChatFeature.INSTANCE.isShown((GuiMessage) message);
 	}
 }

@@ -2,16 +2,20 @@ package dev.cobblecomfort.features.hotbar;
 
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.inventoryfx.ItemColors;
 import dev.cobblecomfort.features.inventoryfx.ScreenParticles;
 import dev.cobblecomfort.features.rarity.RarityFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2fStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /** Smooth hotbar: a gliding selection frame, a springy enlarged selected item, slot numbers and sparks. */
@@ -24,11 +28,18 @@ public final class HotbarFeature extends Feature<HotbarConfig> {
 	private static final float NUMBER_FADE_SECONDS = 0.25f;
 	private static final float PARTICLE_LIFETIME = 0.5f;
 	private static final int MAX_PARTICLES = 60;
+	private static final int SHARDS = 20;
+	private static final long BREAK_MS = 140;
 
 	private final float[] value = new float[SLOTS];
 	private final float[] velocity = new float[SLOTS];
 	private final ScreenParticles particles = new ScreenParticles();
 	private final Random random = new Random();
+	/** Items that just broke, swelling in their slot (screen centre of the slot). */
+	private final List<Break> breaks = new ArrayList<>();
+
+	private record Break(ItemStack stack, float x, float y, long startMs) {
+	}
 
 	private int selected = -1;
 	private float slideFrom;
@@ -147,11 +158,12 @@ public final class HotbarFeature extends Feature<HotbarConfig> {
 			}
 		}
 		float numberAlpha = numberAlpha(now);
-		boolean drawParticles = !particles.isEmpty();
+		boolean drawParticles = !particles.isEmpty() || !breaks.isEmpty();
 		if (numberAlpha <= 0.01f && !drawParticles) {
 			return;
 		}
 		g.nextStratum();
+		drawBreaks(g, now);
 		if (numberAlpha > 0.01f) {
 			Font font = Minecraft.getInstance().font;
 			int color = RenderUtil.withAlpha(config.numberColor, numberAlpha);
@@ -183,6 +195,63 @@ public final class HotbarFeature extends Feature<HotbarConfig> {
 				yield Math.min(in, out);
 			}
 		};
+	}
+
+	// ---------------------------------------------------------------- breaking
+
+	/**
+	 * An item of the local player broke. If it was in the hotbar or the offhand, it swells, flashes and bursts into
+	 * shards in its own colours.
+	 */
+	public void onItemBroken(Player player, ItemStack stack) {
+		if (!isEnabled() || !config.breakShatter || stack.isEmpty()) {
+			return;
+		}
+		Minecraft mc = Minecraft.getInstance();
+		int width = mc.getWindow().getGuiScaledWidth();
+		float y = mc.getWindow().getGuiScaledHeight() - 11;
+		float x;
+		if (player.getOffhandItem() == stack) {
+			x = player.getMainArm() == HumanoidArm.RIGHT ? width / 2f - 91 - 18 : width / 2f + 91 + 18;
+		} else {
+			int slot = -1;
+			for (int i = 0; i < SLOTS; i++) {
+				if (player.getInventory().getItem(i) == stack) {
+					slot = i;
+				}
+			}
+			if (slot < 0) {
+				return;
+			}
+			x = width / 2f - 91 + 11 + slot * SLOT_STEP;
+		}
+		breaks.add(new Break(stack.copy(), x, y, System.currentTimeMillis()));
+		int[] palette = ItemColors.palette(stack);
+		for (int i = 0; i < SHARDS; i++) {
+			double angle = -Math.PI / 2 + (random.nextDouble() - 0.5) * Math.PI * 1.6;
+			float speed = 40f + random.nextFloat() * 45f;
+			int color = palette.length == 0 ? 0xFFB0B0B0 : palette[random.nextInt(palette.length)];
+			particles.spawn(x + (random.nextFloat() - 0.5f) * 10f, y + (random.nextFloat() - 0.5f) * 10f,
+					(float) Math.cos(angle) * speed, (float) Math.sin(angle) * speed, 12f, color, false, 0.7f, MAX_PARTICLES);
+		}
+	}
+
+	/** The broken item swelling and flashing white for a moment, before only its shards are left. */
+	private void drawBreaks(GuiGraphicsExtractor g, long now) {
+		breaks.removeIf(b -> now - b.startMs() > BREAK_MS);
+		for (Break b : breaks) {
+			float t = (now - b.startMs()) / (float) BREAK_MS;
+			Matrix3x2fStack pose = g.pose();
+			pose.pushMatrix();
+			pose.translate(b.x(), b.y());
+			pose.scale(1f + 0.5f * t);
+			pose.rotate((random.nextFloat() - 0.5f) * 0.3f * t);
+			g.item(b.stack(), -HALF_ITEM, -HALF_ITEM);
+			pose.popMatrix();
+			int flash = RenderUtil.withAlpha(0xFFFFFFFF, 0.7f * (1f - t));
+			int half = Math.round(8 + 4 * t);
+			g.fill(Math.round(b.x()) - half, Math.round(b.y()) - half, Math.round(b.x()) + half, Math.round(b.y()) + half, flash);
+		}
 	}
 
 	/** A small ring of sparks around the frame, in the item's rarity colour (white without an item). */

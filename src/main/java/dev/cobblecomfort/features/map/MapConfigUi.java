@@ -35,6 +35,8 @@ public final class MapConfigUi {
 						.option(Opts.bool("map.share_position", d.sharePosition, () -> c(feature).sharePosition, v -> c(feature).sharePosition = v))
 						.option(Opts.bool("map.view_cone", d.viewCone, () -> c(feature).viewCone, v -> c(feature).viewCone = v))
 						.option(Opts.bool("map.cardinals", d.minimapCardinals, () -> c(feature).minimapCardinals, v -> c(feature).minimapCardinals = v))
+						.option(Opts.bool("map.edge_waypoints", d.minimapEdgeWaypoints, () -> c(feature).minimapEdgeWaypoints,
+								v -> c(feature).minimapEdgeWaypoints = v))
 						.option(Opts.color("map.border_color", d.borderColor, false,
 								() -> c(feature).borderColor, v -> c(feature).borderColor = v | 0xFF000000))
 						.build())
@@ -44,6 +46,7 @@ public final class MapConfigUi {
 						.option(Opts.bool("map.nether_roof", d.netherUnderRoof, () -> c(feature).netherUnderRoof, v -> c(feature).netherUnderRoof = v))
 						.option(Opts.bool("map.shading", d.heightShading, () -> c(feature).heightShading, v -> c(feature).heightShading = v))
 						.option(Opts.bool("map.grid", d.showGrid, () -> c(feature).showGrid, v -> c(feature).showGrid = v))
+						.option(Opts.bool("map.animations", d.mapAnimations, () -> c(feature).mapAnimations, v -> c(feature).mapAnimations = v))
 						.option(Opts.percent("map.window_opacity", d.mapWindowOpacity,
 								() -> c(feature).mapWindowOpacity, v -> c(feature).mapWindowOpacity = v))
 						.build())
@@ -58,6 +61,12 @@ public final class MapConfigUi {
 								() -> c(feature).deathWaypoints, v -> c(feature).deathWaypoints = v))
 						.option(Opts.intSlider("map.max_deaths", d.maxDeathWaypoints, 1, 10, 1,
 								() -> c(feature).maxDeathWaypoints, v -> c(feature).maxDeathWaypoints = v))
+						.option(Opts.bool("map.death_inventory", d.deathInventory,
+								() -> c(feature).deathInventory, v -> c(feature).deathInventory = v))
+						.option(Opts.bool("map.death_warning", d.deathWarning,
+								() -> c(feature).deathWarning, v -> c(feature).deathWarning = v))
+						.option(Opts.intSlider("map.death_warn_seconds", d.deathWarnSeconds, 10, 240, 10,
+								() -> c(feature).deathWarnSeconds, v -> c(feature).deathWarnSeconds = v))
 						.option(Opts.bool("map.respawn_waypoint", d.respawnWaypoint,
 								() -> c(feature).respawnWaypoint, v -> c(feature).respawnWaypoint = v))
 						.option(Opts.bool("map.chat_waypoints", d.chatWaypoints, () -> c(feature).chatWaypoints, v -> c(feature).chatWaypoints = v))

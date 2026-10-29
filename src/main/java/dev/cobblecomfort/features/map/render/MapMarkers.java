@@ -195,6 +195,22 @@ public final class MapMarkers {
 		pose.popMatrix();
 	}
 
+	/** A small arrow in {@code color} at (x, y) pointing outwards along (dx, dy), for a waypoint beyond the minimap's edge. */
+	public static void edgeArrow(GuiGraphicsExtractor g, float x, float y, float dx, float dy, int color, float scale) {
+		Matrix3x2fStack pose = g.pose();
+		pose.pushMatrix();
+		pose.translate(x, y);
+		pose.rotate((float) Math.atan2(dx, -dy));
+		pose.scale(scale);
+		blit(g, ARROW_SMALL, -4, -4, 8, 8, color);
+		pose.popMatrix();
+	}
+
+	/** A thin round ring of {@code size} pixels with its top left at (x, y). */
+	public static void ring(GuiGraphicsExtractor g, int x, int y, int size, int color) {
+		blit(g, size <= 12 ? RING_SMALL : RING, x, y, size, size, color);
+	}
+
 	/** A small round dot with a dark outline. */
 	public static void dot(GuiGraphicsExtractor g, float x, float y, int color) {
 		blit(g, DOT, Math.round(x) - 3, Math.round(y) - 3, 6, 6, color);

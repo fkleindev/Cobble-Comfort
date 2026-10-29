@@ -8,7 +8,7 @@ import java.util.List;
 public class InfoHudConfig extends FeatureConfig {
 	// Content: the shown lines in their order
 	public List<InfoEntry> entries = new ArrayList<>(List.of(InfoEntry.COORDS, InfoEntry.DIRECTION, InfoEntry.BIOME,
-			InfoEntry.LIGHT, InfoEntry.TIME, InfoEntry.WEATHER, InfoEntry.FPS, InfoEntry.PING));
+			InfoEntry.LIGHT, InfoEntry.TIME, InfoEntry.WEATHER, InfoEntry.FPS, InfoEntry.PING, InfoEntry.REST));
 	public boolean otherDimensionCoords = true;
 	public boolean directionDegrees = false;
 	public boolean sleepHint = true;

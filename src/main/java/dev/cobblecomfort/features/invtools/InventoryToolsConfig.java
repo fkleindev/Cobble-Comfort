@@ -19,6 +19,13 @@ public class InventoryToolsConfig extends FeatureConfig {
 	public int actionsPerTick = 0;
 	public boolean sortAnimation = true;
 
+	// Moving items
+	/** Buttons in storage containers: deposit what the container already holds, top up the inventory's stacks. */
+	public boolean transferButtons = true;
+	public boolean depositHotbar = true;
+	/** Shift-click a slot and drag over more slots to shift-click them all. */
+	public boolean shiftDrag = true;
+
 	// Slot locks
 	public boolean locks = true;
 	public boolean lockProtection = true;

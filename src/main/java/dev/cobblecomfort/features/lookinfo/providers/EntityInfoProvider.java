@@ -124,14 +124,22 @@ public final class EntityInfoProvider {
 	}
 
 	private static void addHorseStats(AbstractHorse horse, List<InfoLine> lines) {
-		double speed = horse.getAttributeValue(Attributes.MOVEMENT_SPEED) * SPEED_TO_BLOCKS_PER_SECOND;
+		lines.add(new InfoLine.Text(Component.translatable("cobblecomfort.look.horse_speed",
+				String.format(Locale.ROOT, "%.1f", horseSpeed(horse)))));
+		lines.add(new InfoLine.Text(Component.translatable("cobblecomfort.look.horse_jump",
+				String.format(Locale.ROOT, "%.1f", horseJump(horse)))));
+	}
+
+	/** Top speed in blocks per second. */
+	public static double horseSpeed(AbstractHorse horse) {
+		return horse.getAttributeValue(Attributes.MOVEMENT_SPEED) * SPEED_TO_BLOCKS_PER_SECOND;
+	}
+
+	/** Jump height in blocks. */
+	public static double horseJump(AbstractHorse horse) {
 		double jump = horse.getAttributeValue(Attributes.JUMP_STRENGTH);
 		// Empirical fit of jump strength to jump height in blocks.
-		double height = -0.1817584952 * jump * jump * jump + 3.689713992 * jump * jump + 2.128599134 * jump - 0.343930367;
-		lines.add(new InfoLine.Text(Component.translatable("cobblecomfort.look.horse_speed",
-				String.format(Locale.ROOT, "%.1f", speed))));
-		lines.add(new InfoLine.Text(Component.translatable("cobblecomfort.look.horse_jump",
-				String.format(Locale.ROOT, "%.1f", height))));
+		return -0.1817584952 * jump * jump * jump + 3.689713992 * jump * jump + 2.128599134 * jump - 0.343930367;
 	}
 
 	private static String format(float value) {

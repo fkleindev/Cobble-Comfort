@@ -158,6 +158,7 @@ public final class WaypointStore {
 	}
 
 	public void add(Waypoint waypoint) {
+		waypoint.addedMs = System.currentTimeMillis();
 		data.sets.putIfAbsent(waypoint.set, true);
 		data.waypoints.add(waypoint);
 		save();
@@ -170,6 +171,7 @@ public final class WaypointStore {
 
 	/** Adds a death waypoint and removes the oldest ones beyond {@code keep}. */
 	public void addDeath(Waypoint waypoint, int keep) {
+		waypoint.addedMs = System.currentTimeMillis();
 		waypoint.death = true;
 		waypoint.set = DEATH_SET;
 		data.waypoints.add(waypoint);

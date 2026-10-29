@@ -19,15 +19,23 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AbstractMountInventoryMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.DispenserMenu;
+import net.minecraft.world.inventory.HopperMenu;
+import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Inventory search, sorting (button and middle click) and lockable player inventory slots. */
 public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
@@ -44,11 +52,14 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 	private static final int HOTBAR_SIZE = 9;
 	private static final int MAIN_END = 36;
 	private static final int POP_STAGGER_MS = 12;
+	private static final int FLY_STAGGER_MS = 35;
 
 	private final ItemSearch search = new ItemSearch();
 	private final SlotLocks locks = new SlotLocks();
 	private String rememberedQuery = "";
 	private Sorter sorter;
+	/** Slots already shift-clicked during the current shift-drag, null while none is going on. */
+	private Set<Slot> dragged;
 
 	private InventoryToolsFeature() {
 		super("inventory_tools", InventoryToolsConfig.class, InventoryToolsConfig::new);
@@ -97,16 +108,27 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			box = null;
 			search.setQuery("");
 		}
-		List<SortButton> buttons = new ArrayList<>();
+		List<ToolButton> buttons = new ArrayList<>();
 		List<List<Slot>> regions = new ArrayList<>();
 		if (config.sortButtons) {
 			for (List<Slot> region : regions(screen.getMenu())) {
-				SortButton button = new SortButton(Component.translatable("cobblecomfort.invtools.sort"), () -> sort(screen.getMenu(), region));
+				ToolButton button = new ToolButton(ToolButton.Icon.SORT, Component.translatable("cobblecomfort.invtools.sort"), () -> sort(screen.getMenu(), region));
 				buttons.add(button);
 				regions.add(region);
 				Screens.getWidgets(screen).add(button);
 			}
 		}
+		// Deposit and restock sit left of the inventory's sort button, in storage containers only.
+		List<ToolButton> transfer = new ArrayList<>();
+		List<Slot> mainInventory = playerSlots(screen.getMenu(), false);
+		if (config.transferButtons && !containerSlots(screen.getMenu()).isEmpty() && !mainInventory.isEmpty()) {
+			transfer.add(new ToolButton(ToolButton.Icon.DEPOSIT, Component.translatable("cobblecomfort.invtools.deposit"),
+					() -> deposit(screen.getMenu())));
+			transfer.add(new ToolButton(ToolButton.Icon.RESTOCK, Component.translatable("cobblecomfort.invtools.restock"),
+					() -> restock(screen.getMenu())));
+			transfer.forEach(Screens.getWidgets(screen)::add);
+		}
+		int transferOffset = config.sortButtons ? 1 : 0;
 		// Keep the widgets next to the GUI even when it moves (e.g. when the recipe book opens).
 		ScreenEvents.beforeExtract(screen).register((s, g, mouseX, mouseY, delta) -> {
 			if (box != null) {
@@ -115,6 +137,11 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			}
 			for (int i = 0; i < buttons.size(); i++) {
 				placeButton(buttons.get(i), regions.get(i), gui);
+			}
+			for (int i = 0; i < transfer.size(); i++) {
+				ToolButton button = transfer.get(i);
+				placeButton(button, mainInventory, gui);
+				button.setX(button.getX() - (i + transferOffset) * (ToolButton.SIZE + 1));
 			}
 		});
 		if (box != null) {
@@ -136,7 +163,20 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			return true;
 		});
 		ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> onClick(screen, event.button(), event.hasAltDown()));
+		ScreenMouseEvents.afterMouseClick(screen).register((s, event, consumed) -> {
+			startShiftDrag(screen, event.button(), event.hasShiftDown());
+			return consumed;
+		});
+		ScreenMouseEvents.afterMouseDrag(screen).register((s, event, dx, dy, consumed) -> {
+			shiftDrag(screen, event);
+			return consumed;
+		});
+		ScreenMouseEvents.afterMouseRelease(screen).register((s, event, consumed) -> {
+			dragged = null;
+			return consumed;
+		});
 		ScreenEvents.remove(screen).register(s -> {
+			dragged = null;
 			if (!config.rememberQuery) {
 				rememberedQuery = "";
 			}
@@ -167,15 +207,15 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 		return isEnabled() && config.search ? TAB_HEIGHT : 0;
 	}
 
-	private static void placeButton(SortButton button, List<Slot> region, ContainerScreenAccessor gui) {
+	private static void placeButton(ToolButton button, List<Slot> region, ContainerScreenAccessor gui) {
 		int maxX = 0;
 		int minY = Integer.MAX_VALUE;
 		for (Slot slot : region) {
 			maxX = Math.max(maxX, slot.x + 16);
 			minY = Math.min(minY, slot.y);
 		}
-		button.setX(gui.cobblecomfort$leftPos() + maxX - SortButton.SIZE);
-		button.setY(gui.cobblecomfort$topPos() + minY - SortButton.SIZE - 2);
+		button.setX(gui.cobblecomfort$leftPos() + maxX - ToolButton.SIZE);
+		button.setY(gui.cobblecomfort$topPos() + minY - ToolButton.SIZE - 2);
 	}
 
 	/** Alt+click locks a slot, middle click sorts the area under the cursor. Returns false to swallow the click. */
@@ -199,6 +239,169 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			}
 		}
 		return true;
+	}
+
+	// ---------------------------------------------------------------- shift-drag
+
+	/** A shift-click on a slot starts a drag: every further slot the mouse passes over is shift-clicked too. */
+	private void startShiftDrag(AbstractContainerScreen<?> screen, int button, boolean shift) {
+		Slot hovered = ((ContainerScreenAccessor) screen).cobblecomfort$hoveredSlot();
+		dragged = null;
+		if (isEnabled() && config.shiftDrag && shift && button == InputConstants.MOUSE_BUTTON_LEFT && hovered != null
+				&& screen.getMenu().getCarried().isEmpty()) {
+			// Vanilla has just moved the clicked slot itself.
+			dragged = new HashSet<>();
+			dragged.add(hovered);
+		}
+	}
+
+	private void shiftDrag(AbstractContainerScreen<?> screen, MouseButtonEvent event) {
+		Minecraft mc = Minecraft.getInstance();
+		if (dragged == null || mc.player == null || mc.gameMode == null) {
+			return;
+		}
+		AbstractContainerMenu menu = screen.getMenu();
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || !event.hasShiftDown() || !menu.getCarried().isEmpty()) {
+			dragged = null;
+			return;
+		}
+		Slot slot = slotAt((ContainerScreenAccessor) screen, menu, event.x(), event.y());
+		// Crafting results are left out: shift-clicking them crafts as much as possible.
+		if (slot == null || dragged.contains(slot) || !slot.hasItem() || slot instanceof ResultSlot || !slot.mayPickup(mc.player)) {
+			return;
+		}
+		dragged.add(slot);
+		mc.gameMode.handleContainerInput(menu.containerId, slot.index, InputConstants.MOUSE_BUTTON_LEFT, ContainerInput.QUICK_MOVE, mc.player);
+	}
+
+	private static Slot slotAt(ContainerScreenAccessor gui, AbstractContainerMenu menu, double mouseX, double mouseY) {
+		double x = mouseX - gui.cobblecomfort$leftPos();
+		double y = mouseY - gui.cobblecomfort$topPos();
+		for (Slot slot : menu.slots) {
+			if (slot.isActive() && x >= slot.x - 1 && x < slot.x + 17 && y >= slot.y - 1 && y < slot.y + 17) {
+				return slot;
+			}
+		}
+		return null;
+	}
+
+	// ---------------------------------------------------------------- deposit and restock
+
+	/** The storage slots of a chest, barrel, shulker box, hopper, dispenser or an animal's chest; empty elsewhere. */
+	private static List<Slot> containerSlots(AbstractContainerMenu menu) {
+		boolean storage = menu instanceof ChestMenu || menu instanceof ShulkerBoxMenu || menu instanceof HopperMenu
+				|| menu instanceof DispenserMenu;
+		boolean mount = menu instanceof AbstractMountInventoryMenu;
+		List<Slot> slots = new ArrayList<>();
+		for (Slot slot : menu.slots) {
+			// On mounts only the chest slots count, not saddle and armour (special slot classes).
+			if (!(slot.container instanceof Inventory) && (storage || (mount && slot.getClass() == Slot.class))) {
+				slots.add(slot);
+			}
+		}
+		return slots;
+	}
+
+	/** The player's main inventory slots in a menu, with the hotbar if asked for. */
+	private static List<Slot> playerSlots(AbstractContainerMenu menu, boolean hotbar) {
+		List<Slot> slots = new ArrayList<>();
+		for (Slot slot : menu.slots) {
+			if (slot.container instanceof Inventory) {
+				int index = slot.getContainerSlot();
+				if ((index >= HOTBAR_SIZE && index < MAIN_END) || (hotbar && index < HOTBAR_SIZE)) {
+					slots.add(slot);
+				}
+			}
+		}
+		return slots;
+	}
+
+	/** Shift-clicks every unlocked inventory stack of an item the container already holds. */
+	private void deposit(AbstractContainerMenu menu) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.gameMode == null || !menu.getCarried().isEmpty() || sorter != null) {
+			return;
+		}
+		List<Slot> container = containerSlots(menu);
+		Set<Item> present = new HashSet<>();
+		for (Slot slot : container) {
+			if (slot.hasItem()) {
+				present.add(slot.getItem().getItem());
+			}
+		}
+		List<ItemStack> before = snapshot(container);
+		boolean flying = InventoryFxFeature.INSTANCE.beginBatch(menu);
+		for (Slot slot : playerSlots(menu, config.depositHotbar)) {
+			if (slot.hasItem() && !isLocked(slot) && present.contains(slot.getItem().getItem())) {
+				mc.gameMode.handleContainerInput(menu.containerId, slot.index, 0, ContainerInput.QUICK_MOVE, mc.player);
+			}
+		}
+		finishTransfer(menu, flying, container, before);
+	}
+
+	/** Tops up the inventory's stacks that are not full from matching stacks in the container. */
+	private void restock(AbstractContainerMenu menu) {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || mc.gameMode == null || !menu.getCarried().isEmpty() || sorter != null) {
+			return;
+		}
+		List<Slot> container = containerSlots(menu);
+		List<Slot> inventory = playerSlots(menu, true);
+		List<ItemStack> before = snapshot(inventory);
+		boolean flying = InventoryFxFeature.INSTANCE.beginBatch(menu);
+		for (Slot target : inventory) {
+			for (Slot source : container) {
+				ItemStack have = target.getItem();
+				if (have.isEmpty() || have.getCount() >= target.getMaxStackSize(have)) {
+					break;
+				}
+				if (!ItemStack.isSameItemSameComponents(have, source.getItem()) || !source.mayPickup(mc.player)) {
+					continue;
+				}
+				click(mc, menu, source);
+				click(mc, menu, target);
+				if (!menu.getCarried().isEmpty()) {
+					click(mc, menu, source);
+				}
+			}
+		}
+		finishTransfer(menu, flying, inventory, before);
+	}
+
+	private static void click(Minecraft mc, AbstractContainerMenu menu, Slot slot) {
+		mc.gameMode.handleContainerInput(menu.containerId, slot.index, 0, ContainerInput.PICKUP, mc.player);
+	}
+
+	private static List<ItemStack> snapshot(List<Slot> slots) {
+		List<ItemStack> stacks = new ArrayList<>();
+		for (Slot slot : slots) {
+			stacks.add(slot.getItem().copy());
+		}
+		return stacks;
+	}
+
+	/** The items fly from slot to slot one after another; without flying items the slots that got something pop. */
+	private void finishTransfer(AbstractContainerMenu menu, boolean flying, List<Slot> receivers, List<ItemStack> before) {
+		if (flying) {
+			InventoryFxFeature.INSTANCE.endBatch(menu, FLY_STAGGER_MS);
+		} else {
+			popChanged(receivers, before);
+		}
+	}
+
+	/** Lets the slots that got something pop, like after sorting. */
+	private void popChanged(List<Slot> slots, List<ItemStack> before) {
+		if (!config.sortAnimation) {
+			return;
+		}
+		List<Slot> changed = new ArrayList<>();
+		for (int i = 0; i < slots.size(); i++) {
+			ItemStack now = slots.get(i).getItem();
+			if (now.getCount() > before.get(i).getCount() || (!now.isEmpty() && !ItemStack.isSameItemSameComponents(now, before.get(i)))) {
+				changed.add(slots.get(i));
+			}
+		}
+		InventoryFxFeature.INSTANCE.popSlots(changed, POP_STAGGER_MS);
 	}
 
 	// ---------------------------------------------------------------- sorting

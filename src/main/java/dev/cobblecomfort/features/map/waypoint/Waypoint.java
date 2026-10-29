@@ -34,6 +34,8 @@ public final class Waypoint {
 	public long created = System.currentTimeMillis();
 
 	private transient ItemStack iconStack;
+	/** When it was added in this session (0 if loaded), for the drop-in animation on the maps. */
+	public transient long addedMs;
 
 	public Waypoint() {
 	}

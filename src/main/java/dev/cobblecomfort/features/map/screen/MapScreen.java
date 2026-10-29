@@ -1,12 +1,14 @@
 package dev.cobblecomfort.features.map.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.map.MapConfig;
 import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.features.map.data.MapLayer;
 import dev.cobblecomfort.features.map.data.MapRegion;
 import dev.cobblecomfort.features.map.render.MapMarkers;
+import dev.cobblecomfort.features.map.render.WaypointAnim;
 import dev.cobblecomfort.features.map.render.MapUi;
 import dev.cobblecomfort.features.map.render.MapUi.Dim;
 import dev.cobblecomfort.features.map.render.RegionTextures;
@@ -15,8 +17,12 @@ import dev.cobblecomfort.features.map.structure.StructureMarker;
 import dev.cobblecomfort.features.map.sync.PositionSync;
 import dev.cobblecomfort.features.map.waypoint.Waypoint;
 import dev.cobblecomfort.features.map.waypoint.WaypointStore;
+import dev.cobblecomfort.features.map.death.DeathRecord;
+import dev.cobblecomfort.features.map.death.DeathTooltip;
 import dev.cobblecomfort.features.furnace.FurnaceEntry;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
+import dev.cobblecomfort.features.pets.PetEntry;
+import dev.cobblecomfort.features.pets.PetFeature;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.storage.StorageFeature;
@@ -25,6 +31,7 @@ import dev.cobblecomfort.features.storage.StoredContainer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -48,12 +55,15 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 
+import org.joml.Matrix3x2fStack;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
@@ -90,6 +100,15 @@ public class MapScreen extends Screen {
 	private static final int TRADER_TOOLTIP_OFFERS = 6;
 	private static final RegionTextures TEXTURES = new RegionTextures("full");
 	private static float lastZoom = 2f;
+	private static final float OPEN_SECONDS = 0.4f;
+	/** Pets: how much and how slowly living ones breathe; graves younger than this rise from dust when first seen. */
+	private static final float PET_BREATH = 0.06f;
+	private static final float PET_BREATH_SECONDS = 2.6f;
+	private static final long FRESH_GRAVE_MS = 10 * 60 * 1000L;
+	private static final long DUST_MS = 900;
+	private static final int DUST_PUFFS = 10;
+	/** When each fresh grave was first drawn this session. */
+	private static final Map<String, Long> GRAVES_SHOWN = new HashMap<>();
 
 	private final Screen parent;
 	private double centerX, centerZ;
@@ -119,6 +138,11 @@ public class MapScreen extends Screen {
 	/** The layer sidebar's place (set while drawing) and how far its list is scrolled. */
 	private int layersX0, layersX1, layersTop, layersBottom;
 	private final SmoothScroll layersScroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
+	/** Opening out of the minimap: its place on screen (null when not opening that way), its turn, and the start. */
+	private Rect openFrom;
+	private boolean openChecked;
+	private float openRotation;
+	private long openStartNanos;
 
 	private enum WindowDrag {
 		NONE, MOVE, RESIZE
@@ -177,6 +201,7 @@ public class MapScreen extends Screen {
 
 	@Override
 	protected void init() {
+		opensFromMinimap();
 		if (minecraft.level != null) {
 			playerDim = MapFeature.dimensionId(minecraft.level);
 			if (viewDim == null) {
@@ -334,7 +359,7 @@ public class MapScreen extends Screen {
 	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
 		// In window mode the world stays visible around (and through) the window.
 		if (!config().mapWindowed) {
-			g.fill(0, 0, width, height, BACKGROUND);
+			g.fill(0, 0, width, height, RenderUtil.withAlpha(BACKGROUND, openProgress()));
 		}
 	}
 
@@ -396,8 +421,23 @@ public class MapScreen extends Screen {
 		MapFeature feature = MapFeature.INSTANCE;
 		boolean here = viewingPlayerDim();
 		MapLayer layer = here ? feature.world().active(level) : feature.world().surface(key(viewDim));
+		// Opening out of the minimap: the map (and its window) grows from there, turning north-up and zooming.
+		float open = openProgress();
+		float targetZoom = zoom;
+		if (open < 1f) {
+			beginOpening(g, open);
+		}
 		if (config().mapWindowed) {
 			drawWindow(g, mouseX, mouseY);
+		}
+		int[] area = {mapX, mapY, mapW, mapH};
+		if (open < 1f) {
+			// Turned, the map alone would not fill the growing frame: draw more of it around the same centre.
+			int grow = Math.max(mapW, mapH) / 2;
+			mapX -= grow;
+			mapY -= grow;
+			mapW += 2 * grow;
+			mapH += 2 * grow;
 		}
 		g.enableScissor(mapX, mapY, mapX + mapW, mapY + mapH);
 		drawRegions(g, layer);
@@ -411,20 +451,42 @@ public class MapScreen extends Screen {
 				return onMap(x, y, 50) ? new float[]{x, y} : null;
 			}, 2f);
 		}
-		boolean overUi = overUi(mouseX, mouseY) || menu != null || !inMap(mouseX, mouseY) || windowDrag != WindowDrag.NONE;
+		boolean overUi = overUi(mouseX, mouseY) || menu != null || !inMap(mouseX, mouseY) || windowDrag != WindowDrag.NONE
+				|| open < 1f;
 		StructureMarker structure = drawStructures(g, here, mouseX, mouseY);
 		StoredContainer storage = drawStorage(g, mouseX, mouseY);
 		FurnaceEntry furnace = drawFurnaces(g, mouseX, mouseY);
 		TradeMerchant trader = drawTraders(g, mouseX, mouseY);
+		PetEntry pet = drawPets(g, mouseX, mouseY);
 		HoveredPlayer hoveredPlayer = drawEntities(g, level, player, here, delta, mouseX, mouseY);
 		Waypoint hovered = drawWaypoints(g, player, mouseX, mouseY);
 		drawPlayer(g, player, position, here);
-		g.fillGradient(mapX, mapY, mapX + mapW, mapY + 36, VIGNETTE, 0);
-		g.fillGradient(mapX, mapY + mapH - 40, mapX + mapW, mapY + mapH, 0, VIGNETTE);
-		drawTabs(g, mouseX, mouseY);
-		drawInfo(g, layer, level, mouseX, mouseY, here);
-		drawToolbar(g, mouseX, mouseY);
-		drawLayers(g, mouseX, mouseY);
+		if (open < 1f) {
+			g.disableScissor();
+			g.pose().popMatrix();
+			g.disableScissor();
+			zoom = targetZoom;
+			mapX = area[0];
+			mapY = area[1];
+			mapW = area[2];
+			mapH = area[3];
+			g.enableScissor(mapX, mapY, mapX + mapW, mapY + mapH);
+		}
+		g.fillGradient(mapX, mapY, mapX + mapW, mapY + 36, RenderUtil.withAlpha(VIGNETTE, open), 0);
+		g.fillGradient(mapX, mapY + mapH - 40, mapX + mapW, mapY + mapH, 0, RenderUtil.withAlpha(VIGNETTE, open));
+		if (open < 1f) {
+			// The panels are not part of the growing map: they slide in from the edges as it opens.
+			float hidden = 1f - open;
+			slid(g, 0, -hidden * 40, () -> drawTabs(g, mouseX, mouseY));
+			slid(g, 0, -hidden * 40, () -> drawInfo(g, layer, level, mouseX, mouseY, here));
+			slid(g, 0, hidden * 40, () -> drawToolbar(g, mouseX, mouseY));
+			slid(g, hidden * (LAYERS_WIDTH + 12), 0, () -> drawLayers(g, mouseX, mouseY));
+		} else {
+			drawTabs(g, mouseX, mouseY);
+			drawInfo(g, layer, level, mouseX, mouseY, here);
+			drawToolbar(g, mouseX, mouseY);
+			drawLayers(g, mouseX, mouseY);
+		}
 		if (config().mapWindowed) {
 			drawGrip(g, mouseX, mouseY);
 		}
@@ -443,11 +505,15 @@ public class MapScreen extends Screen {
 						.withStyle(ChatFormatting.GRAY));
 			}
 			lines.add(Component.translatable("cobblecomfort.map.hint_edit").withStyle(ChatFormatting.DARK_GRAY));
-			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
+			DeathRecord death = config().deathInventory ? MapFeature.INSTANCE.deaths().of(hovered) : null;
+			// The death inventory goes right below the name.
+			g.setTooltipForNextFrame(font, lines, Optional.ofNullable(death).map(DeathTooltip.Data::new), mouseX, mouseY);
 		} else if (hoveredPlayer != null) {
 			g.setComponentTooltipForNextFrame(font, playerTooltip(hoveredPlayer, player, here), mouseX, mouseY);
 		} else if (trader != null) {
 			g.setComponentTooltipForNextFrame(font, traderTooltip(trader, player, here), mouseX, mouseY);
+		} else if (pet != null) {
+			g.setComponentTooltipForNextFrame(font, PetFeature.INSTANCE.tooltip(pet, player.getEyePosition(), here ? viewDim : ""), mouseX, mouseY);
 		} else if (furnace != null) {
 			g.setComponentTooltipForNextFrame(font, furnaceTooltip(furnace), mouseX, mouseY);
 		} else if (storage != null) {
@@ -460,6 +526,78 @@ public class MapScreen extends Screen {
 					.withStyle(ChatFormatting.DARK_GRAY));
 			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
 		}
+	}
+
+	// ---------------------------------------------------------------- opening out of the minimap
+
+	/**
+	 * Whether this map will open out of the minimap: opened at the player's position with animations on and the
+	 * minimap on screen. Decided once, before the first frame.
+	 */
+	public boolean opensFromMinimap() {
+		if (openFrom == null && !openChecked) {
+			openChecked = true;
+			Minecraft mc = Minecraft.getInstance();
+			if (!centerGiven && config().mapAnimations && mc.player != null) {
+				openFrom = MapFeature.INSTANCE.minimapRect(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+				float rotation = MapFeature.INSTANCE.minimapRotation(mc.player.getYRot());
+				// Turn the short way round to north-up.
+				openRotation = (float) Math.IEEEremainder(rotation, Math.PI * 2);
+			}
+		}
+		return openFrom != null;
+	}
+
+	/** Eased progress of the opening, 1 once done (or when not opening out of the minimap). */
+	private float openProgress() {
+		if (!opensFromMinimap()) {
+			return 1f;
+		}
+		long now = System.nanoTime();
+		if (openStartNanos == 0) {
+			openStartNanos = now;
+		}
+		float t = Math.min(1f, (now - openStartNanos) / 1e9f / OPEN_SECONDS);
+		if (t >= 1f) {
+			openFrom = null;
+			return 1f;
+		}
+		return 1f - (1f - t) * (1f - t) * (1f - t);
+	}
+
+	/**
+	 * Pushes the transform that puts the map where the minimap is at the start and in its place at the end, and sets
+	 * the zoom in between, so the map shows what the minimap showed and then widens. The map is cut to a frame that
+	 * grows from the minimap's square to the window. Undone after the map is drawn.
+	 */
+	private void beginOpening(GuiGraphicsExtractor g, float open) {
+		Rect from = openFrom;
+		g.enableScissor(Math.round(from.x() + (windowX - from.x()) * open), Math.round(from.y() + (windowY - from.y()) * open),
+				Math.round(from.x() + from.w() + (windowX + windowW - from.x() - from.w()) * open),
+				Math.round(from.y() + from.h() + (windowY + windowH - from.y() - from.h()) * open));
+		float mapCenterX = mapX + mapW / 2f;
+		float mapCenterY = mapY + mapH / 2f;
+		float startScale = from.w() / Math.min(mapW, mapH);
+		float scale = startScale + (1f - startScale) * open;
+		// Pixels per block on screen: the minimap's at the start (its zoom, scaled like it is on the HUD), the map's at the end.
+		double startPixels = config().minimapZoom * from.w() / config().minimapSize;
+		double pixels = Math.exp(Math.log(startPixels) + (Math.log(zoom) - Math.log(startPixels)) * open);
+		zoom = (float) (pixels / scale);
+		Matrix3x2fStack pose = g.pose();
+		pose.pushMatrix();
+		pose.translate(from.x() + from.w() / 2f + (mapCenterX - from.x() - from.w() / 2f) * open,
+				from.y() + from.h() / 2f + (mapCenterY - from.y() - from.h() / 2f) * open);
+		pose.rotate(openRotation * (1f - open));
+		pose.scale(scale);
+		pose.translate(-mapCenterX, -mapCenterY);
+	}
+
+	/** Draws a panel moved by (dx, dy). */
+	private static void slid(GuiGraphicsExtractor g, float dx, float dy, Runnable draw) {
+		g.pose().pushMatrix();
+		g.pose().translate(dx, dy);
+		draw.run();
+		g.pose().popMatrix();
 	}
 
 	private void drawRegions(GuiGraphicsExtractor g, MapLayer layer) {
@@ -680,6 +818,62 @@ public class MapScreen extends Screen {
 		return hovered;
 	}
 
+	/** Remembered pets with their spawn egg, ringed pink while alive and grey as a grave. */
+	/** Living pets breathe slowly, each in its own rhythm; a fresh grave appears with a small puff of dust. */
+	private PetEntry drawPets(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		PetEntry hovered = null;
+		long now = System.currentTimeMillis();
+		boolean animate = config().mapAnimations;
+		for (PetEntry pet : PetFeature.INSTANCE.mapEntries(viewDim)) {
+			float x = screenX(pet.x);
+			float y = screenY(pet.z);
+			if (!onMap(x, y, 10)) {
+				continue;
+			}
+			float scale = 1f;
+			if (animate && !pet.dead()) {
+				double phase = (pet.uuid.hashCode() & 0xFFFF) / 1000.0;
+				scale = 1f + PET_BREATH * (float) Math.sin(now / 1000.0 * Math.PI * 2 / PET_BREATH_SECONDS + phase);
+			}
+			float dust = 1f;
+			if (animate && pet.dead() && now - pet.died < FRESH_GRAVE_MS) {
+				// The first time a fresh grave is seen, it rises from a little dust.
+				long shown = GRAVES_SHOWN.computeIfAbsent(pet.uuid.toString(), k -> now);
+				dust = (now - shown) / (float) DUST_MS;
+				if (dust < 1f) {
+					scale = 0.6f + 0.4f * Math.min(1f, dust * 2.5f);
+				}
+			}
+			Matrix3x2fStack pose = g.pose();
+			pose.pushMatrix();
+			pose.translate(x, y);
+			pose.scale(scale);
+			pose.translate(-x, -y);
+			MapMarkers.badge(g, PetFeature.INSTANCE.icon(pet), x, y, false, pet.dead() ? PetFeature.DEAD_COLOR : PetFeature.ALIVE_COLOR);
+			pose.popMatrix();
+			if (dust < 1f) {
+				drawDust(g, x, y, dust);
+			}
+			if (Math.abs(mouseX - x) <= 8 && Math.abs(mouseY - y) <= 8) {
+				hovered = pet;
+			}
+		}
+		return hovered;
+	}
+
+	/** Grey dust puffs spreading out and rising from under a fresh grave, {@code t} from 0 to 1. */
+	private static void drawDust(GuiGraphicsExtractor g, float x, float y, float t) {
+		float spread = 8f + 9f * (1f - (1f - t) * (1f - t));
+		for (int i = 0; i < DUST_PUFFS; i++) {
+			double angle = Math.PI * 2 * i / DUST_PUFFS + 0.4;
+			int px = Math.round(x + (float) Math.cos(angle) * spread);
+			int py = Math.round(y + 5 + (float) Math.sin(angle) * spread * 0.5f - 6f * t);
+			int size = i % 2 == 0 ? 4 : 3;
+			g.fill(px - size / 2, py - size / 2, px - size / 2 + size, py - size / 2 + size,
+					RenderUtil.withAlpha(0xFFE6DCC8, 0.95f * (1f - t * t)));
+		}
+	}
+
 	private List<Component> traderTooltip(TradeMerchant merchant, LocalPlayer player, boolean here) {
 		List<Component> lines = new ArrayList<>();
 		lines.add(TradeFeature.INSTANCE.title(merchant));
@@ -750,10 +944,17 @@ public class MapScreen extends Screen {
 			return null;
 		}
 		Waypoint hovered = null;
+		long now = System.currentTimeMillis();
 		for (Waypoint waypoint : MapFeature.INSTANCE.waypoints().visible(viewDim)) {
 			float x = screenX(waypoint.x + 0.5);
 			float y = screenY(waypoint.z + 0.5);
-			MapMarkers.waypoint(g, font, waypoint, x, y, 1f, false);
+			if (config().mapAnimations) {
+				// New waypoints drop in; the name stays at the place.
+				WaypointAnim.impact(g, waypoint, x, y, now, 1f);
+				MapMarkers.waypoint(g, font, waypoint, x, y + WaypointAnim.dropOffset(waypoint, now), 1f, false);
+			} else {
+				MapMarkers.waypoint(g, font, waypoint, x, y, 1f, false);
+			}
 			boolean hit = menu == null && MapMarkers.waypointHit(font, waypoint, x, y, mouseX, mouseY, false);
 			// Name and distance below the tip; when zoomed out only for the hovered waypoint.
 			if (zoom >= 1f || hit) {
@@ -970,6 +1171,14 @@ public class MapScreen extends Screen {
 					() -> trades.config().mapMarkers, () -> {
 						trades.config().mapMarkers = !trades.config().mapMarkers;
 						trades.save();
+					}));
+		}
+		PetFeature pets = PetFeature.INSTANCE;
+		if (pets.isEnabled()) {
+			list.add(new Layer(layerLabel("pets"), 0, itemIcon(Items.LEAD), pets.mapEntries(viewDim).size(), true,
+					() -> pets.config().mapMarkers, () -> {
+						pets.config().mapMarkers = !pets.config().mapMarkers;
+						pets.save();
 					}));
 		}
 		list.add(new Layer(layerLabel("entities"), 0, itemIcon(Items.ZOMBIE_HEAD), -1, true,

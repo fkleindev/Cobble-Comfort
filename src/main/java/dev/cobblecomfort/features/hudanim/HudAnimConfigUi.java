@@ -23,6 +23,7 @@ public final class HudAnimConfigUi {
 						.name(Component.translatable("cobblecomfort.group.hud_anim.xp"))
 						.option(Opts.bool("hud_anim.smooth_xp", d.smoothXp, () -> c(feature).smoothXp, v -> c(feature).smoothXp = v))
 						.option(Opts.bool("hud_anim.level_pulse", d.levelPulse, () -> c(feature).levelPulse, v -> c(feature).levelPulse = v))
+						.option(Opts.bool("hud_anim.level_beam", d.levelBeam, () -> c(feature).levelBeam, v -> c(feature).levelBeam = v))
 						.option(Opts.bool("hud_anim.xp_gain", d.xpGain, () -> c(feature).xpGain, v -> c(feature).xpGain = v))
 						.build())
 				.group(OptionGroup.createBuilder()
