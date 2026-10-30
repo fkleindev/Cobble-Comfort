@@ -6,6 +6,7 @@
 	"description": "Client-side quality of life and UI enhancements. Every feature can be toggled and configured.",
 	"authors": ["Florian"],
 	"license": "MIT",
+	"icon": "assets/cobblecomfort/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": ["dev.cobblecomfort.CobbleComfortClient"],

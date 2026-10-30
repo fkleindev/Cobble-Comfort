@@ -70,7 +70,7 @@ public final class HudConfigUi {
 				.options(elementOptions(feature, def))
 				.build();
 		return new SettingsScreen(parent, def.displayName(),
-				List.of(new SettingsScreen.Section(def.displayName(), ItemStack.EMPTY, category, null)), FeatureManager::saveAll);
+				List.of(new SettingsScreen.Section(def.displayName(), null, category, null)), FeatureManager::saveAll);
 	}
 
 	private static OptionGroup presetGroup(HudCustomizerFeature feature) {

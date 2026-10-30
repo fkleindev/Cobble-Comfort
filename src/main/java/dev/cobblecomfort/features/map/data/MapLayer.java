@@ -10,18 +10,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-/** All regions of one map layer (one dimension's surface, or the temporary cave view), optionally saved to a folder. */
+/** All regions of one map layer (a dimension's surface, Nether roof or one cave layer), optionally saved to a folder. */
 public final class MapLayer {
+	/** Advanced by the map every tick; regions remember it when used, so unused ones can be unloaded. */
+	private static volatile int clock;
+
 	private final Path folder;
 	private final Map<Long, MapRegion> regions = new ConcurrentHashMap<>();
-	private final Set<Long> missing = new HashSet<>();
+	private final Set<Long> missing = ConcurrentHashMap.newKeySet();
 
 	/** @param folder where regions are saved, or null for a layer that only lives in memory */
 	public MapLayer(Path folder) {
@@ -37,11 +39,13 @@ public final class MapLayer {
 		long key = key(rx, rz);
 		MapRegion region = regions.get(key);
 		if (region != null) {
+			region.lastUsed = clock;
 			return region;
 		}
 		if (folder != null && !missing.contains(key)) {
 			region = load(rx, rz);
 			if (region != null) {
+				region.lastUsed = clock;
 				regions.put(key, region);
 				return region;
 			}
@@ -51,8 +55,17 @@ public final class MapLayer {
 			return null;
 		}
 		region = new MapRegion(rx, rz);
+		region.lastUsed = clock;
 		regions.put(key, region);
 		return region;
+	}
+
+	public static int clock() {
+		return clock;
+	}
+
+	public static void tickClock() {
+		clock++;
 	}
 
 	public Collection<MapRegion> loaded() {
@@ -111,9 +124,20 @@ public final class MapLayer {
 					region.write(out);
 				}
 				Files.move(temp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				missing.remove(key(region.x, region.z));
 			} catch (IOException e) {
 				CobbleComfortClient.LOGGER.warn("Could not write map region {}", file, e);
 			}
 		}
+	}
+
+	/** Saves, then drops regions not used for {@code ticks} ticks; they are read again from disk when needed. */
+	public void saveAndUnload(int ticks) {
+		save();
+		if (folder == null) {
+			return;
+		}
+		int now = clock;
+		regions.values().removeIf(region -> now - region.lastUsed > ticks && !region.unsaved());
 	}
 }

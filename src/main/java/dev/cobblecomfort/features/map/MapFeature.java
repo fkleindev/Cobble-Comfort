@@ -518,8 +518,8 @@ public final class MapFeature extends Feature<MapConfig> {
 		MapLayer layer = world.active(level);
 		float yaw = player.getYRot();
 		SeedTerrain current = terrain();
-		int version = world.scanCount() * 31 + (current == null ? 0 : current.version());
-		minimap.update(config, layer, this::unexploredColor, player.getX(), player.getZ(), yaw, size, version);
+		int version = (world.scanCount() * 31 + (current == null ? 0 : current.version())) * 31 + world.autoLayer();
+		minimap.update(config, layer, world.caveActive() ? null : this::unexploredColor, player.getX(), player.getZ(), yaw, size, version);
 		g.blit(minimap.texture(), x0, y0, x0 + size, y0 + size, 0f, 1f, 0f, 1f);
 		float cx = x0 + size / 2f;
 		float cy = y0 + size / 2f;

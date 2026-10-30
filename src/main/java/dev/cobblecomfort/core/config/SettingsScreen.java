@@ -23,6 +23,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -51,8 +52,11 @@ public final class SettingsScreen extends Screen {
 	private static final int ON = 0xFF6CCB5F;
 	private static final int OFF = 0xFF5A606C;
 
-	/** A category in the sidebar, with an icon and whether its feature is switched on (null = no indicator). */
-	public record Section(Component name, ItemStack icon, ConfigCategory category, BooleanSupplier enabled) {
+	/**
+	 * A category in the sidebar, with an icon (null = none) and whether its feature is switched on (null = no indicator).
+	 * The icon is an item, not a stack: before a world is joined item components are not bound and no stack can exist.
+	 */
+	public record Section(Component name, Item icon, ConfigCategory category, BooleanSupplier enabled) {
 	}
 
 	private enum Kind {
@@ -252,6 +256,20 @@ public final class SettingsScreen extends Screen {
 		g.fill(left + 8, top + HEADER, left + panelW - 8, top + HEADER + 1, 0x18FFFFFF);
 	}
 
+	/** The section's item, or its initial while item components are not bound yet (title screen). */
+	private void drawIcon(GuiGraphicsExtractor g, Section section, float cx, float cy) {
+		if (section.icon() == null) {
+			return;
+		}
+		if (section.icon().builtInRegistryHolder().areComponentsBound()) {
+			MapUi.icon(g, new ItemStack(section.icon()), cx, cy, 11);
+			return;
+		}
+		String initial = section.name().getString().substring(0, 1);
+		RenderUtil.roundedFill(g, (int) cx - 5, (int) cy - 5, (int) cx + 6, (int) cy + 6, 3, MapUi.HOVER);
+		MapUi.centeredText(g, font, Component.literal(initial), cx + 0.5f, cy + 0.5f, MapUi.ACCENT, 0.75f);
+	}
+
 	private void drawSidebar(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		int x0 = left + 6;
 		int x1 = left + SIDEBAR + 6;
@@ -269,7 +287,7 @@ public final class SettingsScreen extends Screen {
 			Section section = sections.get(i);
 			boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + SECTION_ROW && mouseY >= listTop && mouseY < listBottom;
 			MapUi.buttonFace(g, x0, y, x1 - 4, y + SECTION_ROW - 1, hover, i == selected && !searching, MapUi.ACCENT);
-			MapUi.icon(g, section.icon(), x0 + 9, y + SECTION_ROW / 2f, 11);
+			drawIcon(g, section, x0 + 9, y + SECTION_ROW / 2f);
 			int dotSpace = section.enabled() != null ? 10 : 0;
 			String name = font.plainSubstrByWidth(section.name().getString(), x1 - x0 - 26 - dotSpace);
 			if (hover && name.length() < section.name().getString().length()) {

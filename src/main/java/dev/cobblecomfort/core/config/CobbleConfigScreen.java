@@ -6,7 +6,6 @@ import dev.isxander.yacl3.api.ConfigCategory;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
@@ -43,12 +42,12 @@ public final class CobbleConfigScreen {
 		List<SettingsScreen.Section> sections = new ArrayList<>();
 		for (Feature<?> feature : FeatureManager.features()) {
 			Item icon = ICONS.getOrDefault(feature.id(), Items.BOOK);
-			sections.add(new SettingsScreen.Section(feature.name(), new ItemStack(icon), feature.buildCategory(),
+			sections.add(new SettingsScreen.Section(feature.name(), icon, feature.buildCategory(),
 					() -> feature.config().enabled));
 		}
 		sections.sort(Comparator.comparing(section -> section.name().getString()));
 		sections.addFirst(new SettingsScreen.Section(Component.translatable("cobblecomfort.category.general"),
-				new ItemStack(Items.COMPARATOR),
+				Items.COMPARATOR,
 				ConfigCategory.createBuilder()
 						.name(Component.translatable("cobblecomfort.category.general"))
 						.option(Opts.bool("general.enabled", true, () -> general.enabled, v -> general.enabled = v))

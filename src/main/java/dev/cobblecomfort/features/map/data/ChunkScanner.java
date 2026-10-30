@@ -6,7 +6,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 
-/** Turns loaded chunks into map pixels: the surface (or, in the Nether, the ground under the roof) and cave slices. */
+import java.util.function.IntFunction;
+
+/** Turns loaded chunks into map pixels: the surface (or, in the Nether, the ground under the roof) and cave layers. */
 public final class ChunkScanner {
 	private static final int MAX_WATER_DEPTH = 24;
 	private static final int CAVE_SEARCH = 48;
@@ -40,25 +42,62 @@ public final class ChunkScanner {
 		}
 	}
 
-	/** Scans the area around a height (cave view): the floor below {@code sliceY}, or dark rock if it is solid there. */
-	public static void scanCave(ClientLevel level, LevelChunk chunk, MapLayer layer, int sliceY) {
+	/**
+	 * Scans cave layers {@code fromLayer..toLayer} (16 blocks each, layer n = Y n*16 to n*16+15). Per column and layer:
+	 * the floor below the highest open block in the layer, or dark rock if the layer is solid there. Layers above the
+	 * ground show the ground, like the surface.
+	 */
+	public static void scanCaves(ClientLevel level, LevelChunk chunk, IntFunction<MapLayer> layers, int fromLayer, int toLayer) {
 		int baseX = chunk.getPos().getMinBlockX();
 		int baseZ = chunk.getPos().getMinBlockZ();
-		MapRegion region = layer.region(baseX >> MapRegion.SHIFT, baseZ >> MapRegion.SHIFT, true);
+		int count = toLayer - fromLayer + 1;
+		MapRegion[] regions = new MapRegion[count];
+		boolean[] empty = new boolean[count];
+		for (int i = 0; i < count; i++) {
+			int layer = fromLayer + i;
+			regions[i] = layers.apply(layer).region(baseX >> MapRegion.SHIFT, baseZ >> MapRegion.SHIFT, true);
+			int section = chunk.getSectionIndexFromSectionY(layer);
+			empty[i] = section < 0 || section >= chunk.getSectionsCount() || chunk.getSection(section).hasOnlyAir();
+		}
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 		int minY = level.getMinY();
 		for (int lz = 0; lz < 16; lz++) {
 			for (int lx = 0; lx < 16; lx++) {
 				int bx = baseX + lx;
 				int bz = baseZ + lz;
-				BlockState at = chunk.getBlockState(pos.set(bx, sliceY, bz));
-				if (!at.isAir() && at.getFluidState().isEmpty() && BlockColorCache.color(level, at, pos) != 0) {
-					region.set(bx & (MapRegion.SIZE - 1), bz & (MapRegion.SIZE - 1), CAVE_SOLID, sliceY + 1, false);
-					continue;
+				int top = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
+				for (int i = 0; i < count; i++) {
+					int layerTop = (fromLayer + i) * 16 + 15;
+					int layerBottom = layerTop - 15;
+					// Open sky above the ground in this layer: it shows the ground.
+					if (layerTop > top) {
+						column(level, chunk, regions[i], pos, bx, bz, top, minY);
+						continue;
+					}
+					int open = Integer.MIN_VALUE;
+					if (empty[i]) {
+						open = layerTop;
+					} else {
+						for (int y = layerTop; y >= layerBottom; y--) {
+							if (isOpen(level, chunk.getBlockState(pos.set(bx, y, bz)), pos)) {
+								open = y;
+								break;
+							}
+						}
+					}
+					if (open == Integer.MIN_VALUE) {
+						regions[i].set(bx & (MapRegion.SIZE - 1), bz & (MapRegion.SIZE - 1), CAVE_SOLID, layerTop + 1, false);
+					} else {
+						column(level, chunk, regions[i], pos, bx, bz, open, Math.max(minY, open - CAVE_SEARCH));
+					}
 				}
-				column(level, chunk, region, pos, bx, bz, sliceY, Math.max(minY, sliceY - CAVE_SEARCH));
 			}
 		}
+	}
+
+	/** Air, fluids and blocks the map does not draw: where a cave can be seen from above. */
+	private static boolean isOpen(ClientLevel level, BlockState state, BlockPos pos) {
+		return state.isAir() || !state.getFluidState().isEmpty() || BlockColorCache.color(level, state, pos) == 0;
 	}
 
 	/** First air below the solid roof at the top of a column, or the top itself if there is no gap. */

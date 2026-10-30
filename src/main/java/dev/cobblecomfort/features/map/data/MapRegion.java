@@ -6,69 +6,99 @@ import java.io.IOException;
 
 /**
  * 512x512 blocks of the explored map: colour (0 = unexplored), surface height and whether the column is water.
- * Shading is applied when baking, from the heights, so changes to neighbours don't need a rescan.
+ * Shading is applied when baking, from the heights, so changes to neighbours don't need a rescan. Stored per chunk and
+ * only for explored chunks, so the many mostly empty cave layers cost little.
  */
 public final class MapRegion {
 	public static final int SHIFT = 9;
 	public static final int SIZE = 1 << SHIFT;
 	private static final int AREA = SIZE * SIZE;
-	private static final int FORMAT = 1;
+	private static final int CHUNKS = SIZE / 16;
+	/** 1: every block in order. 2: only explored chunks, each with its index. */
+	private static final int FORMAT_DENSE = 1;
+	private static final int FORMAT_CHUNKS = 2;
 	private static final float SHADE_STEP = 0.07f;
 	private static final float SHADE_MIN = 0.7f;
 	private static final float SHADE_MAX = 1.22f;
 
+	/** The 16x16 blocks of one chunk. */
+	private static final class Chunk {
+		final int[] colors = new int[256];
+		final short[] heights = new short[256];
+		final boolean[] water = new boolean[256];
+	}
+
 	public final int x;
 	public final int z;
-	private final int[] colors = new int[AREA];
-	private final short[] heights = new short[AREA];
-	private final boolean[] water = new boolean[AREA];
+	private final Chunk[] chunks = new Chunk[CHUNKS * CHUNKS];
 	/** Bumped on every change, so textures and caches know when to rebuild. */
 	private volatile int version;
-	private boolean unsaved;
+	private volatile boolean unsaved;
+	/** {@link MapLayer#clock()} when last used, to unload regions nobody looks at. */
+	volatile int lastUsed;
 
 	public MapRegion(int x, int z) {
 		this.x = x;
 		this.z = z;
 	}
 
-	private static int index(int lx, int lz) {
-		return lz << SHIFT | lx;
+	private static int chunkIndex(int lx, int lz) {
+		return (lz >> 4) * CHUNKS + (lx >> 4);
+	}
+
+	private static int inChunk(int lx, int lz) {
+		return (lz & 15) << 4 | (lx & 15);
 	}
 
 	public void set(int lx, int lz, int color, int height, boolean isWater) {
-		int i = index(lx, lz);
-		if (colors[i] == color && heights[i] == height && water[i] == isWater) {
+		int ci = chunkIndex(lx, lz);
+		Chunk chunk = chunks[ci];
+		if (chunk == null) {
+			if (color == 0) {
+				return;
+			}
+			chunk = chunks[ci] = new Chunk();
+		}
+		int i = inChunk(lx, lz);
+		if (chunk.colors[i] == color && chunk.heights[i] == height && chunk.water[i] == isWater) {
 			return;
 		}
-		colors[i] = color;
-		heights[i] = (short) height;
-		water[i] = isWater;
+		chunk.colors[i] = color;
+		chunk.heights[i] = (short) height;
+		chunk.water[i] = isWater;
 		version++;
 		unsaved = true;
 	}
 
 	public boolean explored(int lx, int lz) {
-		return colors[index(lx, lz)] != 0;
+		return rawColor(lx, lz) != 0;
 	}
 
 	public int rawColor(int lx, int lz) {
-		return colors[index(lx, lz)];
+		Chunk chunk = chunks[chunkIndex(lx, lz)];
+		return chunk == null ? 0 : chunk.colors[inChunk(lx, lz)];
 	}
 
 	public int height(int lx, int lz) {
-		return heights[index(lx, lz)];
+		Chunk chunk = chunks[chunkIndex(lx, lz)];
+		return chunk == null ? 0 : chunk.heights[inChunk(lx, lz)];
 	}
 
 	/** Colour with height shading against the block to the north-west (inside this region). */
 	public int shadedColor(int lx, int lz, boolean shading) {
-		int i = index(lx, lz);
-		int color = colors[i];
-		if (color == 0 || !shading || water[i]) {
+		Chunk chunk = chunks[chunkIndex(lx, lz)];
+		if (chunk == null) {
+			return 0;
+		}
+		int i = inChunk(lx, lz);
+		int color = chunk.colors[i];
+		if (color == 0 || !shading || chunk.water[i]) {
 			return color;
 		}
-		int north = lz > 0 && colors[i - SIZE] != 0 ? heights[i - SIZE] : heights[i];
-		int west = lx > 0 && colors[i - 1] != 0 ? heights[i - 1] : heights[i];
-		float diff = (heights[i] - north) + (heights[i] - west) * 0.5f;
+		int h = chunk.heights[i];
+		int north = lz > 0 && explored(lx, lz - 1) ? height(lx, lz - 1) : h;
+		int west = lx > 0 && explored(lx - 1, lz) ? height(lx - 1, lz) : h;
+		float diff = (h - north) + (h - west) * 0.5f;
 		float factor = Math.clamp(1f + diff * SHADE_STEP, SHADE_MIN, SHADE_MAX);
 		return BlockColorCache.scale(color, factor);
 	}
@@ -82,25 +112,52 @@ public final class MapRegion {
 	}
 
 	public void write(DataOutputStream out) throws IOException {
-		out.writeInt(FORMAT);
-		for (int i = 0; i < AREA; i++) {
-			out.writeInt(colors[i]);
-			out.writeShort(heights[i]);
-			out.writeBoolean(water[i]);
-		}
 		unsaved = false;
+		out.writeInt(FORMAT_CHUNKS);
+		int count = 0;
+		for (Chunk chunk : chunks) {
+			count += chunk == null ? 0 : 1;
+		}
+		out.writeShort(count);
+		for (int c = 0; c < chunks.length; c++) {
+			Chunk chunk = chunks[c];
+			if (chunk == null) {
+				continue;
+			}
+			out.writeShort(c);
+			for (int i = 0; i < 256; i++) {
+				out.writeInt(chunk.colors[i]);
+				out.writeShort(chunk.heights[i]);
+				out.writeBoolean(chunk.water[i]);
+			}
+		}
 	}
 
 	public void read(DataInputStream in) throws IOException {
-		if (in.readInt() != FORMAT) {
+		int format = in.readInt();
+		if (format == FORMAT_DENSE) {
+			for (int i = 0; i < AREA; i++) {
+				int color = in.readInt();
+				short height = in.readShort();
+				boolean isWater = in.readBoolean();
+				set(i & (SIZE - 1), i >> SHIFT, color, height, isWater);
+			}
+		} else if (format == FORMAT_CHUNKS) {
+			int count = in.readShort();
+			for (int n = 0; n < count; n++) {
+				Chunk chunk = new Chunk();
+				chunks[in.readShort()] = chunk;
+				for (int i = 0; i < 256; i++) {
+					chunk.colors[i] = in.readInt();
+					chunk.heights[i] = in.readShort();
+					chunk.water[i] = in.readBoolean();
+				}
+			}
+		} else {
 			return;
 		}
-		for (int i = 0; i < AREA; i++) {
-			colors[i] = in.readInt();
-			heights[i] = in.readShort();
-			water[i] = in.readBoolean();
-		}
 		version++;
-		unsaved = false;
+		// Old files are rewritten in the new format on the next save.
+		unsaved = format == FORMAT_DENSE;
 	}
 }

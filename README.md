@@ -1,3 +1,5 @@
+<img src="src/main/resources/assets/cobblecomfort/icon.png" width="96" align="right" alt="Cobble Comfort logo">
+
 # Cobble Comfort
 
 A client-side quality-of-life mod for **Minecraft 26.3 (Fabric)**: a map and minimap, a storage memory for your
@@ -27,8 +29,11 @@ There is also a key for the HUD editor.
 ### Map and minimap
 - Minimap (round or square, optionally rotating) with coordinates, biome, players, mobs with their faces, a view cone
   and your movement trail.
-- Full-screen map (**M**) with cave view, the area below the Nether roof, height shading and a chunk grid. It opens
-  out of the minimap, turning north-up as it grows, and shrinks back into it when you close it.
+- Full-screen map (**M**) with height shading and a chunk grid. It opens out of the minimap, turning north-up as it
+  grows, and shrinks back into it when you close it.
+- **Cave layers:** every 16 blocks of height is mapped and saved as its own layer while you explore, in the Overworld
+  and below the Nether roof. Underground, the map and minimap switch to the layer you are in; on the Nether roof they
+  show the roof. A slider on the map picks any layer by hand (also Page Up/Down), "A" follows you again.
 - The map is the mod's hub: a bar at its top left opens the storage search, traders, pets, waypoints, resource tracker,
   HUD editor and settings.
 - Waypoints (**B** for a new one, **U** for the list) with categories, colours, beams in the world, name and distance.
@@ -213,3 +218,7 @@ The mod ends up in `build/libs/`, the plugin in `server-plugin/build/libs/`.
 ## License
 
 MIT
+
+The logo is rendered from the vanilla cobblestone and cushion textures. The cobblestone's 3D relief uses the
+cobblestone heightmap from [Vanilla RTX](https://github.com/Cubeir/Vanilla-RTX) by Cubeir
+([license](https://github.com/Cubeir/Vanilla-RTX/blob/master/LICENSE.txt)).

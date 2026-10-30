@@ -7,6 +7,7 @@ import dev.cobblecomfort.features.map.MapConfig;
 import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.features.map.data.MapLayer;
 import dev.cobblecomfort.features.map.data.MapRegion;
+import dev.cobblecomfort.features.map.data.MapWorld;
 import dev.cobblecomfort.features.map.render.MapMarkers;
 import dev.cobblecomfort.features.map.render.WaypointAnim;
 import dev.cobblecomfort.features.map.render.MapUi;
@@ -148,6 +149,13 @@ public class MapScreen extends Screen {
 	/** The layer sidebar's place (set while drawing) and how far its list is scrolled. */
 	private int layersX0, layersX1, layersTop, layersBottom;
 	private final SmoothScroll layersScroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
+	/** Depth slider: the layer chosen by hand (null = follow the player), its place, whether it is dragged and its cached list. */
+	private Integer manualLayer;
+	private int sliderX0, sliderX1, sliderTop, sliderBottom;
+	private boolean sliderDragging;
+	private List<Integer> layerIds = List.of(MapWorld.SURFACE);
+	private String layerIdsDim;
+	private long layerIdsMs;
 	/** Opening out of the minimap: its place on screen (null when not opening that way), its turn, and the start. */
 	private Rect openFrom;
 	private boolean openChecked;
@@ -437,6 +445,7 @@ public class MapScreen extends Screen {
 		centerZ *= factor;
 		viewDim = dimension;
 		menu = null;
+		manualLayer = null;
 	}
 
 	private double worldX(double screenX) {
@@ -538,7 +547,7 @@ public class MapScreen extends Screen {
 		}
 		MapFeature feature = MapFeature.INSTANCE;
 		boolean here = viewingPlayerDim();
-		MapLayer layer = here ? feature.world().active(level) : feature.world().surface(key(viewDim));
+		MapLayer layer = feature.world().layer(key(viewDim), shownLayer());
 		// Opening out of the minimap: the map (and its window) grows from there, turning north-up and zooming.
 		float open = openProgress();
 		float targetZoom = zoom;
@@ -600,12 +609,14 @@ public class MapScreen extends Screen {
 			slid(g, 0, -hidden * 40, () -> drawInfo(g, layer, level, mouseX, mouseY, here));
 			slid(g, 0, hidden * 40, () -> drawToolbar(g, mouseX, mouseY));
 			slid(g, hidden * (LAYERS_WIDTH + 12), 0, () -> drawLayers(g, mouseX, mouseY));
+			slid(g, hidden * (LAYERS_WIDTH + 12), 0, () -> drawSlider(g, mouseX, mouseY));
 		} else {
 			drawTabs(g, mouseX, mouseY);
 			drawNav(g, mouseX, mouseY);
 			drawInfo(g, layer, level, mouseX, mouseY, here);
 			drawToolbar(g, mouseX, mouseY);
 			drawLayers(g, mouseX, mouseY);
+			drawSlider(g, mouseX, mouseY);
 		}
 		if (config().mapWindowed) {
 			drawGrip(g, mouseX, mouseY);
@@ -769,7 +780,10 @@ public class MapScreen extends Screen {
 		int maxRx = (int) Math.floor(worldX(mapX + mapW) / MapRegion.SIZE);
 		int minRz = (int) Math.floor(worldZ(mapY) / MapRegion.SIZE);
 		int maxRz = (int) Math.floor(worldZ(mapY + mapH) / MapRegion.SIZE);
-		MapFeature.INSTANCE.drawUnexplored(g, key(viewDim), minRx, maxRx, minRz, maxRz, this::screenX, this::screenY, mapAlpha());
+		// Seed terrain is the surface: not behind a cave layer or the roof.
+		if (shownLayer() == MapWorld.SURFACE) {
+			MapFeature.INSTANCE.drawUnexplored(g, key(viewDim), minRx, maxRx, minRz, maxRz, this::screenX, this::screenY, mapAlpha());
+		}
 		for (int rz = minRz; rz <= maxRz; rz++) {
 			for (int rx = minRx; rx <= maxRx; rx++) {
 				MapRegion region = layer.region(rx, rz, false);
@@ -1191,8 +1205,9 @@ public class MapScreen extends Screen {
 					(int) Math.floor(bx * factor) + ", " + (int) Math.floor(bz * factor)));
 			colors.add(RenderUtil.lerpColor(other.accent, 0xFFFFFFFF, 0.35f));
 		}
-		if (here && MapFeature.INSTANCE.world().caveActive()) {
-			lines.add(Component.translatable("cobblecomfort.map.cave"));
+		int shown = shownLayer();
+		if (shown != MapWorld.SURFACE) {
+			lines.add(Component.translatable("cobblecomfort.map.depth.info", layerName(shown, false)));
 			colors.add(0xFFE8C860);
 		}
 		int w = 0;
@@ -1268,7 +1283,7 @@ public class MapScreen extends Screen {
 		boolean tabsHit = x >= tabsLeft && x < tabsLeft + tabsWidth && y >= tabsTop && y < tabsTop + TAB_HEIGHT;
 		boolean toolbarHit = x >= toolbarLeft && x < toolbarRight && y >= toolbarTop && y < toolbarTop + TOOLBAR_HEIGHT;
 		boolean navHit = !nav.isEmpty() && x >= mapX + 6 && x < navRight() && y >= navTop && y < navBottom();
-		return tabsHit || toolbarHit || navHit || overLayers(x, y);
+		return tabsHit || toolbarHit || navHit || overLayers(x, y) || overSlider(x, y);
 	}
 
 	private void drawMenu(GuiGraphicsExtractor g, int mouseX, int mouseY) {
@@ -1286,6 +1301,154 @@ public class MapScreen extends Screen {
 			drawIcon(g, entry.icon(), menu.x() + 12, ry + MENU_ROW / 2, 11, accent);
 			g.text(font, entry.label(), menu.x() + 22, ry + 4, hover ? MapUi.TEXT : 0xFFD8DBE2, false);
 		}
+	}
+
+	// ---------------------------------------------------------------- depth slider
+
+	/** The layer on screen: the one chosen on the slider, else the player's (their dimension) or the surface. */
+	private int shownLayer() {
+		if (manualLayer != null) {
+			return manualLayer;
+		}
+		return viewingPlayerDim() ? MapFeature.INSTANCE.world().autoLayer() : MapWorld.SURFACE;
+	}
+
+	/** The layers of the shown dimension, top to bottom; refreshed now and then (other dimensions list their folders). */
+	private List<Integer> layerIds() {
+		long now = System.currentTimeMillis();
+		if (!viewDim.equals(layerIdsDim) || now - layerIdsMs > 1000) {
+			layerIds = MapFeature.INSTANCE.world().layerIds(key(viewDim), minecraft.level);
+			layerIdsDim = viewDim;
+			layerIdsMs = now;
+		}
+		return layerIds;
+	}
+
+	/** A layer's name: the roof, the surface or the cave layer's heights (short: just its lowest Y). */
+	private static Component layerName(int id, boolean shortName) {
+		if (id == MapWorld.SURFACE) {
+			return Component.translatable("cobblecomfort.map.depth.surface");
+		}
+		if (id == MapWorld.ROOF) {
+			return Component.translatable("cobblecomfort.map.depth.roof");
+		}
+		return shortName ? Component.literal("Y " + id * 16)
+				: Component.translatable("cobblecomfort.map.depth.cave", id * 16, id * 16 + 15);
+	}
+
+	/**
+	 * Places the slider at the right edge below the layer sidebar, or left of the sidebar when there is no room below.
+	 * The top row is the "follow the player" button, the track below has a step per layer.
+	 */
+	private void placeSlider(int steps) {
+		int width = 22;
+		int track = Math.clamp(steps * 7, 60, 180);
+		int height = 18 + track + 8;
+		if (layersBottom + 6 + height <= maxSliderBottom(layersX1 - width)) {
+			sliderX1 = layersX1;
+			sliderTop = layersBottom + 6;
+		} else {
+			sliderX1 = layersX0 - 4;
+			sliderTop = layersTop;
+			height = Math.min(height, maxSliderBottom(sliderX1 - width) - sliderTop);
+		}
+		sliderX0 = sliderX1 - width;
+		sliderBottom = sliderTop + height;
+	}
+
+	/** How far down the slider may reach at this left edge: above the toolbar if it is below, else above the grip. */
+	private int maxSliderBottom(int x0) {
+		return (toolbarRight > x0 ? toolbarTop : mapY + mapH - GRIP) - 6;
+	}
+
+	private int trackTop() {
+		return sliderTop + 20;
+	}
+
+	private int trackBottom() {
+		return sliderBottom - 6;
+	}
+
+	private float stepY(int index, int steps) {
+		float stepH = (trackBottom() - trackTop()) / (float) Math.max(1, steps);
+		return trackTop() + stepH * (index + 0.5f);
+	}
+
+	private boolean overSlider(double x, double y) {
+		return x >= sliderX0 && x < sliderX1 && y >= sliderTop && y < sliderBottom;
+	}
+
+	private boolean overAutoButton(double x, double y) {
+		return x >= sliderX0 + 2 && x < sliderX1 - 2 && y >= sliderTop + 2 && y < sliderTop + 18;
+	}
+
+	/** Picks the layer at a height on the track (dragging may go past its ends). */
+	private void pickLayer(double y) {
+		List<Integer> ids = layerIds();
+		float stepH = (trackBottom() - trackTop()) / (float) ids.size();
+		int index = Math.clamp((int) Math.floor((y - trackTop()) / stepH), 0, ids.size() - 1);
+		manualLayer = ids.get(index);
+	}
+
+	/** Moves the chosen layer up (negative) or down by steps, starting from the one on screen. */
+	private void stepLayer(int steps) {
+		List<Integer> ids = layerIds();
+		int index = Math.max(0, ids.indexOf(shownLayer()));
+		manualLayer = ids.get(Math.clamp(index + steps, 0, ids.size() - 1));
+	}
+
+	/**
+	 * The depth slider: an "A" button that follows the player again, a track with a notch per layer (the surface in
+	 * the accent colour) and a knob on the layer shown, with its name in a tag to the left.
+	 */
+	private void drawSlider(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		List<Integer> ids = layerIds();
+		placeSlider(ids.size());
+		int accent = Dim.accentOf(viewDim);
+		boolean interactive = menu == null && windowDrag == WindowDrag.NONE;
+		MapUi.panel(g, sliderX0, sliderTop, sliderX1, sliderBottom);
+		boolean auto = manualLayer == null;
+		MapUi.buttonFace(g, sliderX0 + 2, sliderTop + 2, sliderX1 - 2, sliderTop + 18,
+				interactive && overAutoButton(mouseX, mouseY), auto, accent);
+		MapUi.centeredText(g, font, Component.literal("A"), (sliderX0 + sliderX1) / 2f, sliderTop + 10.5f, auto ? MapUi.TEXT : MapUi.TEXT_DIM, 1f);
+		int cx = (sliderX0 + sliderX1) / 2;
+		RenderUtil.roundedFill(g, cx - 1, trackTop(), cx + 1, trackBottom(), 1, MapUi.FIELD);
+		int shown = shownLayer();
+		int shownIndex = Math.max(0, ids.indexOf(shown));
+		for (int i = 0; i < ids.size(); i++) {
+			int id = ids.get(i);
+			int y = Math.round(stepY(i, ids.size()));
+			boolean major = id == MapWorld.SURFACE || id == MapWorld.ROOF || id % 4 == 0;
+			int w = major ? 4 : 2;
+			g.fill(cx - w, y, cx + w + 1, y + 1, id == MapWorld.SURFACE ? accent : major ? 0x60FFFFFF : 0x30FFFFFF);
+		}
+		float ky = stepY(shownIndex, ids.size());
+		boolean knobHover = interactive && overSlider(mouseX, mouseY) && mouseY >= trackTop() - 4;
+		RenderUtil.roundedFill(g, cx - 7, Math.round(ky) - 3, cx + 8, Math.round(ky) + 3, 3,
+				knobHover || sliderDragging ? 0xFFFFFFFF : auto ? 0xFFDDE0E8 : accent);
+		// The name of the layer next to the knob.
+		Component name = layerName(shown, true);
+		int tw = font.width(name);
+		int tx1 = sliderX0 - 4;
+		int ty = Math.round(ky) - 6;
+		MapUi.panel(g, tx1 - tw - 8, ty, tx1, ty + 12);
+		g.text(font, name, tx1 - tw - 4, ty + 2, auto ? MapUi.TEXT_DIM : MapUi.TEXT, false);
+		if (interactive && overAutoButton(mouseX, mouseY)) {
+			g.setComponentTooltipForNextFrame(font, List.of(Component.translatable("cobblecomfort.map.depth.auto")), mouseX, mouseY);
+		} else if (interactive && overSlider(mouseX, mouseY) && !sliderDragging) {
+			g.setComponentTooltipForNextFrame(font, List.of(Component.translatable("cobblecomfort.map.depth.title"),
+					Component.translatable("cobblecomfort.map.depth.hint").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
+		}
+	}
+
+	/** A click on the slider: the "A" button follows the player again, the track picks a layer and starts dragging. */
+	private void clickSlider(double mx, double my) {
+		if (overAutoButton(mx, my)) {
+			manualLayer = null;
+			return;
+		}
+		pickLayer(my);
+		sliderDragging = true;
 	}
 
 	// ---------------------------------------------------------------- layers
@@ -1622,6 +1785,10 @@ public class MapScreen extends Screen {
 			clickLayers(mx, my);
 			return;
 		}
+		if (overSlider(mx, my)) {
+			clickSlider(mx, my);
+			return;
+		}
 		int x = tabsLeft + 2;
 		for (String tab : tabs) {
 			int w = tabWidth(tab);
@@ -1681,7 +1848,7 @@ public class MapScreen extends Screen {
 	}
 
 	private String heightOr(int wx, int wz, String fallback) {
-		int h = MapFeature.INSTANCE.world().surface(key(viewDim)).heightAt(wx, wz);
+		int h = MapFeature.INSTANCE.world().layer(key(viewDim), shownLayer()).heightAt(wx, wz);
 		return h == Integer.MIN_VALUE ? fallback : String.valueOf(h);
 	}
 
@@ -1695,6 +1862,7 @@ public class MapScreen extends Screen {
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
 		dragging = false;
+		sliderDragging = false;
 		if (windowDrag != WindowDrag.NONE) {
 			windowDrag = WindowDrag.NONE;
 			MapFeature.INSTANCE.save();
@@ -1719,6 +1887,10 @@ public class MapScreen extends Screen {
 			layout();
 			return true;
 		}
+		if (sliderDragging) {
+			pickLayer(event.y());
+			return true;
+		}
 		if (dragging) {
 			following = false;
 			centerX -= dx / zoom;
@@ -1738,6 +1910,10 @@ public class MapScreen extends Screen {
 		}
 		if (overLayers(mouseX, mouseY)) {
 			layersScroll.scroll(-(scrollY * LAYER_ROW * 2));
+			return true;
+		}
+		if (overSlider(mouseX, mouseY)) {
+			stepLayer(scrollY > 0 ? -1 : 1);
 			return true;
 		}
 		double beforeX = worldX(mouseX);
@@ -1767,6 +1943,15 @@ public class MapScreen extends Screen {
 				switchTo(playerDim);
 			}
 			centerOnPlayer();
+			return true;
+		}
+		// Page up and down step through the layers, Home follows the player again.
+		if (event.key() == InputConstants.KEY_PAGEUP || event.key() == InputConstants.KEY_PAGEDOWN) {
+			stepLayer(event.key() == InputConstants.KEY_PAGEUP ? -1 : 1);
+			return true;
+		}
+		if (event.key() == InputConstants.KEY_HOME) {
+			manualLayer = null;
 			return true;
 		}
 		if (event.key() == InputConstants.KEY_TAB && !tabs.isEmpty()) {
