@@ -1,5 +1,6 @@
 package dev.cobblecomfort.features.trade;
 
+import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import dev.cobblecomfort.features.invtools.ItemSearch;
 import dev.cobblecomfort.features.map.MapFeature;
@@ -25,7 +26,7 @@ public final class TradeTab {
 	private static final int ICON = 18;
 	private static final int ARROW = 10;
 	private static final int OFFER_GAP = 6;
-	private static final int ROW_HOVER = 0x30FFFFFF;
+	private static final int ROW_HOVER = 0x22FFFFFF;
 	private static final int SOLD_OUT = 0xA0101018;
 
 	/** A trader in the list, with the offers that made it match. */
@@ -113,14 +114,14 @@ public final class TradeTab {
 				TradeMerchant merchant = result.merchant();
 				boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + row - 2;
 				if (hover) {
-					g.fill(x0 - 2, y - 1, x1 + 2, y + row - 1, ROW_HOVER);
+					RenderUtil.roundedFill(g, x0 - 2, y - 1, x1 + 2, y + row - 1, 3, ROW_HOVER);
 				}
 				g.item(TradeFeature.icon(merchant), x0, y + 2);
 				int textX = x0 + 20;
 				Component name = nameLine(merchant);
 				g.text(font, name, textX, y + 1, 0xFFFFFFFF, true);
 				Component location = locationLine(merchant, eye, dim);
-				g.text(font, location, textX, y + 12, 0xFF9A9AA8, false);
+				g.text(font, location, textX, y + 12, 0xFF9AA0AE, false);
 				int left = textX + Math.max(font.width(name), font.width(location)) + 8;
 				TradeOffer offer = drawOffers(g, font, result, left, x1, y + 3, hover ? mouseX : -1);
 				if (hover) {
@@ -166,7 +167,7 @@ public final class TradeTab {
 		int x = right - width;
 		if (fitting.size() < result.shown().size()) {
 			String more = "+" + (result.shown().size() - fitting.size());
-			g.text(font, more, x - font.width(more) - 4, y + 5, 0xFF9A9AA8, false);
+			g.text(font, more, x - font.width(more) - 4, y + 5, 0xFF9AA0AE, false);
 		}
 		TradeOffer hovered = null;
 		for (TradeOffer offer : fitting) {
@@ -179,7 +180,7 @@ public final class TradeTab {
 				g.itemDecorations(font, offer.costB(), x, y);
 				x += ICON;
 			}
-			g.text(font, "→", x + 1, y + 4, 0xFF9A9AA8, false);
+			g.text(font, "→", x + 1, y + 4, 0xFF9AA0AE, false);
 			x += ARROW;
 			g.item(offer.result(), x, y);
 			g.itemDecorations(font, offer.result(), x, y);

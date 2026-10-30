@@ -53,7 +53,17 @@ public class MapAnimScreenshotTest implements FabricClientGameTest {
 			shot(context, "mapanim_open_3");
 			context.waitTicks(10);
 			shot(context, "mapanim_open_done");
-			context.setScreen(() -> null);
+
+			// Closing shrinks the map back into the minimap.
+			context.runOnClient(mc -> mc.gui.screen().onClose());
+			for (int i = 1; i <= 4; i++) {
+				context.waitTick();
+				shot(context, "mapanim_close_" + i);
+			}
+			context.waitTicks(10);
+			shot(context, "mapanim_close_done");
+			String after = context.computeOnClient(mc -> mc.gui.screen() == null ? "none" : mc.gui.screen().getClass().getSimpleName());
+			LOGGER.info("Screen after closing: {}", after);
 		}
 	}
 

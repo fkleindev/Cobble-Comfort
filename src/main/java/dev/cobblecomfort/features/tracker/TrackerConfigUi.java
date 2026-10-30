@@ -20,7 +20,7 @@ public final class TrackerConfigUi {
 						.name(Opts.name("tracker.open"))
 						.description(Opts.desc("tracker.open"))
 						.available(feature.hasWorld())
-						.action(screen -> Minecraft.getInstance().gui.setScreen(new TrackerScreen(feature, screen)))
+						.action(screen -> Minecraft.getInstance().gui.setScreen(new TrackerScreen(feature, Minecraft.getInstance().gui.screen())))
 						.build())
 				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.tracker.counting"))

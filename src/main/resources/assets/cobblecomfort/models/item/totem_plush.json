@@ -1,0 +1,52 @@
+{
+  "textures": {
+    "particle": "minecraft:block/yellow_wool"
+  },
+  "display": {
+    "gui": {
+      "rotation": [ 12, 30, 0 ],
+      "translation": [ 0, 0, 0 ],
+      "scale": [ 0.9, 0.9, 0.9 ]
+    },
+    "ground": {
+      "rotation": [ 0, 0, 0 ],
+      "translation": [ 0, 2, 0 ],
+      "scale": [ 0.4, 0.4, 0.4 ]
+    },
+    "fixed": {
+      "rotation": [ 0, 180, 0 ],
+      "translation": [ 0, 0, 0 ],
+      "scale": [ 0.75, 0.75, 0.75 ]
+    },
+    "head": {
+      "rotation": [ 0, 180, 0 ],
+      "translation": [ 0, 6, 0 ],
+      "scale": [ 0.8, 0.8, 0.8 ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [ 90, 180, 0 ],
+      "translation": [ 0, 0, 3 ],
+      "scale": [ 0.46, 0.46, 0.46 ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [ 90, 180, 0 ],
+      "translation": [ 0, 0, 3 ],
+      "scale": [ 0.46, 0.46, 0.46 ]
+    },
+    "firstperson_righthand": {
+      "rotation": [ 0, -45, 0 ],
+      "translation": [ 2, 2.5, 0 ],
+      "scale": [ 0.32, 0.32, 0.32 ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [ 0, -45, 0 ],
+      "translation": [ 2, 2.5, 0 ],
+      "scale": [ 0.32, 0.32, 0.32 ]
+    },
+    "on_shelf": {
+      "rotation": [ 0, 180, 0 ],
+      "translation": [ 0, 0, 0 ],
+      "scale": [ 1, 1, 1 ]
+    }
+  }
+}

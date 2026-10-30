@@ -5,6 +5,8 @@
 	"compatibilityLevel": "JAVA_21",
 	"client": [
 		"AbstractContainerScreenMixin",
+		"ItemModelResolverMixin",
+		"PunchyArmRendererMixin",
 		"CrosshairMixin",
 		"LivingEntityMixin",
 		"AbstractFurnaceScreenMixin",

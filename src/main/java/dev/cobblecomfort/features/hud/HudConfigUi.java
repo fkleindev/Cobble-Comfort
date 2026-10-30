@@ -2,6 +2,7 @@ package dev.cobblecomfort.features.hud;
 
 import dev.cobblecomfort.core.FeatureManager;
 import dev.cobblecomfort.core.config.Opts;
+import dev.cobblecomfort.core.config.SettingsScreen;
 import dev.cobblecomfort.features.hud.anim.Easing;
 import dev.cobblecomfort.features.hud.anim.ShowAnimation;
 import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
@@ -9,11 +10,11 @@ import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionGroup;
-import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +37,7 @@ public final class HudConfigUi {
 				.option(ButtonOption.createBuilder()
 						.name(Opts.name("hud.open_editor"))
 						.description(Opts.desc("hud.open_editor"))
-						.action(screen -> Minecraft.getInstance().gui.setScreen(new HudEditorScreen(screen)))
+						.action(screen -> Minecraft.getInstance().gui.setScreen(new HudEditorScreen(Minecraft.getInstance().gui.screen())))
 						.build());
 
 		HudConfig defaults = new HudConfig();
@@ -64,15 +65,12 @@ public final class HudConfigUi {
 
 	/** A config screen for a single element, opened from the HUD editor. */
 	public static Screen elementScreen(HudCustomizerFeature feature, HudElementDef def, Screen parent) {
-		return YetAnotherConfigLib.createBuilder()
-				.title(def.displayName())
-				.save(FeatureManager::saveAll)
-				.category(ConfigCategory.createBuilder()
-						.name(def.displayName())
-						.options(elementOptions(feature, def))
-						.build())
-				.build()
-				.generateScreen(parent);
+		ConfigCategory category = ConfigCategory.createBuilder()
+				.name(def.displayName())
+				.options(elementOptions(feature, def))
+				.build();
+		return new SettingsScreen(parent, def.displayName(),
+				List.of(new SettingsScreen.Section(def.displayName(), ItemStack.EMPTY, category, null)), FeatureManager::saveAll);
 	}
 
 	private static OptionGroup presetGroup(HudCustomizerFeature feature) {
@@ -85,7 +83,7 @@ public final class HudConfigUi {
 					.name(Component.translatable("cobblecomfort.preset." + key))
 					.description(Opts.desc("hud.preset." + key))
 					.text(Component.translatable("cobblecomfort.option.hud.preset.apply"))
-					.action(screen -> applyAndShow(feature, preset.create(), screen))
+					.action(screen -> applyAndShow(feature, preset.create(), Minecraft.getInstance().gui.screen()))
 					.build());
 		}
 		Option<String> nameOption = Option.<String>createBuilder()
@@ -113,7 +111,7 @@ public final class HudConfigUi {
 					.action(screen -> {
 						Map<String, HudElementConfig> layout = HudPresets.load(name);
 						if (layout != null) {
-							applyAndShow(feature, layout, screen);
+							applyAndShow(feature, layout, Minecraft.getInstance().gui.screen());
 						}
 					})
 					.build());

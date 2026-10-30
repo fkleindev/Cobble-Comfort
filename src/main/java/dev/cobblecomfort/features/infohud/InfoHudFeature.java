@@ -5,6 +5,7 @@ import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.lightoverlay.SpawnLight;
 import dev.cobblecomfort.features.phantom.PhantomFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -189,9 +190,14 @@ public final class InfoHudFeature extends Feature<InfoHudConfig> {
 		int block = level.getBrightness(LightLayer.BLOCK, pos);
 		int sky = level.getBrightness(LightLayer.SKY, pos);
 		MutableComponent text = Component.translatable("cobblecomfort.info.light_value", block, sky);
-		// Monsters need block light 0, and darkness from the sky too (night or no sky light).
-		if (config.colorValues && block == 0 && (sky == 0 || level.isDarkOutside())) {
-			text.withStyle(ChatFormatting.RED);
+		// The same colours as the light overlay: red where monsters can always spawn, yellow where only at night.
+		if (config.colorValues) {
+			switch (SpawnLight.at(level, pos)) {
+				case ALWAYS -> text.withStyle(ChatFormatting.RED);
+				case NIGHT -> text.withStyle(ChatFormatting.YELLOW);
+				case SAFE -> {
+				}
+			}
 		}
 		return text;
 	}

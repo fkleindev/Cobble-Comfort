@@ -1,0 +1,9 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "cobblecomfort:item/totem_plush",
+    "model": {
+      "type": "cobblecomfort:plush"
+    }
+  }
+}

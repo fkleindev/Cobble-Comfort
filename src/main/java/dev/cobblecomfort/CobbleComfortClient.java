@@ -12,6 +12,8 @@ import dev.cobblecomfort.features.effects.EffectHudFeature;
 import dev.cobblecomfort.features.food.FoodHudFeature;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
 import dev.cobblecomfort.features.fullbright.FullbrightFeature;
+import dev.cobblecomfort.features.lightoverlay.LightOverlayFeature;
+import dev.cobblecomfort.features.plush.PlushFeature;
 import dev.cobblecomfort.features.hotbar.HotbarFeature;
 import dev.cobblecomfort.features.infohud.InfoHudFeature;
 import dev.cobblecomfort.features.hud.HudCustomizerFeature;
@@ -70,6 +72,8 @@ public class CobbleComfortClient implements ClientModInitializer {
 		FeatureManager.register(TrackerFeature.INSTANCE);
 		FeatureManager.register(ZoomFeature.INSTANCE);
 		FeatureManager.register(FullbrightFeature.INSTANCE);
+		FeatureManager.register(LightOverlayFeature.INSTANCE);
+		FeatureManager.register(PlushFeature.INSTANCE);
 		FeatureManager.register(ShulkerPreviewFeature.INSTANCE);
 		FeatureManager.register(ItemPreviewFeature.INSTANCE);
 		FeatureManager.register(EffectHudFeature.INSTANCE);

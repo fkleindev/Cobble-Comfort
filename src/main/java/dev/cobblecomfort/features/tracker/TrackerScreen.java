@@ -1,9 +1,11 @@
 package dev.cobblecomfort.features.tracker;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.map.render.MapUi;
+import dev.cobblecomfort.features.map.screen.FlatButton;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -29,9 +31,12 @@ public class TrackerScreen extends Screen {
 	private static final int LIST_WIDTH = 180;
 	private static final int ROW_HEIGHT = 20;
 	private static final int CELL = 18;
-	private static final int GRID_COLUMNS = 10;
+	private static final int GRID_COLUMNS = 9;
 	private static final int CONTROL = 10;
 	private static final int TARGET_WIDTH = 34;
+	/** Background of the goal list and the item grid, and the colour of finished goals. */
+	private static final int WELL = 0x40000000;
+	private static final int DONE = 0xFF6CCB5F;
 	private static final long STATUS_MS = 3000;
 
 	private final TrackerFeature feature;
@@ -43,6 +48,7 @@ public class TrackerScreen extends Screen {
 	private EditBox search;
 	private EditBox quantity;
 	private EditBox targetEdit;
+	private int searchRight;
 	private TrackerData.Goal editingGoal;
 
 	private int left, top, panelHeight;
@@ -78,12 +84,17 @@ public class TrackerScreen extends Screen {
 
 		int rightX = left + 8 + LIST_WIDTH + COLUMN_GAP;
 		int rightWidth = PANEL_WIDTH - 16 - LIST_WIDTH - COLUMN_GAP;
-		search = new EditBox(font, rightX, top + 20, rightWidth - 50, 16, Component.translatable("cobblecomfort.tracker.screen.search"));
-		search.setHint(Component.translatable("cobblecomfort.tracker.screen.search").withStyle(ChatFormatting.DARK_GRAY));
+		searchRight = rightX + rightWidth - 50;
+		search = new EditBox(font, rightX + 16, top + 24, searchRight - rightX - 20, 10, Component.translatable("cobblecomfort.tracker.screen.search"));
+		search.setBordered(false);
+		search.setTextColor(MapUi.TEXT);
+		search.setHint(Component.translatable("cobblecomfort.tracker.screen.search").withColor(MapUi.TEXT_FAINT));
 		search.setResponder(text -> refilter());
 		addRenderableWidget(search);
 
-		quantity = new EditBox(font, rightX + rightWidth - 44, top + 20, 44, 16, Component.translatable("cobblecomfort.tracker.screen.quantity"));
+		quantity = new EditBox(font, rightX + rightWidth - 39, top + 24, 34, 10, Component.translatable("cobblecomfort.tracker.screen.quantity"));
+		quantity.setBordered(false);
+		quantity.setTextColor(MapUi.TEXT);
 		quantity.setValue(Integer.toString(feature.config().defaultQuantity));
 		quantity.setMaxLength(6);
 		addRenderableWidget(quantity);
@@ -92,16 +103,18 @@ public class TrackerScreen extends Screen {
 		gridY = top + 42;
 		gridRows = Math.max(1, (panelHeight - 42 - 30) / CELL);
 
-		targetEdit = new EditBox(font, 0, 0, TARGET_WIDTH, 12, Component.empty());
+		targetEdit = new EditBox(font, 0, 0, TARGET_WIDTH - 6, 10, Component.empty());
+		targetEdit.setBordered(false);
+		targetEdit.setTextColor(MapUi.TEXT);
 		targetEdit.setMaxLength(7);
 		targetEdit.visible = false;
 		addRenderableWidget(targetEdit);
 
 		int buttonY = top + panelHeight - 24;
-		addRenderableWidget(Button.builder(Component.translatable("cobblecomfort.tracker.screen.remove_done"),
-				b -> feature.removeCompleted()).bounds(left + 8, buttonY, 120, 20).build());
-		addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
-				.bounds(left + PANEL_WIDTH - 8 - 90, buttonY, 90, 20).build());
+		addRenderableWidget(new FlatButton(left + 8, buttonY, 120, 18, Component.translatable("cobblecomfort.tracker.screen.remove_done"),
+				MapUi.ACCENT, feature::removeCompleted));
+		addRenderableWidget(new FlatButton(left + PANEL_WIDTH - 8 - 90, buttonY, 90, 18, Component.translatable("gui.done"), 0xFF8A90A0,
+				this::onClose));
 
 		refilter();
 		setInitialFocus(search);
@@ -141,17 +154,20 @@ public class TrackerScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-		g.fill(left, top, left + PANEL_WIDTH, top + panelHeight, 0xE0101018);
-		g.outline(left, top, PANEL_WIDTH, panelHeight, 0xFF3A3A50);
-		g.text(font, title, left + 8, top + 7, 0xFFFFFFFF, true);
-		g.text(font, Component.translatable("cobblecomfort.tracker.screen.add_title"),
-				left + 8 + LIST_WIDTH + COLUMN_GAP, top + 7, 0xFFAAAAAA, true);
+		MapUi.panel(g, left, top, left + PANEL_WIDTH, top + panelHeight, MapUi.PANEL_SOLID);
+		RenderUtil.roundedFill(g, left + 7, top + 6, left + 9, top + 15, 1, MapUi.ACCENT);
+		g.text(font, title, left + 13, top + 7, MapUi.TEXT, true);
+		int rightX = left + 8 + LIST_WIDTH + COLUMN_GAP;
+		g.text(font, Component.translatable("cobblecomfort.tracker.screen.add_title"), rightX, top + 7, MapUi.TEXT_DIM, false);
+		MapUi.field(g, rightX, top + 20, searchRight, top + 36, search.isFocused());
+		g.text(font, "⌕", rightX + 5, top + 24, MapUi.TEXT_FAINT, false);
+		MapUi.field(g, quantity.getX() - 5, top + 20, quantity.getX() + quantity.getWidth() + 5, top + 36, quantity.isFocused());
 
 		drawGoals(g, mouseX, mouseY);
 		Item hovered = drawGrid(g, mouseX, mouseY);
 
 		if (status != null && System.currentTimeMillis() - statusMs < STATUS_MS) {
-			g.centeredText(font, status, left + PANEL_WIDTH / 2, top + panelHeight - 18, 0xFFFFFF55);
+			g.centeredText(font, status, left + PANEL_WIDTH / 2, top + panelHeight - 18, 0xFFE8C860);
 		}
 		super.extractRenderState(g, mouseX, mouseY, partialTick);
 
@@ -168,9 +184,9 @@ public class TrackerScreen extends Screen {
 
 	private void drawGoals(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		List<TrackerData.Goal> goals = feature.goals();
-		g.fill(listX - 2, listY - 2, listX + LIST_WIDTH + 2, listY + listHeight + 2, 0x60000000);
+		RenderUtil.roundedFill(g, listX - 2, listY - 2, listX + LIST_WIDTH + 2, listY + listHeight + 2, 3, WELL);
 		if (goals.isEmpty()) {
-			g.text(font, Component.translatable("cobblecomfort.tracker.screen.empty"), listX + 4, listY + 4, 0xFF888888, false);
+			g.text(font, Component.translatable("cobblecomfort.tracker.screen.empty"), listX + 4, listY + 4, MapUi.TEXT_FAINT, false);
 			return;
 		}
 		int visibleRows = listHeight / ROW_HEIGHT;
@@ -181,7 +197,7 @@ public class TrackerScreen extends Screen {
 			int y = listY + i * ROW_HEIGHT;
 			boolean rowHovered = mouseX >= listX && mouseX < listX + LIST_WIDTH && mouseY >= y && mouseY < y + ROW_HEIGHT;
 			if (rowHovered) {
-				g.fill(listX, y, listX + LIST_WIDTH, y + ROW_HEIGHT, 0x20FFFFFF);
+				RenderUtil.roundedFill(g, listX, y, listX + LIST_WIDTH, y + ROW_HEIGHT, 3, MapUi.HOVER);
 			}
 			ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(goal.item)));
 			g.item(stack, listX + 2, y + 2);
@@ -189,11 +205,11 @@ public class TrackerScreen extends Screen {
 			boolean done = have >= goal.target;
 			int controlsX = listX + LIST_WIDTH - (CONTROL * 3 + TARGET_WIDTH + 6);
 			String name = font.plainSubstrByWidth(stack.getHoverName().getString(), controlsX - (listX + 22) - 2);
-			g.text(font, name, listX + 22, y + 2, done ? 0xFF55FF55 : 0xFFFFFFFF, false);
+			g.text(font, name, listX + 22, y + 2, done ? DONE : MapUi.TEXT, false);
 			int nearby = feature.nearbyCount(goal.item);
 			Component haveText = Component.translatable("cobblecomfort.tracker.screen.have", have)
 					.append(nearby > 0 ? Component.literal("  +" + nearby).withColor(feature.config().nearbyColor & 0xFFFFFF) : Component.empty());
-			g.text(font, haveText, listX + 22, y + 11, 0xFF999999, false);
+			g.text(font, haveText, listX + 22, y + 11, MapUi.TEXT_DIM, false);
 
 			int cy = y + 5;
 			drawControl(g, "-", controlsX, cy, mouseX, mouseY);
@@ -201,8 +217,11 @@ public class TrackerScreen extends Screen {
 				String target = Integer.toString(goal.target);
 				int tx = controlsX + CONTROL + 2;
 				boolean hoverTarget = hit(mouseX, mouseY, tx, cy - 1, TARGET_WIDTH, 11);
-				g.fill(tx, cy - 1, tx + TARGET_WIDTH, cy + 10, hoverTarget ? 0x60FFFFFF : 0x30FFFFFF);
-				g.centeredText(font, target, tx + TARGET_WIDTH / 2, cy + 1, 0xFFFFFFFF);
+				RenderUtil.roundedFill(g, tx, cy - 1, tx + TARGET_WIDTH, cy + 10, 3, hoverTarget ? 0x38FFFFFF : 0x1CFFFFFF);
+				g.centeredText(font, target, tx + TARGET_WIDTH / 2, cy + 1, MapUi.TEXT);
+			} else {
+				int tx = controlsX + CONTROL + 2;
+				MapUi.field(g, tx, cy - 1, tx + TARGET_WIDTH, cy + 10, true);
 			}
 			drawControl(g, "+", controlsX + CONTROL + TARGET_WIDTH + 4, cy, mouseX, mouseY);
 			drawControl(g, "✕", controlsX + CONTROL * 2 + TARGET_WIDTH + 6, cy, mouseX, mouseY);
@@ -212,14 +231,15 @@ public class TrackerScreen extends Screen {
 
 	private void drawControl(GuiGraphicsExtractor g, String label, int x, int y, int mouseX, int mouseY) {
 		boolean hover = hit(mouseX, mouseY, x, y - 1, CONTROL, 11);
-		g.fill(x, y - 1, x + CONTROL, y + 10, hover ? 0x80FFFFFF : 0x40FFFFFF);
-		g.centeredText(font, label, x + CONTROL / 2 + 1, y + 1, 0xFFFFFFFF);
+		RenderUtil.roundedFill(g, x, y - 1, x + CONTROL, y + 10, 3, hover ? 0x38FFFFFF : 0x1CFFFFFF);
+		int color = !hover ? MapUi.TEXT_DIM : label.equals("✕") ? MapUi.DANGER : MapUi.TEXT;
+		g.centeredText(font, label, x + CONTROL / 2 + 1, y + 1, color);
 	}
 
 	private Item drawGrid(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		int maxScroll = Math.max(0, (filtered.size() + GRID_COLUMNS - 1) / GRID_COLUMNS - gridRows);
 		gridScroll = Math.clamp(gridScroll, 0, maxScroll);
-		g.fill(gridX - 2, gridY - 2, gridX + GRID_COLUMNS * CELL + 2, gridY + gridRows * CELL + 2, 0x60000000);
+		RenderUtil.roundedFill(g, gridX - 2, gridY - 2, gridX + GRID_COLUMNS * CELL + 2, gridY + gridRows * CELL + 2, 3, WELL);
 		Item hovered = null;
 		for (int row = 0; row < gridRows; row++) {
 			for (int col = 0; col < GRID_COLUMNS; col++) {
@@ -231,7 +251,7 @@ public class TrackerScreen extends Screen {
 				int y = gridY + row * CELL;
 				Item item = filtered.get(index);
 				if (hit(mouseX, mouseY, x, y, CELL, CELL)) {
-					g.fill(x, y, x + CELL, y + CELL, 0x50FFFFFF);
+					RenderUtil.roundedFill(g, x, y, x + CELL, y + CELL, 2, 0x38FFFFFF);
 					hovered = item;
 				}
 				g.item(new ItemStack(item), x + 1, y + 1);
@@ -242,8 +262,8 @@ public class TrackerScreen extends Screen {
 			int thumb = Math.max(8, trackHeight * gridRows / (gridRows + maxScroll));
 			int thumbY = gridY + (trackHeight - thumb) * gridScroll / maxScroll;
 			int sx = gridX + GRID_COLUMNS * CELL + 3;
-			g.fill(sx, gridY, sx + 2, gridY + trackHeight, 0x40FFFFFF);
-			g.fill(sx, thumbY, sx + 2, thumbY + thumb, 0xC0FFFFFF);
+			RenderUtil.roundedFill(g, sx, gridY, sx + 3, gridY + trackHeight, 1, 0x14FFFFFF);
+			RenderUtil.roundedFill(g, sx, thumbY, sx + 3, thumbY + thumb, 1, 0x60FFFFFF);
 		}
 		return hovered;
 	}
@@ -322,8 +342,8 @@ public class TrackerScreen extends Screen {
 
 	private void startEditing(TrackerData.Goal goal, int x, int y) {
 		editingGoal = goal;
-		targetEdit.setX(x);
-		targetEdit.setY(y);
+		targetEdit.setX(x + 3);
+		targetEdit.setY(y + 1);
 		targetEdit.setValue(Integer.toString(goal.target));
 		targetEdit.visible = true;
 		setFocused(targetEdit);

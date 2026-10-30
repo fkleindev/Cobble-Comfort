@@ -17,7 +17,9 @@ the map.
    - optional: [Mod Menu](https://modrinth.com/mod/modmenu), to open the settings from the mod list
 3. Start the game. Java 25 or newer is required (the official launcher brings it along).
 
-**Settings:** through Mod Menu, or bind a key to *Open settings* under Options → Controls → Key Binds → Cobble Comfort.
+**Settings:** through Mod Menu, the map's side bar, or bind a key to *Open settings* under Options → Controls → Key Binds →
+Cobble Comfort. The settings have a category list with icons, a search over all options, and every change applies at
+once.
 There is also a key for the HUD editor.
 
 ## Features
@@ -26,7 +28,9 @@ There is also a key for the HUD editor.
 - Minimap (round or square, optionally rotating) with coordinates, biome, players, mobs with their faces, a view cone
   and your movement trail.
 - Full-screen map (**M**) with cave view, the area below the Nether roof, height shading and a chunk grid. It opens
-  out of the minimap, turning north-up as it grows.
+  out of the minimap, turning north-up as it grows, and shrinks back into it when you close it.
+- The map is the mod's hub: a bar at its top left opens the storage search, traders, pets, waypoints, resource tracker,
+  HUD editor and settings.
 - Waypoints (**B** for a new one, **U** for the list) with categories, colours, beams in the world, name and distance.
   Right-click the map for a menu, double-click to set one. New waypoints drop onto the map with a small bounce.
   Waypoints outside the minimap show as small arrows on its edge, which pulse when a waypoint leaves the view.
@@ -156,6 +160,15 @@ There is also a key for the HUD editor.
 ### Other
 - **Zoom (C):** hold or toggle, scroll to change the zoom level, smooth transition, optional cinematic bars.
 - **Fullbright (G):** see in the dark, with a smooth fade.
+- **Totem plush:** totems of undying look like a soft 3D chibi plush of the player holding them, with their skin,
+  whatever your resource pack shows: in your hands and other players' hands, in the inventory, when a totem saves you,
+  and in item frames, on the ground and in mobs' hands (there as a plush of you). Its head, arms and legs jiggle softly
+  as you walk and look around, and it squishes when you take it and when it saves you. Works with Punchy's
+  first-person arms.
+- **Light overlay (F7):** red crosses on blocks where monsters can spawn at any time, yellow ones where they can only
+  spawn at night, following the real spawn rules (no crosses on glass, slabs, carpets or in mushroom fields) and the
+  light limits of each dimension. Optionally the block light as a number. Crosses fade out as you light up an area. The
+  light level in the info HUD uses the same colours.
 
 All keys can be changed under Controls.
 

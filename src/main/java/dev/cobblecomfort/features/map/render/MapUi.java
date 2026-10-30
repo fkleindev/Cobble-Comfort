@@ -107,6 +107,24 @@ public final class MapUi {
 		g.centeredText(font, label, (x0 + x1) / 2, (y0 + y1 - font.lineHeight) / 2 + 1, textColor);
 	}
 
+	/** The rounded background of a borderless text field, outlined in the accent while it has focus. */
+	public static void field(GuiGraphicsExtractor g, int x0, int y0, int x1, int y1, boolean focused) {
+		RenderUtil.roundedFill(g, x0, y0, x1, y1, 3, FIELD);
+		int edge = focused ? RenderUtil.withAlpha(ACCENT, 0.8f) : 0x20FFFFFF;
+		RenderUtil.roundedOutline(g, x0, y0, x1, y1, 3, edge, edge);
+	}
+
+	/** A scroll bar: a faint track along the list and a thumb for the visible part. */
+	public static void scrollbar(GuiGraphicsExtractor g, int x, int top, int height, double scroll, int content) {
+		if (content <= height) {
+			return;
+		}
+		int barH = Math.max(16, height * height / content);
+		int barY = top + (int) ((height - barH) * (scroll / (content - height)));
+		RenderUtil.roundedFill(g, x, top, x + 3, top + height, 1, 0x14FFFFFF);
+		RenderUtil.roundedFill(g, x, barY, x + 3, barY + barH, 1, 0x60FFFFFF);
+	}
+
 	/** A whole square texture of {@code size} pixels stretched over a rectangle, faded to {@code alpha}. */
 	public static void blitFaded(GuiGraphicsExtractor g, Identifier texture, int x0, int y0, int x1, int y1, int size, float alpha) {
 		if (alpha >= 1f) {

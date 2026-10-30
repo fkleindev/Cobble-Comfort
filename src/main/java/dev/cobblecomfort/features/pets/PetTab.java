@@ -1,5 +1,6 @@
 package dev.cobblecomfort.features.pets;
 
+import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.map.MapFeature;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -19,7 +20,7 @@ import java.util.Locale;
  * dimension first and nearest first, graves last. Each row has a button to forget the pet.
  */
 public final class PetTab {
-	private static final int ROW_HOVER = 0x30FFFFFF;
+	private static final int ROW_HOVER = 0x22FFFFFF;
 	private static final int FORGET = 12;
 
 	/** What the mouse is over: a row, and whether it is the forget button. */
@@ -80,7 +81,7 @@ public final class PetTab {
 			if (y + row >= bodyTop && y <= bodyBottom) {
 				boolean hover = mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + row - 2;
 				if (hover) {
-					g.fill(x0 - 2, y - 1, x1 + 2, y + row - 1, ROW_HOVER);
+					RenderUtil.roundedFill(g, x0 - 2, y - 1, x1 + 2, y + row - 1, 3, ROW_HOVER);
 				}
 				g.item(feature.icon(pet), x0, y + 2);
 				int textX = x0 + 20;
@@ -92,10 +93,10 @@ public final class PetTab {
 				if (!pet.dead()) {
 					location.append(" · ").append(feature.seen(pet));
 				}
-				g.text(font, location, textX, y + 12, 0xFF9A9AA8, false);
+				g.text(font, location, textX, y + 12, 0xFF9AA0AE, false);
 				boolean forget = hover && overForget(x1, mouseX);
 				if (hover) {
-					g.centeredText(font, "✕", x1 - FORGET / 2, y + 6, forget ? 0xFFFF6060 : 0xFF9A9AA8);
+					g.centeredText(font, "✕", x1 - FORGET / 2, y + 6, forget ? 0xFFFF6060 : 0xFF9AA0AE);
 					hovered = new Hovered(pet, forget);
 				}
 			}

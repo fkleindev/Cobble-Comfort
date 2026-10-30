@@ -26,6 +26,12 @@ import dev.cobblecomfort.features.pets.PetFeature;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.storage.StorageFeature;
+import dev.cobblecomfort.features.storage.StorageScreen;
+import dev.cobblecomfort.features.tracker.TrackerFeature;
+import dev.cobblecomfort.features.tracker.TrackerScreen;
+import dev.cobblecomfort.features.hud.HudCustomizerFeature;
+import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
+import dev.cobblecomfort.core.config.CobbleConfigScreen;
 import dev.cobblecomfort.features.storage.StorageItems;
 import dev.cobblecomfort.features.storage.StoredContainer;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -101,6 +107,7 @@ public class MapScreen extends Screen {
 	private static final RegionTextures TEXTURES = new RegionTextures("full");
 	private static float lastZoom = 2f;
 	private static final float OPEN_SECONDS = 0.4f;
+	private static final float CLOSE_SECONDS = 0.35f;
 	/** Pets: how much and how slowly living ones breathe; graves younger than this rise from dust when first seen. */
 	private static final float PET_BREATH = 0.06f;
 	private static final float PET_BREATH_SECONDS = 2.6f;
@@ -135,6 +142,9 @@ public class MapScreen extends Screen {
 	private int dragX, dragY, dragW, dragH;
 	/** Movement keys passed on to the player while the map is open, and whether each is held. */
 	private final Map<KeyMapping, Boolean> passedKeys = new HashMap<>();
+	/** The navigation bar to the mod's other screens, top left, and its top edge. */
+	private final List<Nav> nav = new ArrayList<>();
+	private int navTop;
 	/** The layer sidebar's place (set while drawing) and how far its list is scrolled. */
 	private int layersX0, layersX1, layersTop, layersBottom;
 	private final SmoothScroll layersScroll = new SmoothScroll(SmoothScroll.Kind.MOD_SCREENS);
@@ -143,6 +153,9 @@ public class MapScreen extends Screen {
 	private boolean openChecked;
 	private float openRotation;
 	private long openStartNanos;
+	/** Closing back into the minimap: when it started (0 = not closing) and where the view was then. */
+	private long closeStartNanos;
+	private double closeFromX, closeFromZ;
 
 	private enum WindowDrag {
 		NONE, MOVE, RESIZE
@@ -153,6 +166,10 @@ public class MapScreen extends Screen {
 	}
 
 	private record Entry(ItemStack icon, Component label, Runnable action) {
+	}
+
+	/** A button of the navigation bar on the left: another screen of the mod, opened in place of the map. */
+	private record Nav(ItemStack icon, Component tooltip, String key, Runnable action) {
 	}
 
 	/** A round icon button in the toolbar. */
@@ -252,6 +269,7 @@ public class MapScreen extends Screen {
 		tabsLeft = mapX + (mapW - tabsWidth) / 2;
 		tabsTop = mapY + 6;
 		buildToolbar();
+		buildNav();
 	}
 
 	private void toggleWindowed() {
@@ -270,13 +288,102 @@ public class MapScreen extends Screen {
 		return x >= mapX && x < mapX + mapW && y >= mapY && y < mapY + mapH;
 	}
 
+	/**
+	 * The map is the mod's main screen, so a column of buttons top left leads to its other screens. Screens of
+	 * features that are switched off are left out; closing any of them goes back to the game.
+	 */
+	private void buildNav() {
+		nav.clear();
+		if (StorageFeature.INSTANCE.isEnabled()) {
+			nav.add(new Nav(new ItemStack(Items.CHEST), Component.translatable("cobblecomfort.map.nav.storage"), "key.cobblecomfort.storage",
+					() -> minecraft.gui.setScreen(new StorageScreen(null, ""))));
+		}
+		if (TradeFeature.INSTANCE.active()) {
+			nav.add(new Nav(new ItemStack(Items.EMERALD), Component.translatable("cobblecomfort.map.nav.traders"), null,
+					() -> minecraft.gui.setScreen(new StorageScreen(null, "").showTraders())));
+		}
+		if (PetFeature.INSTANCE.active()) {
+			nav.add(new Nav(new ItemStack(Items.BONE), Component.translatable("cobblecomfort.map.nav.pets"), null,
+					() -> minecraft.gui.setScreen(new StorageScreen(null, "").showPets())));
+		}
+		if (config().waypoints) {
+			nav.add(new Nav(ItemStack.EMPTY, Component.translatable("cobblecomfort.map.button.waypoints"), "key.cobblecomfort.waypoints",
+					() -> minecraft.gui.setScreen(new WaypointListScreen(null))));
+		}
+		TrackerFeature tracker = TrackerFeature.INSTANCE;
+		if (tracker.isEnabled() && tracker.hasWorld()) {
+			nav.add(new Nav(new ItemStack(Items.LODESTONE), Component.translatable("cobblecomfort.map.nav.tracker"), "key.cobblecomfort.tracker",
+					() -> minecraft.gui.setScreen(new TrackerScreen(tracker, null))));
+		}
+		if (HudCustomizerFeature.INSTANCE.isEnabled()) {
+			nav.add(new Nav(new ItemStack(Items.PAINTING), Component.translatable("cobblecomfort.map.nav.hud_editor"),
+					"key.cobblecomfort.open_hud_editor", () -> minecraft.gui.setScreen(new HudEditorScreen(null))));
+		}
+		nav.add(new Nav(new ItemStack(Items.COMPARATOR), Component.translatable("cobblecomfort.map.nav.settings"), "key.cobblecomfort.open_config",
+				() -> minecraft.gui.setScreen(CobbleConfigScreen.create(null))));
+		navTop = tabsTop;
+	}
+
+	private int navRight() {
+		return mapX + 6 + TOOL + 4;
+	}
+
+	private int navBottom() {
+		return navTop + nav.size() * (TOOL + 2) + 2;
+	}
+
+	/** The navigation button under the cursor, or -1. */
+	private int navAt(double x, double y) {
+		int x0 = mapX + 8;
+		if (x < x0 || x >= x0 + TOOL || y < navTop + 2 || y >= navBottom()) {
+			return -1;
+		}
+		int index = (int) ((y - navTop - 2) / (TOOL + 2));
+		return index < nav.size() && y < navTop + 2 + index * (TOOL + 2) + TOOL ? index : -1;
+	}
+
+	private void drawNav(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		if (nav.isEmpty()) {
+			return;
+		}
+		MapUi.panel(g, mapX + 6, navTop, navRight(), navBottom());
+		int accent = Dim.accentOf(viewDim);
+		int hovered = menu == null ? navAt(mouseX, mouseY) : -1;
+		for (int i = 0; i < nav.size(); i++) {
+			int x = mapX + 8;
+			int y = navTop + 2 + i * (TOOL + 2);
+			MapUi.buttonFace(g, x, y, x + TOOL, y + TOOL, i == hovered, false, accent);
+			drawIcon(g, nav.get(i).icon(), x + TOOL / 2, y + TOOL / 2, 14, accent);
+		}
+		if (hovered >= 0) {
+			Nav button = nav.get(hovered);
+			List<Component> lines = new ArrayList<>();
+			lines.add(button.tooltip());
+			KeyMapping key = keyMapping(button.key());
+			if (key != null && !key.isUnbound()) {
+				lines.add(key.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.GRAY));
+			}
+			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
+		}
+	}
+
+	private KeyMapping keyMapping(String name) {
+		if (name == null) {
+			return null;
+		}
+		for (KeyMapping mapping : minecraft.options.keyMappings) {
+			if (mapping.getName().equals(name)) {
+				return mapping;
+			}
+		}
+		return null;
+	}
+
 	private void buildToolbar() {
 		tools.clear();
 		List<Tool> list = new ArrayList<>();
 		list.add(new Tool(0, new ItemStack(Items.COMPASS), Component.translatable("cobblecomfort.map.button.center"), this::centerOnPlayer,
 				() -> following));
-		list.add(new Tool(0, ItemStack.EMPTY, Component.translatable("cobblecomfort.map.button.waypoints"),
-				() -> minecraft.gui.setScreen(new WaypointListScreen(this)), () -> false));
 		list.add(new Tool(0, new ItemStack(Items.GLASS_PANE), Component.translatable("cobblecomfort.map.button.window"), this::toggleWindowed,
 				() -> config().mapWindowed));
 		if (minecraft.getSingleplayerServer() == null) {
@@ -418,6 +525,17 @@ public class MapScreen extends Screen {
 			centerX = position.x * playerToView();
 			centerZ = position.z * playerToView();
 		}
+		if (closeStartNanos != 0) {
+			if (closeProgress() >= 1f) {
+				minecraft.gui.setScreen(parent);
+				return;
+			}
+			// Shrinking into the minimap: glide back to the player and turn the way the minimap faces right now.
+			float back = 1f - openProgress();
+			centerX = closeFromX + (position.x * playerToView() - closeFromX) * back;
+			centerZ = closeFromZ + (position.z * playerToView() - closeFromZ) * back;
+			openRotation = (float) Math.IEEEremainder(MapFeature.INSTANCE.minimapRotation(player.getViewYRot(delta)), Math.PI * 2);
+		}
 		MapFeature feature = MapFeature.INSTANCE;
 		boolean here = viewingPlayerDim();
 		MapLayer layer = here ? feature.world().active(level) : feature.world().surface(key(viewDim));
@@ -478,11 +596,13 @@ public class MapScreen extends Screen {
 			// The panels are not part of the growing map: they slide in from the edges as it opens.
 			float hidden = 1f - open;
 			slid(g, 0, -hidden * 40, () -> drawTabs(g, mouseX, mouseY));
+			slid(g, -hidden * (TOOL + 16), 0, () -> drawNav(g, mouseX, mouseY));
 			slid(g, 0, -hidden * 40, () -> drawInfo(g, layer, level, mouseX, mouseY, here));
 			slid(g, 0, hidden * 40, () -> drawToolbar(g, mouseX, mouseY));
 			slid(g, hidden * (LAYERS_WIDTH + 12), 0, () -> drawLayers(g, mouseX, mouseY));
 		} else {
 			drawTabs(g, mouseX, mouseY);
+			drawNav(g, mouseX, mouseY);
 			drawInfo(g, layer, level, mouseX, mouseY, here);
 			drawToolbar(g, mouseX, mouseY);
 			drawLayers(g, mouseX, mouseY);
@@ -548,8 +668,11 @@ public class MapScreen extends Screen {
 		return openFrom != null;
 	}
 
-	/** Eased progress of the opening, 1 once done (or when not opening out of the minimap). */
+	/** Eased progress of the opening (running backwards while closing), 1 once done or when not opening out of the minimap. */
 	private float openProgress() {
+		if (closeStartNanos != 0) {
+			return 1f - closeEase(closeProgress());
+		}
 		if (!opensFromMinimap()) {
 			return 1f;
 		}
@@ -563,6 +686,46 @@ public class MapScreen extends Screen {
 			return 1f;
 		}
 		return 1f - (1f - t) * (1f - t) * (1f - t);
+	}
+
+	private float closeProgress() {
+		return Math.min(1f, (System.nanoTime() - closeStartNanos) / 1e9f / CLOSE_SECONDS);
+	}
+
+	/** Closing eases in and out, so the map starts shrinking at once and settles into the minimap. */
+	private static float closeEase(float t) {
+		return t < 0.5f ? 4 * t * t * t : 1 - (float) Math.pow(-2 * t + 2, 3) / 2;
+	}
+
+	/**
+	 * Starts shrinking back into the minimap, when the map goes back to the game, shows the player's dimension and the
+	 * minimap is on screen. Closing during the opening turns it around from where it is.
+	 */
+	private boolean startClosing() {
+		if (parent != null || !config().mapAnimations || !viewingPlayerDim() || minecraft.player == null) {
+			return false;
+		}
+		Rect to = MapFeature.INSTANCE.minimapRect(width, height);
+		if (to == null) {
+			return false;
+		}
+		float open = openProgress();
+		openFrom = to;
+		openChecked = true;
+		// Start the closing curve at the current point, so an unfinished opening does not jump.
+		float t = 0f;
+		for (float step = 0.5f; step > 0.001f; step /= 2) {
+			if (closeEase(t + step) <= 1f - open) {
+				t += step;
+			}
+		}
+		closeStartNanos = System.nanoTime() - (long) (t * CLOSE_SECONDS * 1e9f);
+		closeFromX = centerX;
+		closeFromZ = centerZ;
+		following = false;
+		menu = null;
+		windowDrag = WindowDrag.NONE;
+		return true;
 	}
 
 	/**
@@ -1038,7 +1201,8 @@ public class MapScreen extends Screen {
 		}
 		int h = lines.size() * 11 + 7;
 		// Below the tabs if it would run into them.
-		int left = mapX + 6;
+		// Right of the navigation bar.
+		int left = nav.isEmpty() ? mapX + 6 : navRight() + 4;
 		int top = left + w + 14 > tabsLeft - 4 ? tabsTop + TAB_HEIGHT + 4 : tabsTop;
 		MapUi.panel(g, left, top, left + w + 14, top + h);
 		RenderUtil.roundedFill(g, left + 3, top + 4, left + 5, top + h - 4, 1, Dim.accentOf(viewDim));
@@ -1103,7 +1267,8 @@ public class MapScreen extends Screen {
 	private boolean overUi(double x, double y) {
 		boolean tabsHit = x >= tabsLeft && x < tabsLeft + tabsWidth && y >= tabsTop && y < tabsTop + TAB_HEIGHT;
 		boolean toolbarHit = x >= toolbarLeft && x < toolbarRight && y >= toolbarTop && y < toolbarTop + TOOLBAR_HEIGHT;
-		return tabsHit || toolbarHit || overLayers(x, y);
+		boolean navHit = !nav.isEmpty() && x >= mapX + 6 && x < navRight() && y >= navTop && y < navBottom();
+		return tabsHit || toolbarHit || navHit || overLayers(x, y);
 	}
 
 	private void drawMenu(GuiGraphicsExtractor g, int mouseX, int mouseY) {
@@ -1382,6 +1547,9 @@ public class MapScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (closeStartNanos != 0) {
+			return true;
+		}
 		if (menu == null && event.button() == InputConstants.MOUSE_BUTTON_LEFT && config().mapWindowed) {
 			if (overClose(event.x(), event.y())) {
 				onClose();
@@ -1445,6 +1613,11 @@ public class MapScreen extends Screen {
 	}
 
 	private void clickUi(double mx, double my) {
+		int navIndex = navAt(mx, my);
+		if (navIndex >= 0) {
+			nav.get(navIndex).action().run();
+			return;
+		}
 		if (overLayers(mx, my)) {
 			clickLayers(mx, my);
 			return;
@@ -1531,6 +1704,9 @@ public class MapScreen extends Screen {
 
 	@Override
 	public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+		if (closeStartNanos != 0) {
+			return true;
+		}
 		if (windowDrag != WindowDrag.NONE) {
 			// The new place or size is remembered in the config (saved on release); layout() keeps it on screen.
 			int offsetX = (int) Math.round(event.x() - dragMouseX);
@@ -1554,6 +1730,9 @@ public class MapScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		if (closeStartNanos != 0) {
+			return true;
+		}
 		if (!inMap(mouseX, mouseY)) {
 			return false;
 		}
@@ -1575,6 +1754,13 @@ public class MapScreen extends Screen {
 
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		// While shrinking away, Escape or the map key close at once.
+		if (closeStartNanos != 0) {
+			if (event.key() == InputConstants.KEY_ESCAPE || MapFeature.INSTANCE.isMapKey(event)) {
+				minecraft.gui.setScreen(parent);
+			}
+			return true;
+		}
 		// Space jumps (passed on to the player), so C brings the view back to the player.
 		if (event.key() == InputConstants.KEY_C) {
 			if (!viewingPlayerDim() && playerDim != null) {
@@ -1603,6 +1789,9 @@ public class MapScreen extends Screen {
 
 	@Override
 	public void onClose() {
+		if (closeStartNanos == 0 && startClosing()) {
+			return;
+		}
 		minecraft.gui.setScreen(parent);
 	}
 }
