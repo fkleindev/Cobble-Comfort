@@ -31,9 +31,9 @@ There is also a key for the HUD editor.
   and your movement trail.
 - Full-screen map (**M**) with height shading and a chunk grid. It opens out of the minimap, turning north-up as it
   grows, and shrinks back into it when you close it.
-- **Cave layers:** every 16 blocks of height is mapped and saved as its own layer while you explore, in the Overworld
-  and below the Nether roof. Underground, the map and minimap switch to the layer you are in; on the Nether roof they
-  show the roof. A slider on the map picks any layer by hand (also Page Up/Down), "A" follows you again.
+- **Cave layers:** every 16 blocks of height is its own saved layer, in the Overworld and below the Nether roof. Like
+  Xaero's map, a layer is mapped while you are in it. Underground, the map and minimap switch to the layer you are in;
+  on the Nether roof they show the roof. A slider on the map picks any layer by hand (also Page Up/Down), "A" follows you again.
 - The map is the mod's hub: a bar at its top left opens the storage search, traders, pets, waypoints, resource tracker,
   HUD editor and settings.
 - Waypoints (**B** for a new one, **U** for the list) with categories, colours, beams in the world, name and distance.

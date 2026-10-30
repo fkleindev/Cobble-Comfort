@@ -34,12 +34,18 @@ public final class MapRegion {
 	/** Bumped on every change, so textures and caches know when to rebuild. */
 	private volatile int version;
 	private volatile boolean unsaved;
-	/** {@link MapLayer#clock()} when last used, to unload regions nobody looks at. */
-	volatile int lastUsed;
+	/** {@link MapLayer#clock()} when last used, to unload regions nobody looks at (plain field: read for every map pixel). */
+	int lastUsed;
 
 	public MapRegion(int x, int z) {
 		this.x = x;
 		this.z = z;
+	}
+
+	void touch(int clock) {
+		if (lastUsed != clock) {
+			lastUsed = clock;
+		}
 	}
 
 	private static int chunkIndex(int lx, int lz) {

@@ -1289,7 +1289,7 @@
 	"cobblecomfort.option.map.border_color.desc": "Farbe des Minimap-Rands.",
 	"cobblecomfort.group.map.map": "Karte",
 	"cobblecomfort.option.map.cave_mode": "Höhlenansicht",
-	"cobblecomfort.option.map.cave_mode.desc": "Unter Tage (auch im Nether) zeigen Karte und Minimap automatisch die Höhlenebene, in der du bist, statt der Oberfläche. Auf der Karte wählt der Ebenen-Regler jede Tiefe von Hand; alle Ebenen werden gespeichert.",
+	"cobblecomfort.option.map.cave_mode.desc": "Unter Tage (auch im Nether) zeigen Karte und Minimap automatisch die Höhlenebene, in der du bist, statt der Oberfläche. Kartiert wird die Ebene, in der du dich gerade befindest; alle so erkundeten Ebenen werden gespeichert und lassen sich auf der Karte mit dem Ebenen-Regler ansehen.",
 	"cobblecomfort.option.map.nether_roof": "Unter dem Nether-Dach",
 	"cobblecomfort.option.map.nether_roof.desc": "Im Nether zeigt die Karte den Boden unter dem Grundgesteindach statt des Dachs.",
 	"cobblecomfort.option.map.shading": "Höhenschattierung",

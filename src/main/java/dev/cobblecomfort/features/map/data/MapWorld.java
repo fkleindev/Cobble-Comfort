@@ -33,9 +33,8 @@ import java.util.stream.Stream;
 
 /**
  * The map of the world or server the client is in. Per dimension: the surface, the Nether roof and a cave layer for
- * every 16 blocks of height, all saved. Fed by queues of chunks to scan: new chunks (surface right away, every cave
- * layer in the background), plus a slow sweep around the player to pick up changes on the surface and the layer the
- * player is in.
+ * every 16 blocks of height, all saved. Like Xaero, a cave layer is only mapped while the player is in it, which keeps
+ * scanning cheap. Fed by queues of chunks to scan (new chunks, plus a slow sweep around the player to pick up changes).
  */
 public final class MapWorld {
 	/** Layer ids besides the cave layers, which are their section Y (layer n = Y n*16 to n*16+15). */
@@ -77,9 +76,7 @@ public final class MapWorld {
 	private final Map<ResourceKey<Level>, Layers> dims = new ConcurrentHashMap<>();
 	private final ArrayDeque<Long> surfaceQueue = new ArrayDeque<>();
 	private final Set<Long> queued = new HashSet<>();
-	/** Chunks still to scan in every cave layer, and chunks to rescan in the player's layer only. */
-	private final ArrayDeque<Long> deepQueue = new ArrayDeque<>();
-	private final Set<Long> deepQueued = new HashSet<>();
+	/** Chunks to scan in the cave layer the player is in (like Xaero, only that layer is mapped). */
 	private final ArrayDeque<Long> layerQueue = new ArrayDeque<>();
 	private String worldKey;
 	private Path folder;
@@ -102,8 +99,6 @@ public final class MapWorld {
 		dims.clear();
 		surfaceQueue.clear();
 		queued.clear();
-		deepQueue.clear();
-		deepQueued.clear();
 		layerQueue.clear();
 		dimension = null;
 		autoLayer = SURFACE;
@@ -207,8 +202,8 @@ public final class MapWorld {
 	public void chunkLoaded(LevelChunk chunk) {
 		long pos = chunk.getPos().pack();
 		enqueue(pos);
-		if (deepQueued.add(pos)) {
-			deepQueue.add(pos);
+		if (isCave(autoLayer)) {
+			layerQueue.add(pos);
 		}
 	}
 
@@ -236,9 +231,7 @@ public final class MapWorld {
 		Layers layers = dim(level.dimension());
 		boolean ceiling = level.dimensionType().hasCeiling();
 		boolean underRoof = config.netherUnderRoof && ceiling;
-		int minLayer = level.getMinSectionY();
-		int maxLayer = maxCaveLayer(level);
-		while (System.nanoTime() < deadline && (!surfaceQueue.isEmpty() || !layerQueue.isEmpty() || !deepQueue.isEmpty())) {
+		while (System.nanoTime() < deadline && (!surfaceQueue.isEmpty() || !layerQueue.isEmpty())) {
 			if (!surfaceQueue.isEmpty()) {
 				long pos = surfaceQueue.poll();
 				queued.remove(pos);
@@ -255,19 +248,9 @@ public final class MapWorld {
 				}
 				continue;
 			}
-			if (!layerQueue.isEmpty()) {
-				LevelChunk chunk = loadedChunk(level, layerQueue.poll());
-				if (chunk != null && isCave(autoLayer)) {
-					ChunkScanner.scanCaves(level, chunk, layers::cave, autoLayer, autoLayer);
-					scanCount++;
-				}
-				continue;
-			}
-			long pos = deepQueue.poll();
-			deepQueued.remove(pos);
-			LevelChunk chunk = loadedChunk(level, pos);
-			if (chunk != null) {
-				ChunkScanner.scanCaves(level, chunk, layers::cave, minLayer, maxLayer);
+			LevelChunk chunk = loadedChunk(level, layerQueue.poll());
+			if (chunk != null && isCave(autoLayer)) {
+				ChunkScanner.scanCaves(level, chunk, layers::cave, autoLayer, autoLayer);
 				scanCount++;
 			}
 		}

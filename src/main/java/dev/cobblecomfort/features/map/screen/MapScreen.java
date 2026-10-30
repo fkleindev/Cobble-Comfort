@@ -1,6 +1,7 @@
 package dev.cobblecomfort.features.map.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.Window;
 import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.map.MapConfig;
@@ -35,10 +36,12 @@ import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
 import dev.cobblecomfort.core.config.CobbleConfigScreen;
 import dev.cobblecomfort.features.storage.StorageItems;
 import dev.cobblecomfort.features.storage.StoredContainer;
+import dev.cobblecomfort.mixin.MouseHandlerAccessor;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.MouseHandler;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -736,7 +739,28 @@ public class MapScreen extends Screen {
 		following = false;
 		menu = null;
 		windowDrag = WindowDrag.NONE;
+		grabMouseForClosing();
 		return true;
+	}
+
+	/**
+	 * Takes the mouse back for looking around right away, while the map still shrinks into the minimap: grabbed as on
+	 * closing the screen, but without closing it yet.
+	 */
+	private void grabMouseForClosing() {
+		MouseHandler mouse = minecraft.mouseHandler;
+		if (mouse.isMouseGrabbed() || !minecraft.isWindowActive()) {
+			return;
+		}
+		Window window = minecraft.getWindow();
+		double x = window.getScreenWidth() / 2.0;
+		double y = window.getScreenHeight() / 2.0;
+		MouseHandlerAccessor accessor = (MouseHandlerAccessor) mouse;
+		accessor.cobblecomfort$setMouseGrabbed(true);
+		accessor.cobblecomfort$setXpos(x);
+		accessor.cobblecomfort$setYpos(y);
+		accessor.cobblecomfort$setIgnoreFirstMove(true);
+		InputConstants.grabMouse(window, x, y);
 	}
 
 	/**

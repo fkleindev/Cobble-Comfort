@@ -63,6 +63,7 @@
 		"ItemStackShulkerMixin",
 		"LightmapMixin",
 		"MouseHandlerMixin",
+		"MouseHandlerAccessor",
 		"MultiPlayerGameModeAccessor",
 		"MultiPlayerGameModeMixin",
 		"NightVisionMixin",

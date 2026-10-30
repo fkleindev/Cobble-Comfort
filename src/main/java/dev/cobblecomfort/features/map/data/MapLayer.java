@@ -19,7 +19,7 @@ import java.util.zip.GZIPOutputStream;
 /** All regions of one map layer (a dimension's surface, Nether roof or one cave layer), optionally saved to a folder. */
 public final class MapLayer {
 	/** Advanced by the map every tick; regions remember it when used, so unused ones can be unloaded. */
-	private static volatile int clock;
+	private static int clock;
 
 	private final Path folder;
 	private final Map<Long, MapRegion> regions = new ConcurrentHashMap<>();
@@ -39,13 +39,13 @@ public final class MapLayer {
 		long key = key(rx, rz);
 		MapRegion region = regions.get(key);
 		if (region != null) {
-			region.lastUsed = clock;
+			region.touch(clock);
 			return region;
 		}
 		if (folder != null && !missing.contains(key)) {
 			region = load(rx, rz);
 			if (region != null) {
-				region.lastUsed = clock;
+				region.touch(clock);
 				regions.put(key, region);
 				return region;
 			}
@@ -55,7 +55,7 @@ public final class MapLayer {
 			return null;
 		}
 		region = new MapRegion(rx, rz);
-		region.lastUsed = clock;
+		region.touch(clock);
 		regions.put(key, region);
 		return region;
 	}

@@ -1289,7 +1289,7 @@
 	"cobblecomfort.option.map.border_color.desc": "Colour of the minimap border.",
 	"cobblecomfort.group.map.map": "Map",
 	"cobblecomfort.option.map.cave_mode": "Cave view",
-	"cobblecomfort.option.map.cave_mode.desc": "Underground (also in the Nether), the map and minimap show the cave layer you are in instead of the surface. On the map, the layer slider picks any depth by hand; all layers are saved.",
+	"cobblecomfort.option.map.cave_mode.desc": "Underground (also in the Nether), the map and minimap show the cave layer you are in instead of the surface. The layer you are in is mapped; every layer explored this way is saved and can be viewed on the map with the layer slider.",
 	"cobblecomfort.option.map.nether_roof": "Below the Nether roof",
 	"cobblecomfort.option.map.nether_roof.desc": "In the Nether, the map shows the ground under the bedrock roof instead of the roof.",
 	"cobblecomfort.option.map.shading": "Height shading",
