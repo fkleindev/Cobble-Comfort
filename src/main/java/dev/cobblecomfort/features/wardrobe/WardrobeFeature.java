@@ -8,7 +8,7 @@ import dev.cobblecomfort.features.namecharm.NameCharmFeature;
 import dev.cobblecomfort.features.petplush.PetPlushFeature;
 import dev.cobblecomfort.features.petplush.PlushLook;
 import dev.cobblecomfort.features.pets.PetFeature;
-import dev.cobblecomfort.features.pets.PetStore;
+import dev.cobblecomfort.features.pets.PetEntry;
 import dev.cobblecomfort.features.tracker.TrackerToast;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
@@ -31,11 +31,14 @@ import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -76,13 +79,19 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				addInventoryButton(inventory);
 			}
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> HatLayer.forget());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+			HatLayer.forget();
+			NeckLayer.forget();
+			BackLayer.forget();
+		});
 		LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 			if (renderer instanceof AvatarRenderer<?> avatar) {
 				@SuppressWarnings("unchecked")
 				RenderLayerParent<AvatarRenderState, PlayerModel> parent = (RenderLayerParent<AvatarRenderState, PlayerModel>) (Object) avatar;
 				helper.register(new BadgeLayer(parent));
 				helper.register(new HatLayer(parent));
+				helper.register(new NeckLayer(parent));
+				helper.register(new BackLayer(parent));
 			}
 		});
 	}
@@ -107,8 +116,8 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		if (mc.player != null && ++ticks % EARN_CHECK_TICKS == 0) {
 			checkEarned(mc);
 		}
-		if (mc.player != null && mc.level != null && config.petals) {
-			HatPetals.tick(mc);
+		if (mc.player != null && mc.level != null && (config.petals || config.bellSound)) {
+			HatPetals.tick(mc, config.petals, config.bellSound);
 		}
 	}
 
@@ -137,6 +146,8 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		}
 		Map<AdvancementHolder, AdvancementProgress> progress = connection.getAdvancements().progress();
 		checkHats(mc, progress);
+		checkNecks(mc, progress);
+		checkBack(mc, progress);
 		List<Badge> fresh = new ArrayList<>();
 		for (Map.Entry<AdvancementHolder, AdvancementProgress> entry : progress.entrySet()) {
 			if (!entry.getValue().isDone()) {
@@ -242,13 +253,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			if (earned(hat) || !hat.inSeason()) {
 				continue;
 			}
-			Identifier id = hat.unlock.id();
-			boolean met = switch (hat.unlock.kind()) {
-				case FREE -> true;
-				case ADVANCEMENT -> progress.entrySet().stream().anyMatch(e -> e.getKey().id().equals(id) && e.getValue().isDone());
-				case ITEM -> carries(mc.player.getInventory(), BuiltInRegistries.ITEM.getValue(id));
-				case BIOME -> mc.level != null && mc.level.getBiome(mc.player.blockPosition()).is(ResourceKey.create(Registries.BIOME, id));
-			};
+			boolean met = met(mc, progress, hat.unlock);
 			// The colours of a kind come together: the first stands for them all.
 			if (met && !(hat.style.together && fresh.stream().anyMatch(other -> other.style == hat.style))) {
 				fresh.add(hat);
@@ -272,6 +277,45 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			mc.gui.toastManager().addToast(new TrackerToast(fresh.getFirst().icon(),
 					Component.translatable("cobblecomfort.wardrobe.earned_hat", names), earnedHint("earned_hat")));
 		}
+	}
+
+	/** Whether an unlock's condition is met now: an advancement done in this world, an item carried, the biome stood in. */
+	private static boolean met(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress, Hat.Unlock unlock) {
+		Identifier id = unlock.id();
+		return switch (unlock.kind()) {
+			case FREE -> true;
+			case ADVANCEMENT -> progress.entrySet().stream().anyMatch(e -> e.getKey().id().equals(id) && e.getValue().isDone());
+			case ITEM -> carries(mc.player.getInventory(), BuiltInRegistries.ITEM.getValue(id));
+			case BIOME -> mc.level != null && mc.level.getBiome(mc.player.blockPosition()).is(ResourceKey.create(Registries.BIOME, id));
+			case MUSIC_DISC -> carriesMusicDisc(mc.player.getInventory());
+			case TAMED -> tamed(mc, id);
+		};
+	}
+
+	/** Whether you have tamed an animal of this type: one remembered by the pet tracker, or one of yours nearby. */
+	private static boolean tamed(Minecraft mc, Identifier type) {
+		String id = type.toString();
+		for (PetEntry pet : PetFeature.INSTANCE.store().all()) {
+			if (pet.type.equals(id)) {
+				return true;
+			}
+		}
+		for (Entity entity : mc.level.entitiesForRendering()) {
+			if (entity instanceof TamableAnimal animal && animal.isOwnedBy(mc.player)
+					&& BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).equals(type)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean carriesMusicDisc(Inventory inventory) {
+		for (int i = 0; i < inventory.getContainerSize(); i++) {
+			if (inventory.getItem(i).has(DataComponents.JUKEBOX_PLAYABLE)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean carries(Inventory inventory, Item item) {
@@ -342,7 +386,198 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return mc.level != null && mc.level.getEntity(state.id) instanceof AbstractClientPlayer player && hatFor(player) != null;
 	}
 
-	/** How quickly the wreath's strands stop swinging. */
+	// ---------------------------------------------------------------- neck
+
+	/** Earns the neck pieces whose condition is met; all colours of a kind at once, seasonal ones only in season. */
+	private void checkNecks(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
+		List<Neck> fresh = new ArrayList<>();
+		for (Neck neck : Neck.values()) {
+			if (!earned(neck) && neck.inSeason() && met(mc, progress, neck.unlock)
+					&& fresh.stream().noneMatch(other -> other.style == neck.style)) {
+				fresh.add(neck);
+			}
+		}
+		if (fresh.isEmpty()) {
+			return;
+		}
+		for (Neck neck : fresh) {
+			config.earnedNecks.add(neck.key());
+		}
+		save();
+		if (config.announce) {
+			Component names = Component.empty();
+			for (int i = 0; i < fresh.size(); i++) {
+				if (i > 0) {
+					names = names.copy().append(", ");
+				}
+				names = names.copy().append(fresh.get(i).style.title());
+			}
+			mc.gui.toastManager().addToast(new TrackerToast(fresh.getFirst().icon(),
+					Component.translatable("cobblecomfort.wardrobe.earned_neck", names), earnedHint("earned_neck")));
+		}
+	}
+
+	/** Whether a neck piece is yours: free, or a colour of its kind earned. */
+	public boolean earned(Neck neck) {
+		if (neck.free()) {
+			return true;
+		}
+		for (Neck other : Neck.variants(neck.style)) {
+			if (config.earnedNecks.contains(other.key())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** What you wear round your neck, or null (a seasonal piece is put away out of its season). */
+	public Neck neck() {
+		Neck neck = Neck.byKey(config.neck);
+		return neck != null && earned(neck) && neck.inSeason() ? neck : null;
+	}
+
+	/** Puts a neck piece on (null: none). */
+	public void wearNeck(Neck neck) {
+		if (neck != null && (!earned(neck) || !neck.inSeason())) {
+			return;
+		}
+		config.neck = neck == null ? "" : neck.key();
+		save();
+	}
+
+	/** What you tell other players you wear round your neck. */
+	public Neck sharedNeck() {
+		return isEnabled() && config.share ? neck() : null;
+	}
+
+	/** What this player wears round the neck, or null. */
+	Neck neckFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return null;
+		}
+		if (player == Minecraft.getInstance().player) {
+			return config.showOwn ? neck() : null;
+		}
+		if (!config.showOthers) {
+			return null;
+		}
+		PlushLook look = PetPlushFeature.INSTANCE.shared(player.getUUID());
+		return look == null ? null : look.neck();
+	}
+
+	// ---------------------------------------------------------------- back
+
+	/** Earns the back pieces and charms whose condition is met; all colours of a kind at once. They stay earned. */
+	private void checkBack(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
+		List<BackPiece> pieces = new ArrayList<>();
+		for (BackPiece piece : BackPiece.values()) {
+			if (!earned(piece) && piece.inSeason() && met(mc, progress, piece.unlock)
+					&& pieces.stream().noneMatch(other -> other.style == piece.style)) {
+				pieces.add(piece);
+			}
+		}
+		List<Trinket> trinkets = new ArrayList<>();
+		for (Trinket trinket : Trinket.values()) {
+			if (!earned(trinket) && trinket.inSeason() && met(mc, progress, trinket.unlock)
+					&& trinkets.stream().noneMatch(other -> other.style == trinket.style)) {
+				trinkets.add(trinket);
+			}
+		}
+		if (pieces.isEmpty() && trinkets.isEmpty()) {
+			return;
+		}
+		pieces.forEach(piece -> config.earnedBacks.add(piece.key()));
+		trinkets.forEach(trinket -> config.earnedTrinkets.add(trinket.key()));
+		save();
+		if (config.announce) {
+			Component names = Component.empty();
+			List<Component> titles = new ArrayList<>();
+			pieces.forEach(piece -> titles.add(piece.style.title()));
+			trinkets.forEach(trinket -> titles.add(trinket.style.title()));
+			for (int i = 0; i < titles.size(); i++) {
+				names = names.copy().append(i > 0 ? Component.literal(", ") : Component.empty()).append(titles.get(i));
+			}
+			ItemStack icon = pieces.isEmpty() ? trinkets.getFirst().icon() : pieces.getFirst().icon();
+			mc.gui.toastManager().addToast(new TrackerToast(icon, Component.translatable("cobblecomfort.wardrobe.earned_back", names),
+					earnedHint("earned_back")));
+		}
+	}
+
+	/** Whether a back piece is yours: free, or a colour of its kind earned. */
+	public boolean earned(BackPiece piece) {
+		return piece.free() || BackPiece.variants(piece.style).stream().anyMatch(other -> config.earnedBacks.contains(other.key()));
+	}
+
+	/** Whether a back charm is yours: free, or a variant of its kind earned. */
+	public boolean earned(Trinket trinket) {
+		return trinket.free() || Trinket.variants(trinket.style).stream().anyMatch(other -> config.earnedTrinkets.contains(other.key()));
+	}
+
+	/** What you carry on your back, or null. */
+	public BackPiece back() {
+		BackPiece piece = BackPiece.byKey(config.back);
+		return piece != null && earned(piece) && piece.inSeason() ? piece : null;
+	}
+
+	/** The charm hanging on your back, or null. */
+	public Trinket trinket() {
+		Trinket trinket = Trinket.byKey(config.trinket);
+		return trinket != null && earned(trinket) && trinket.inSeason() ? trinket : null;
+	}
+
+	/** Puts a piece on your back (null: none). */
+	public void wearBack(BackPiece piece) {
+		if (piece != null && (!earned(piece) || !piece.inSeason())) {
+			return;
+		}
+		config.back = piece == null ? "" : piece.key();
+		save();
+	}
+
+	/** Hangs a charm on your back (null: none). */
+	public void wearTrinket(Trinket trinket) {
+		if (trinket != null && (!earned(trinket) || !trinket.inSeason())) {
+			return;
+		}
+		config.trinket = trinket == null ? "" : trinket.key();
+		save();
+	}
+
+	/** What you tell other players you carry on your back. */
+	public BackPiece sharedBack() {
+		return isEnabled() && config.share ? back() : null;
+	}
+
+	/** The charm you tell other players you wear on your back. */
+	public Trinket sharedTrinket() {
+		return isEnabled() && config.share ? trinket() : null;
+	}
+
+	/** What this player carries on the back from the wardrobe, or null. */
+	public BackPiece backFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return null;
+		}
+		if (player == Minecraft.getInstance().player) {
+			return config.showOwn ? back() : null;
+		}
+		PlushLook look = config.showOthers ? PetPlushFeature.INSTANCE.shared(player.getUUID()) : null;
+		return look == null ? null : look.back();
+	}
+
+	/** The wardrobe charm this player wears on the back, or null. */
+	public Trinket trinketFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return null;
+		}
+		if (player == Minecraft.getInstance().player) {
+			return config.showOwn ? trinket() : null;
+		}
+		PlushLook look = config.showOthers ? PetPlushFeature.INSTANCE.shared(player.getUUID()) : null;
+		return look == null ? null : look.trinket();
+	}
+
+	/** How quickly the swinging parts of hats and neck pieces stop. */
 	double damping() {
 		return Mth.lerp(Mth.clamp(config.hatSwing, 0f, 1f), 7.0, 0.6);
 	}
@@ -356,12 +591,10 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		outfit.badges = new ArrayList<>(worn().stream().map(Badge::key).toList());
 		Hat hat = hat();
 		outfit.hat = hat == null ? "" : hat.key();
-		PetStore store = PetFeature.INSTANCE.store();
-		if (store.loaded()) {
-			outfit.charm = store.charm();
-			outfit.pack = store.pack();
-		}
-		outfit.plush = PetPlushFeature.INSTANCE.config().enabled;
+		Neck neck = neck();
+		outfit.neck = neck == null ? "" : neck.key();
+		outfit.back = config.back;
+		outfit.trinket = config.trinket;
 		outfit.bundles = BeltFeature.INSTANCE.config().bundles;
 		outfit.melee = BeltFeature.INSTANCE.config().melee;
 		outfit.ranged = BeltFeature.INSTANCE.config().ranged;
@@ -379,22 +612,14 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		save();
 	}
 
-	/** Puts an outfit on. Pets it names that this world doesn't know are left as they are. */
+	/** Puts an outfit on. */
 	public void wear(WardrobeConfig.Outfit outfit) {
 		config.worn = new ArrayList<>(outfit.badges);
 		config.hat = outfit.hat;
+		config.neck = outfit.neck;
+		config.back = outfit.back;
+		config.trinket = outfit.trinket;
 		save();
-		PetStore store = PetFeature.INSTANCE.store();
-		if (store.loaded()) {
-			if (outfit.charm.isEmpty() || PetPlushFeature.NONE.equals(outfit.charm) || store.byUuid(outfit.charm) != null) {
-				store.setCharm(outfit.charm);
-			}
-			if (outfit.pack.isEmpty() || store.byUuid(outfit.pack) != null) {
-				store.setPack(outfit.pack);
-			}
-		}
-		PetPlushFeature.INSTANCE.config().enabled = outfit.plush;
-		PetPlushFeature.INSTANCE.save();
 		BeltFeature.INSTANCE.config().bundles = outfit.bundles;
 		BeltFeature.INSTANCE.config().melee = outfit.melee;
 		BeltFeature.INSTANCE.config().ranged = outfit.ranged;
@@ -406,8 +631,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	/** Whether everything an outfit holds is worn right now. */
 	public boolean wearing(WardrobeConfig.Outfit outfit) {
 		WardrobeConfig.Outfit now = capture(outfit.name);
-		return now.badges.equals(outfit.badges) && now.hat.equals(outfit.hat) && now.charm.equals(outfit.charm) && now.pack.equals(outfit.pack)
-				&& now.plush == outfit.plush && now.bundles == outfit.bundles && now.melee == outfit.melee
+		return now.badges.equals(outfit.badges) && now.hat.equals(outfit.hat) && now.neck.equals(outfit.neck)
+				&& now.back.equals(outfit.back) && now.trinket.equals(outfit.trinket)
+				&& now.bundles == outfit.bundles && now.melee == outfit.melee
 				&& now.ranged == outfit.ranged && now.nameCharm == outfit.nameCharm;
 	}
 

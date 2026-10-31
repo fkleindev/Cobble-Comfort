@@ -14,7 +14,6 @@ import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.pets.PetEntry;
 import dev.cobblecomfort.features.pets.PetFeature;
 import dev.cobblecomfort.features.pets.PetTab;
-import dev.cobblecomfort.features.petplush.PetPlushFeature;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.trade.TradeTab;
@@ -619,12 +618,6 @@ public class StorageScreen extends Screen {
 				PetEntry pet = petTab.results().get(index);
 				if (PetTab.overForget(left + panelWidth - 8, mouseX)) {
 					PetFeature.INSTANCE.forget(pet);
-				} else if (PetPlushFeature.INSTANCE.isEnabled() && PetPlushFeature.canWear(pet)
-						&& PetTab.overCharm(left + panelWidth - 8, mouseX)) {
-					PetPlushFeature.INSTANCE.toggleCharm(pet);
-				} else if (PetPlushFeature.INSTANCE.isEnabled() && PetPlushFeature.canWear(pet)
-						&& PetTab.overPack(left + panelWidth - 8, mouseX)) {
-					PetPlushFeature.INSTANCE.togglePack(pet);
 				} else {
 					showOnMap(pet);
 				}

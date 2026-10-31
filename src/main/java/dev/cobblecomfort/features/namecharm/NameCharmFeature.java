@@ -1,6 +1,7 @@
 package dev.cobblecomfort.features.namecharm;
 
 import dev.cobblecomfort.core.Feature;
+import dev.cobblecomfort.core.VanillaAssets;
 import dev.cobblecomfort.features.plush.PlushFeature;
 import dev.cobblecomfort.mixin.ItemStackRenderStateAccessor;
 import dev.cobblecomfort.mixin.LayerRenderStateAccessor;
@@ -105,8 +106,8 @@ public final class NameCharmFeature extends Feature<NameCharmConfig> {
 		CharmPendulum pendulum = held ? pendulum(holder, context, firstPerson) : null;
 		Material material = material(stack);
 		NameCharmRenderer.Args args = new NameCharmRenderer.Args(line, font.width(line),
-				material == null ? null : material.texture(), material == null ? PAPER_INK : material.ink(), anchor(model),
-				pendulum);
+				material == null ? null : VanillaAssets.texture(material.texture()), material == null ? PAPER_INK : material.ink(),
+				anchor(model), pendulum);
 
 		ItemStackRenderState.LayerRenderState layer = output.newLayer();
 		layer.setItemTransform(model.cobblecomfort$itemTransform());

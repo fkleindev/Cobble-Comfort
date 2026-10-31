@@ -119,14 +119,122 @@ public enum Hat {
 	CHEF_CREAM(Style.CHEF, Unlock.item("cake"), "cake",
 			new int[]{0xFFF2E6C8, 0xFFD8CAA8}, 0xFF3A6AC8, 0, 0, true),
 	CHEF_BLACK(Style.CHEF, Unlock.item("cake"), "cake",
-			new int[]{0xFF2E2E32, 0xFF1E1E22}, 0xFFE8C040, 0, 0, true);
+			new int[]{0xFF2E2E32, 0xFF1E1E22}, 0xFFE8C040, 0, 0, true),
+	BEANIE_BEE(Style.BEANIE, Unlock.advancement("husbandry/safely_harvest_honey"), "honeycomb",
+			new int[]{0xFF5A3420, 0xFF4A2A18, 0xFF64402A}, 0xFFF0A020, 0xFFF0EEE6, 0xFFF2C81E, true),
+	BEANIE_RED(Style.BEANIE, Unlock.advancement("husbandry/safely_harvest_honey"), "red_wool",
+			new int[]{0xFFB82A2A, 0xFF962020, 0xFFA82626}, 0xFFF4F4F0, 0xFFF4F4F0, 0, true),
+	BEANIE_GREY(Style.BEANIE, Unlock.advancement("husbandry/safely_harvest_honey"), "gray_wool",
+			new int[]{0xFF8A8C90, 0xFF707276, 0xFF7C7E82}, 0xFF4A6AA8, 0xFF4A6AA8, 0, true),
+	CAP_BLUE(Style.CAP, Unlock.advancement("adventure/shoot_arrow"), "blue_wool",
+			new int[]{0xFF2A4A8A, 0xFF1E3668}, 0xFFF0F0EC, 0, 0, true),
+	CAP_RED(Style.CAP, Unlock.advancement("adventure/shoot_arrow"), "red_wool",
+			new int[]{0xFFB8262A, 0xFF8A1A1E}, 0xFFF0F0EC, 0, 0, true),
+	CAP_CREEPER(Style.CAP, Unlock.advancement("adventure/shoot_arrow"), "creeper_head",
+			new int[]{0xFF4E9A3A, 0xFF3A7A2A}, 0xFF7ACC5A, 0xFF1A2A18, 0, true),
+	NIGHTCAP_BLUE(Style.NIGHTCAP, Unlock.advancement("adventure/sleep_in_bed"), "white_bed",
+			new int[]{0xFF3A5AA8, 0xFFE8ECF4, 0xFFE8ECF4}, 0xFFF4F4F0, 0, 0, true),
+	NIGHTCAP_RED(Style.NIGHTCAP, Unlock.advancement("adventure/sleep_in_bed"), "red_bed",
+			new int[]{0xFFB8302C, 0xFFF4EEE6, 0xFFF4EEE6}, 0xFFF4F4F0, 0, 0, true),
+	NIGHTCAP_GREEN(Style.NIGHTCAP, Unlock.advancement("adventure/sleep_in_bed"), "green_bed",
+			new int[]{0xFF4A7A3A, 0xFFF2E8CC, 0xFFF2E8CC}, 0xFFF2C81E, 0, 0, true),
+	PROPELLER_CLASSIC(Style.PROPELLER, Unlock.advancement("adventure/fall_from_world_height"), "feather",
+			new int[]{0xFFD83A30, 0xFFF2C21E, 0xFF3A6AC8}, 0xFF4AA83A, 0, 0, true),
+	PROPELLER_PASTEL(Style.PROPELLER, Unlock.advancement("adventure/fall_from_world_height"), "feather",
+			new int[]{0xFFF4A8C8, 0xFFA8D8F4, 0xFFF4E8A0}, 0xFFB8E8B0, 0, 0, true),
+	PROPELLER_DARK(Style.PROPELLER, Unlock.advancement("adventure/fall_from_world_height"), "feather",
+			new int[]{0xFF2E2E34, 0xFF6A2A9A, 0xFF1E5A6A}, 0xFFE8C040, 0, 0, true),
+	BUNNY_WHITE(Style.BUNNY, Unlock.advancement("husbandry/breed_an_animal"), "rabbit_foot",
+			new int[]{0xFFF4F4F0, 0xFFD8D8D4, 0xFFE8E8E4}, 0xFFF4A8C0, 0, 0, true),
+	BUNNY_BROWN(Style.BUNNY, Unlock.advancement("husbandry/breed_an_animal"), "rabbit_foot",
+			new int[]{0xFF9A6A42, 0xFF7A5232, 0xFF5A3C24}, 0xFFE8C8A8, 0, 0, true),
+	BUNNY_BLACK(Style.BUNNY, Unlock.advancement("husbandry/breed_an_animal"), "rabbit_foot",
+			new int[]{0xFF2A2A2E, 0xFF1C1C20, 0xFF3A3A40}, 0xFF8A8A92, 0, 0, true),
+	MORTARBOARD_BLACK(Style.MORTARBOARD, Unlock.advancement("story/enchant_item"), "enchanted_book",
+			new int[]{0xFF22222A, 0xFF16161C}, 0xFFE8C040, 0xFFE8C040, 0, true),
+	MORTARBOARD_NAVY(Style.MORTARBOARD, Unlock.advancement("story/enchant_item"), "enchanted_book",
+			new int[]{0xFF1E2A4A, 0xFF141E36}, 0xFFF0F0EC, 0xFFC0C0C8, 0, true),
+	MORTARBOARD_RED(Style.MORTARBOARD, Unlock.advancement("story/enchant_item"), "enchanted_book",
+			new int[]{0xFF8A1E24, 0xFF6A161A}, 0xFFE8C040, 0xFFE8C040, 0, true),
+	TOPHAT_BLACK(Style.TOPHAT, Unlock.advancement("adventure/trade"), "emerald",
+			new int[]{0xFF1E1E22, 0xFF141418}, 0xFF8A1E24, 0xFFF4F4F0, 0, true),
+	TOPHAT_GREY(Style.TOPHAT, Unlock.advancement("adventure/trade"), "emerald",
+			new int[]{0xFF7A7C82, 0xFF5E6066}, 0xFF1E1E22, 0xFF4A7AC8, 0, true),
+	TOPHAT_PURPLE(Style.TOPHAT, Unlock.advancement("adventure/trade"), "emerald",
+			new int[]{0xFF4A2A6A, 0xFF361E4E}, 0xFF1E1E22, 0xFFE8C040, 0, true),
+	COWBOY_BROWN(Style.COWBOY, Unlock.advancement("husbandry/tame_an_animal"), "saddle",
+			new int[]{0xFF8A5A32, 0xFF74482A}, 0xFF3A2414, 0xFFC0C0C8, 0, true),
+	COWBOY_BLACK(Style.COWBOY, Unlock.advancement("husbandry/tame_an_animal"), "saddle",
+			new int[]{0xFF26221E, 0xFF1C1814}, 0xFFC0C0C8, 0xFFC0C0C8, 0, true),
+	COWBOY_TAN(Style.COWBOY, Unlock.advancement("husbandry/tame_an_animal"), "saddle",
+			new int[]{0xFFD8BC8A, 0xFFC4A672}, 0xFF6A4424, 0xFFE8C040, 0, true),
+	HEADPHONES_BLACK(Style.HEADPHONES, Unlock.musicDisc(), "music_disc_cat",
+			new int[]{0xFF26262A, 0xFF4A4A50}, 0xFFD83A30, 0, 0, true),
+	HEADPHONES_WHITE(Style.HEADPHONES, Unlock.musicDisc(), "music_disc_cat",
+			new int[]{0xFFF0F0EC, 0xFFB8B8BC}, 0xFF3A6AC8, 0, 0, true),
+	HEADPHONES_PINK(Style.HEADPHONES, Unlock.musicDisc(), "music_disc_cat",
+			new int[]{0xFFF4A8C8, 0xFFE8E0E4}, 0xFFF4F4F0, 0, 0, true),
+	PARTY_PINK(Style.PARTY, Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFFF47AB8, 0xFFF2D23A}, 0, 0xFF4AA8E8, 0, true),
+	PARTY_BLUE(Style.PARTY, Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFF3A6AD8, 0xFFF4F4F0}, 0, 0xFFE83A3A, 0, true),
+	PARTY_GREEN(Style.PARTY, Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFF4AB84A, 0xFFF2902A}, 0, 0xFFF2D23A, 0, true),
+	SOMBRERO_STRAW(Style.SOMBRERO, Unlock.biome("desert"), "dead_bush",
+			new int[]{0xFFE0C080, 0xFFD0AE6C}, 0xFFC8302A, 0xFF3A8A3A, 0, true),
+	SOMBRERO_BLACK(Style.SOMBRERO, Unlock.biome("desert"), "dead_bush",
+			new int[]{0xFF242024, 0xFF1A161A}, 0xFFE8C040, 0xFFE8E4DC, 0, true),
+	SOMBRERO_RED(Style.SOMBRERO, Unlock.biome("desert"), "dead_bush",
+			new int[]{0xFFA8262A, 0xFF8A1C20}, 0xFFF4F0E6, 0xFFE8C040, 0, true),
+	BERET_BLACK(Style.BERET, Unlock.item("painting"), "painting",
+			new int[]{0xFF222226, 0xFF18181C}, 0xFFD83A30, 0, 0, true),
+	BERET_RED(Style.BERET, Unlock.item("painting"), "painting",
+			new int[]{0xFFB02A2E, 0xFF8A1E22}, 0xFF3A6AD8, 0, 0, true),
+	BERET_NAVY(Style.BERET, Unlock.item("painting"), "painting",
+			new int[]{0xFF223260, 0xFF18244A}, 0xFFF2D23A, 0, 0, true),
+	TYROLEAN_GREEN(Style.TYROLEAN, Unlock.biome("meadow"), "fern",
+			new int[]{0xFF3E5A34, 0xFF324A2A, 0xFFC8302A}, 0xFF3A3A40, 0xFFE8E8EC, 0, true),
+	TYROLEAN_GREY(Style.TYROLEAN, Unlock.biome("meadow"), "fern",
+			new int[]{0xFF6E7076, 0xFF5A5C62, 0xFF3A6A3A}, 0xFFE8E8EC, 0xFFE8C040, 0, true),
+	TYROLEAN_BROWN(Style.TYROLEAN, Unlock.biome("meadow"), "fern",
+			new int[]{0xFF6A4A2E, 0xFF563C24, 0xFF2E5A2E}, 0xFF8A2A2A, 0xFFE8E8EC, 0, true),
+	CAPTAIN_WHITE(Style.CAPTAIN, Unlock.item("spyglass"), "spyglass",
+			new int[]{0xFFF2F2EE, 0xFF1E2A4A, 0xFF141418}, 0xFFE8C040, 0xFFE8C040, 0, true),
+	CAPTAIN_NAVY(Style.CAPTAIN, Unlock.item("spyglass"), "spyglass",
+			new int[]{0xFF1E2A4A, 0xFF141E36, 0xFF101014}, 0xFFE8C040, 0xFFF0F0EC, 0, true),
+	CAPTAIN_BLACK(Style.CAPTAIN, Unlock.item("spyglass"), "spyglass",
+			new int[]{0xFF222226, 0xFF18181C, 0xFF0E0E10}, 0xFFE8C040, 0xFFD8D8DC, 0, true),
+	USHANKA_BROWN(Style.USHANKA, Unlock.biome("snowy_taiga"), "rabbit_hide",
+			new int[]{0xFF5A3E28, 0xFF7A5A3E, 0xFF9A7A5A}, 0xFF3A2A1E, 0xFFD83A30, 0, true),
+	USHANKA_GREY(Style.USHANKA, Unlock.biome("snowy_taiga"), "rabbit_hide",
+			new int[]{0xFF2A3450, 0xFF8A8A8E, 0xFFB0B0B4}, 0xFF2A2A2E, 0xFFE8C040, 0, true),
+	USHANKA_WHITE(Style.USHANKA, Unlock.biome("snowy_taiga"), "rabbit_hide",
+			new int[]{0xFFA8262A, 0xFFE8E8E4, 0xFFFFFFFF}, 0xFFC8C8C4, 0xFFE8C040, 0, true),
+	TIARA_SILVER(Style.TIARA, Unlock.item("diamond"), "diamond",
+			new int[]{0xFFE4E8EE, 0xFFB0B6C0}, 0xFF3A6AE8, 0xFF9AD0F8, 0, true),
+	TIARA_GOLD(Style.TIARA, Unlock.item("diamond"), "diamond",
+			new int[]{0xFFF2D25A, 0xFFC8A030}, 0xFFD82A3A, 0xFF3AC86A, 0, true),
+	TIARA_ROSE(Style.TIARA, Unlock.item("diamond"), "diamond",
+			new int[]{0xFFF0C0B0, 0xFFD09A88}, 0xFFE87AB8, 0xFFF4E8FF, 0, true),
+	NINJA_NAVY(Style.NINJA, Unlock.biome("bamboo_jungle"), "bamboo",
+			new int[]{0xFF223260, 0xFF18244A}, 0, 0, 0, true),
+	NINJA_RED(Style.NINJA, Unlock.biome("bamboo_jungle"), "bamboo",
+			new int[]{0xFFB02A2E, 0xFF8A1E22}, 0, 0, 0, true),
+	NINJA_BLACK(Style.NINJA, Unlock.biome("bamboo_jungle"), "bamboo",
+			new int[]{0xFF26262A, 0xFF1A1A1E}, 0, 0, 0, true);
 
 	/** The kind of hat: the shape it is made in, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
-		CROWN(Group.ALL_YEAR, false), WREATH(Group.ALL_YEAR, false), AVIATOR(Group.ALL_YEAR, true), MINER(Group.ALL_YEAR, true),
-		PIRATE(Group.ALL_YEAR, true), HALO(Group.ALL_YEAR, true), STRAW(Group.ALL_YEAR, true), FISHER(Group.ALL_YEAR, true),
-		CHEF(Group.ALL_YEAR, true), LEAVES(Group.SEASON, true), ACORN(Group.SEASON, true), MUSHROOM(Group.SEASON, true),
-		WITCH(Group.SEASON, true), PUMPKIN(Group.SEASON, true), HORNS(Group.SEASON, true), BAT(Group.SEASON, true);
+		CROWN(Group.ALL_YEAR, false), WREATH(Group.ALL_YEAR, false), AVIATOR(Group.ALL_YEAR, true),
+		MINER(Group.ALL_YEAR, true), PIRATE(Group.ALL_YEAR, true), HALO(Group.ALL_YEAR, true), STRAW(Group.ALL_YEAR, true),
+		FISHER(Group.ALL_YEAR, true), CHEF(Group.ALL_YEAR, true), BEANIE(Group.ALL_YEAR, true), CAP(Group.ALL_YEAR, true),
+		NIGHTCAP(Group.ALL_YEAR, true), PROPELLER(Group.ALL_YEAR, true), BUNNY(Group.ALL_YEAR, true),
+		MORTARBOARD(Group.ALL_YEAR, true), TOPHAT(Group.ALL_YEAR, true), COWBOY(Group.ALL_YEAR, true),
+		HEADPHONES(Group.ALL_YEAR, true), PARTY(Group.ALL_YEAR, true), SOMBRERO(Group.ALL_YEAR, true),
+		BERET(Group.ALL_YEAR, true), TYROLEAN(Group.ALL_YEAR, true), CAPTAIN(Group.ALL_YEAR, true),
+		USHANKA(Group.ALL_YEAR, true), TIARA(Group.ALL_YEAR, true), NINJA(Group.ALL_YEAR, true),
+		LEAVES(Group.SEASON, true), ACORN(Group.SEASON, true), MUSHROOM(Group.SEASON, true), WITCH(Group.SEASON, true),
+		PUMPKIN(Group.SEASON, true), HORNS(Group.SEASON, true), BAT(Group.SEASON, true);
 
 		public final Group group;
 		/** Whether all its colours are earned together (crowns and wreaths each have their own way). */
@@ -174,10 +282,13 @@ public enum Hat {
 		}
 	}
 
-	/** How a hat is earned: always worn, an advancement, an item once in the inventory, or a biome once entered. */
+	/**
+	 * How a hat is earned: always worn, an advancement, an item (or any music disc) once in the inventory, a biome
+	 * once entered, or an animal tamed.
+	 */
 	public record Unlock(Kind kind, Identifier id) {
 		public enum Kind {
-			FREE, ADVANCEMENT, ITEM, BIOME
+			FREE, ADVANCEMENT, ITEM, BIOME, MUSIC_DISC, TAMED
 		}
 
 		static Unlock free() {
@@ -190,6 +301,15 @@ public enum Hat {
 
 		static Unlock item(String path) {
 			return new Unlock(Kind.ITEM, Identifier.withDefaultNamespace(path));
+		}
+
+		/** Earned by taming an animal of this type (a wolf, a cat). */
+		static Unlock tamed(String type) {
+			return new Unlock(Kind.TAMED, Identifier.withDefaultNamespace(type));
+		}
+
+		static Unlock musicDisc() {
+			return new Unlock(Kind.MUSIC_DISC, null);
 		}
 
 		static Unlock biome(String path) {
@@ -206,7 +326,13 @@ public enum Hat {
 	 * dark, top; stalk, rim. Fly agaric: cap, brim; dots, stem, gills. Witch: cone, brim, tip; band, buckle, spider.
 	 * Pumpkin: orange, ribs, light; glow, stem, leaf. Horns: red, dark, tips; band. Bat: body, wings; eyes, spring, band.
 	 * Aviator: leather, dark, lining; lenses, frame. Miner: shell, ridge; lamp, housing. Pirate: felt, brim; feather, trim.
-	 * Halo: light, shade. Straw: straw, dark; ribbon. Fisher: cloth, brim; band. Chef: cloth, folds; badge.
+	 * Halo: light, shade. Straw: straw, dark; ribbon. Fisher: cloth, brim; band. Chef: cloth, folds; badge. Beanie: knit,
+	 * ribs, cuff; patch, pompom (bee: daisy), daisy centre. Cap: cloth, seams; logo (creeper: face). Nightcap: stripes,
+	 * rim; pompom. Propeller: segments; hub. Bunny: fur, shade, band; inner ear. Mortarboard: cloth, band; cord, cap.
+	 * Top hat and cowboy hat: felt, brim; band, feather or concho. Headphones: cups, cushions; caps. Party: stripes;
+	 * (unused), pompom. Sombrero: crown, brim; pompom and embroidery, embroidery. Beret: cloth, rim; paint. Tyrolean:
+	 * felt, brim, cord; feather, badge. Captain: top, band, visor; cord, anchor. Ushanka: cloth, fur, light fur; ties,
+	 * badge. Tiara: metal, setting; stone, small stones. Ninja: band, shade.
 	 */
 	public final int[] main;
 	public final int accent;

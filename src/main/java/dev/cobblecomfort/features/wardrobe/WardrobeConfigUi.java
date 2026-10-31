@@ -32,6 +32,7 @@ public final class WardrobeConfigUi {
 						.name(Component.translatable("cobblecomfort.group.wardrobe.hats"))
 						.option(Opts.percent("wardrobe.hat_swing", d.hatSwing, () -> c(feature).hatSwing, v -> c(feature).hatSwing = v))
 						.option(Opts.bool("wardrobe.petals", d.petals, () -> c(feature).petals, v -> c(feature).petals = v))
+						.option(Opts.bool("wardrobe.bell_sound", d.bellSound, () -> c(feature).bellSound, v -> c(feature).bellSound = v))
 						.build())
 				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.wardrobe.buttons"))

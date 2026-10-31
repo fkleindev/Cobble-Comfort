@@ -3,7 +3,10 @@ package dev.cobblecomfort.features.petplush;
 import dev.cobblecomfort.features.belt.BeltBundle;
 import dev.cobblecomfort.features.belt.BeltGear;
 import dev.cobblecomfort.features.wardrobe.Badge;
+import dev.cobblecomfort.features.wardrobe.BackPiece;
 import dev.cobblecomfort.features.wardrobe.Hat;
+import dev.cobblecomfort.features.wardrobe.Neck;
+import dev.cobblecomfort.features.wardrobe.Trinket;
 import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
@@ -11,13 +14,15 @@ import java.util.List;
 
 /**
  * What a player wears: a plush charm hanging on the back and/or a plush backpack (either may be null), and the bundles
- * and weapons on their belt, the badges pinned to their chest and the hat on their head (or null).
+ * and weapons on their belt, the badges pinned to their chest, the hat on their head, what they wear round the
+ * neck, and what they carry on the back and hang from it in place of the pets (each may be null).
  */
-public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles, BeltGear gear, List<Badge> badges, Hat hat) {
-	public static final PlushLook NONE = new PlushLook(null, null, List.of(), BeltGear.NONE, List.of(), null);
+public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles, BeltGear gear, List<Badge> badges, Hat hat,
+		Neck neck, BackPiece back, Trinket trinket) {
+	public static final PlushLook NONE = new PlushLook(null, null, List.of(), BeltGear.NONE, List.of(), null, null, null, null);
 
 	public PlushLook(PetPlush charm, PetPlush pack) {
-		this(charm, pack, List.of(), BeltGear.NONE, List.of(), null);
+		this(charm, pack, List.of(), BeltGear.NONE, List.of(), null, null, null, null);
 	}
 
 	public boolean hasPets() {
@@ -28,7 +33,7 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 	 * Shared format (opaque to the server plugin): per plush slot a boolean, then type, variant and collar id + 1; then
 	 * the number of belt bundles and for each its colour id + 1 (0: undyed) and fullness (0-255); then the belt weapons
 	 * ({@link BeltGear}); then the number of badges and the id of each ({@link Badge} order); then the hat's id + 1
-	 * (0: none, {@link Hat} order).
+	 * (0: none, {@link Hat} order); then the neck piece's id + 1 (0: none, {@link Neck} order), the back piece's and the back charm's likewise.
 	 */
 	public void write(FriendlyByteBuf buf) {
 		write(buf, charm);
@@ -44,6 +49,9 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 			buf.writeVarInt(badge.ordinal());
 		}
 		buf.writeVarInt(hat == null ? 0 : hat.ordinal() + 1);
+		buf.writeVarInt(neck == null ? 0 : neck.ordinal() + 1);
+		buf.writeVarInt(back == null ? 0 : back.ordinal() + 1);
+		buf.writeVarInt(trinket == null ? 0 : trinket.ordinal() + 1);
 	}
 
 	public static PlushLook read(FriendlyByteBuf buf) {
@@ -64,9 +72,12 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 				badges.add(badge);
 			}
 		}
-		// A hat this version doesn't know yet is left out.
+		// Anything worn that this version doesn't know yet is left out.
 		Hat hat = buf.isReadable() ? Hat.byId(buf.readVarInt() - 1) : null;
-		return new PlushLook(charm, pack, List.copyOf(bundles), gear, List.copyOf(badges), hat);
+		Neck neck = buf.isReadable() ? Neck.byId(buf.readVarInt() - 1) : null;
+		BackPiece back = buf.isReadable() ? BackPiece.byId(buf.readVarInt() - 1) : null;
+		Trinket trinket = buf.isReadable() ? Trinket.byId(buf.readVarInt() - 1) : null;
+		return new PlushLook(charm, pack, List.copyOf(bundles), gear, List.copyOf(badges), hat, neck, back, trinket);
 	}
 
 	private static void write(FriendlyByteBuf buf, PetPlush plush) {

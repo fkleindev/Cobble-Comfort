@@ -2,9 +2,15 @@ package dev.cobblecomfort.features.petplush;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import dev.cobblecomfort.core.VanillaAssets;
 import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.namecharm.NameCharmRenderer;
 import dev.cobblecomfort.features.plush.PlushHits;
+import dev.cobblecomfort.features.wardrobe.BackLayer;
+import dev.cobblecomfort.features.wardrobe.BackPiece;
+import dev.cobblecomfort.features.wardrobe.Trinket;
+import dev.cobblecomfort.features.wardrobe.TrinketModel;
+import dev.cobblecomfort.features.wardrobe.WardrobeFeature;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.LayerDefinitions;
@@ -134,7 +140,17 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		}
 		PetPlushFeature feature = PetPlushFeature.INSTANCE;
 		PlushLook look = feature.lookFor(player);
-		if (look == null || !look.hasPets()) {
+		// What is on the back comes from the wardrobe (a wardrobe tile shows the one it offers): a plush backpack or
+		// something else carried, and a plush charm or another charm. Players on older versions may still share pets.
+		BackPiece backPreview = state.getData(BackLayer.PREVIEW);
+		Trinket trinketPreview = state.getData(TrinketModel.PREVIEW);
+		BackPiece back = backPreview != null ? backPreview : WardrobeFeature.INSTANCE.backFor(player);
+		Trinket trinket = trinketPreview != null ? trinketPreview : WardrobeFeature.INSTANCE.trinketFor(player);
+		PetPlush pack = back != null ? back.plush() : look == null ? null : look.pack();
+		BackPiece carried = back != null && back.plush() == null ? back : null;
+		PetPlush charm = trinket != null ? trinket.plush() : look == null ? null : look.charm();
+		Trinket hung = trinket != null && trinket.plush() == null ? trinket : null;
+		if (pack == null && charm == null && hung == null) {
 			return;
 		}
 		PetPlushFeature.Motion motion = feature.motion(state.id);
@@ -148,17 +164,37 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		Torso torso = Torso.of(body).inflated(Torso.worn(state, false));
 		body.translateAndRotate(pose);
 		Vector3f charmAnchor = new Vector3f(torso.centerX() + CHARM_ANCHOR.x, torso.top() + CHARM_ANCHOR.y, torso.back() + CHARM_ANCHOR.z);
-		if (look.pack() != null) {
-			Bounds bounds = look.pack().wolf() ? wolfPack : catPack;
+		if (pack != null) {
+			Bounds bounds = pack.wolf() ? wolfPack : catPack;
 			float scale = PACK_HEIGHT / bounds.height();
-			submitPack(pose, collector, light, look.pack(), torso, bounds, scale, squish, jiggle(motion, true));
+			submitPack(pose, collector, light, pack, torso, bounds, scale, squish, jiggle(motion, true));
 			// The charm hangs from the backpack's lower right side.
 			charmAnchor = new Vector3f(torso.centerX() - bounds.width() * scale * 0.4f, torso.top() + PACK_TOP + PACK_HEIGHT * 0.8f,
 					torso.back() + PACK_BACK + bounds.depth() * scale * 0.5f);
+		} else if (carried != null) {
+			charmAnchor = BackLayer.charmAnchor(carried, torso.back(), player, backPreview != null);
 		}
-		if (look.charm() != null) {
-			submitCharm(pose, collector, light, look.charm(), charmAnchor, squish, motion, feature.damping());
+		if (charm != null) {
+			submitCharm(pose, collector, light, charm, charmAnchor, squish, motion, feature.damping());
+		} else if (hung != null) {
+			submitTrinket(pose, collector, light, hung, charmAnchor, motion, feature.damping());
 		}
+		pose.popPose();
+	}
+
+	/** A charm from the wardrobe on its string, swinging like a plush one. */
+	private static void submitTrinket(PoseStack pose, SubmitNodeCollector collector, int light, Trinket trinket, Vector3f anchor,
+			PetPlushFeature.Motion motion, double damping) {
+		Vector3f down = motion.pendulum.hang(pose.last().pose(), anchor, STRING + TrinketModel.HEIGHT / 2f, damping);
+		if (down == null) {
+			return;
+		}
+		NameCharmRenderer.submitString(pose, collector, anchor, down, STRING, STRING_WIDTH, light);
+		pose.pushPose();
+		pose.translate(anchor.x, anchor.y, anchor.z);
+		pose.mulPose(new Matrix4f().rotation(new Quaternionf().rotationTo(0f, 1f, 0f, down.x, down.y, down.z)));
+		pose.translate(0f, STRING, 0f);
+		TrinketModel.submit(pose, collector, trinket, light);
 		pose.popPose();
 	}
 
@@ -225,7 +261,8 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	}
 
 	private void submitModel(PoseStack pose, SubmitNodeCollector collector, int light, PetPlush plush, PlushPetModels.Jiggle jiggle) {
-		Identifier texture = texture(plush);
+		// As the game ships them, whatever the resource pack.
+		Identifier texture = VanillaAssets.texture(texture(plush));
 		DyeColor collar = plush.collarColor();
 		if (plush.wolf()) {
 			PlushPetModels.WolfState s = new PlushPetModels.WolfState();
@@ -235,7 +272,7 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			s.collarColor = collar;
 			submit(wolf, s, pose, collector, texture, light, -1);
 			if (collar != null) {
-				submit(wolf, s, pose, collector, WOLF_COLLAR, light, collar.getTextureDiffuseColor());
+				submit(wolf, s, pose, collector, VanillaAssets.texture(WOLF_COLLAR), light, collar.getTextureDiffuseColor());
 			}
 		} else {
 			PlushPetModels.CatState s = new PlushPetModels.CatState();
@@ -244,7 +281,7 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			s.collarColor = collar;
 			submit(cat, s, pose, collector, texture, light, -1);
 			if (collar != null) {
-				submit(catCollar, s, pose, collector, CAT_COLLAR, light, collar.getTextureDiffuseColor());
+				submit(catCollar, s, pose, collector, VanillaAssets.texture(CAT_COLLAR), light, collar.getTextureDiffuseColor());
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.cobblecomfort.CobbleComfortClient;
+import dev.cobblecomfort.core.VanillaAssets;
 import dev.cobblecomfort.features.petplush.Torso;
 import dev.cobblecomfort.features.plush.PlushFeature;
 import net.minecraft.client.Minecraft;
@@ -113,6 +114,10 @@ final class BadgeLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	}
 
 	private static void submitItem(PoseStack pose, SubmitNodeCollector collector, ItemStack stack, AbstractClientPlayer player, int light) {
+		// As the game ships it, whatever the resource pack; its model only for items without a plain icon.
+		if (VanillaAssets.submitItem(pose, collector, stack, light)) {
+			return;
+		}
 		ItemStackRenderState state = new ItemStackRenderState();
 		PlushFeature plush = PlushFeature.INSTANCE;
 		plush.plain = true;

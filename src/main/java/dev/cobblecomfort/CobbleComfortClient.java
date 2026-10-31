@@ -3,6 +3,7 @@ package dev.cobblecomfort;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.cobblecomfort.core.FeatureManager;
 import dev.cobblecomfort.core.config.CobbleConfigScreen;
+import dev.cobblecomfort.core.update.Updater;
 import dev.cobblecomfort.features.armorhud.ArmorHudFeature;
 import dev.cobblecomfort.features.chat.ChatFeature;
 import dev.cobblecomfort.features.crosshair.CrosshairFeature;
@@ -117,6 +118,7 @@ public class CobbleComfortClient implements ClientModInitializer {
 		FeatureManager.register(PetFeature.INSTANCE);
 		FeatureManager.register(ChatFeature.INSTANCE);
 		FeatureManager.init();
+		Updater.init();
 
 		openConfigKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.cobblecomfort.open_config", InputConstants.UNKNOWN.getValue(), keyCategory));

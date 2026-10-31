@@ -8,16 +8,13 @@ import dev.cobblecomfort.features.map.render.MapUi;
 import dev.cobblecomfort.features.map.screen.FlatButton;
 import dev.cobblecomfort.features.map.screen.TabButton;
 import dev.cobblecomfort.features.namecharm.NameCharmFeature;
-import dev.cobblecomfort.features.petplush.PetPlushFeature;
-import dev.cobblecomfort.features.pets.PetEntry;
-import dev.cobblecomfort.features.pets.PetFeature;
-import dev.cobblecomfort.features.pets.PetStore;
 import dev.cobblecomfort.features.plush.PlushFeature;
 import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 import net.minecraft.ChatFormatting;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -36,6 +33,11 @@ import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * The wardrobe: the player on a turntable on the left (drag to turn), and on the right tabs for badges, hats, plush
@@ -47,6 +49,8 @@ public final class WardrobeScreen extends Screen {
 	private static final int PREVIEW_WIDTH = 132;
 	private static final int TABS_HEIGHT = 22;
 	private static final int CELL = 28;
+	/** A tab showing just its icon. */
+	private static final int TAB_ICON_WIDTH = 20;
 	/** A hat tile: big enough to show the head wearing it. */
 	private static final int HAT_CELL = 46;
 	private static final int ROW = 22;
@@ -55,7 +59,7 @@ public final class WardrobeScreen extends Screen {
 	private static final int LOCKED_TINT = 0xFF5C5C66;
 
 	enum Tab {
-		BADGES, HATS, PLUSH, BELT, OUTFITS
+		BADGES, HATS, NECK, BACK, BELT, OUTFITS
 	}
 
 	/** Something clickable drawn this frame: its box, what a click does, and its tooltip (may be empty). */
@@ -90,6 +94,10 @@ public final class WardrobeScreen extends Screen {
 	private int hoverY;
 	/** The kind of hat whose colours are shown, or null. */
 	private Hat.Style openStyle;
+	/** The kind of neck piece, back piece or charm whose colours are shown, or null. */
+	private Object openKind;
+	/** On the back tab: the charms rather than what is carried. */
+	private boolean charms;
 	/** Set when a kind of hat is opened: its colours are scrolled into view once drawn. */
 	private boolean reveal;
 
@@ -109,14 +117,25 @@ public final class WardrobeScreen extends Screen {
 		left = (width - panelWidth) / 2;
 		top = (height - panelHeight) / 2;
 		int x = bodyLeft();
+		// Too many to label them all: the ones not open show just their icon, their name as a tooltip.
+		int full = -2;
 		for (Tab t : Tab.values()) {
-			Component label = Component.translatable("cobblecomfort.wardrobe.tab." + t.name().toLowerCase(java.util.Locale.ROOT));
-			TabButton button = new TabButton(x, top + 8, TabButton.widthFor(font, label), 18, icon(t), label, () -> tab == t, () -> {
-				tab = t;
-				smoothScroll.set(0);
-				scroll = 0;
-				updateWidgets();
-			});
+			full += TabButton.widthFor(font, tabLabel(t)) + 2;
+		}
+		boolean compact = full > bodyRight() - bodyLeft();
+		for (Tab t : Tab.values()) {
+			Component label = tabLabel(t);
+			boolean iconOnly = compact && t != tab;
+			TabButton button = new TabButton(x, top + 8, iconOnly ? TAB_ICON_WIDTH : TabButton.widthFor(font, label), 18, icon(t),
+					iconOnly ? Component.empty() : label, () -> tab == t, () -> {
+						tab = t;
+						smoothScroll.set(0);
+						scroll = 0;
+						rebuildWidgets();
+					});
+			if (iconOnly) {
+				button.setTooltip(Tooltip.create(label));
+			}
 			addRenderableWidget(button);
 			x += button.getWidth() + 2;
 		}
@@ -134,11 +153,16 @@ public final class WardrobeScreen extends Screen {
 		updateWidgets();
 	}
 
+	private static Component tabLabel(Tab t) {
+		return Component.translatable("cobblecomfort.wardrobe.tab." + t.name().toLowerCase(java.util.Locale.ROOT));
+	}
+
 	private static ItemStack icon(Tab t) {
 		return new ItemStack(switch (t) {
 			case BADGES -> Items.GOLD_NUGGET;
 			case HATS -> Items.GOLDEN_HELMET;
-			case PLUSH -> Items.LEAD;
+			case NECK -> Items.STRING;
+			case BACK -> Items.ELYTRA;
 			case BELT -> Items.BUNDLE;
 			case OUTFITS -> Items.ARMOR_STAND;
 		});
@@ -201,7 +225,8 @@ public final class WardrobeScreen extends Screen {
 			switch (tab) {
 				case BADGES -> drawBadges(g);
 				case HATS -> drawHats(g);
-				case PLUSH -> drawPlush(g);
+				case NECK -> drawNecks(g);
+				case BACK -> drawBack(g);
 				case BELT -> drawBelt(g);
 				case OUTFITS -> drawOutfits(g);
 			}
@@ -500,7 +525,7 @@ public final class WardrobeScreen extends Screen {
 			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", hat.style.group.season()).withStyle(ChatFormatting.GRAY));
 		}
 		if (!earned) {
-			tooltip.add(unlockHint(hat).copy().withStyle(ChatFormatting.GRAY));
+			tooltip.add(unlockHint(hat.unlock).copy().withStyle(ChatFormatting.GRAY));
 		} else if (season) {
 			tooltip.add(Component.translatable(worn ? "cobblecomfort.wardrobe.hat_off" : "cobblecomfort.wardrobe.hat_on").withStyle(ChatFormatting.GRAY));
 		}
@@ -535,10 +560,10 @@ public final class WardrobeScreen extends Screen {
 		}
 	}
 
-	/** How a locked hat is earned, with the name of the advancement, item or biome as the game shows it. */
-	private Component unlockHint(Hat hat) {
-		Identifier id = hat.unlock.id();
-		return switch (hat.unlock.kind()) {
+	/** How something locked is earned, with the name of the advancement, item or biome as the game shows it. */
+	private Component unlockHint(Hat.Unlock unlock) {
+		Identifier id = unlock.id();
+		return switch (unlock.kind()) {
 			case FREE -> Component.empty();
 			case ADVANCEMENT -> {
 				ClientPacketListener connection = minecraft.getConnection();
@@ -549,50 +574,246 @@ public final class WardrobeScreen extends Screen {
 			}
 			case ITEM -> Component.translatable("cobblecomfort.wardrobe.unlock.item", new ItemStack(BuiltInRegistries.ITEM.getValue(id)).getHoverName());
 			case BIOME -> Component.translatable("cobblecomfort.wardrobe.unlock.biome", Component.translatable(id.toLanguageKey("biome")));
+			case MUSIC_DISC -> Component.translatable("cobblecomfort.wardrobe.unlock.music_disc");
+			case TAMED -> Component.translatable("cobblecomfort.wardrobe.unlock.tamed", Component.translatable(id.toLanguageKey("entity")));
 		};
 	}
 
-	// ---- plush
+	// ---- neck, back and back charms: kinds of piece, each opening its colours
 
-	private void drawPlush(GuiGraphicsExtractor g) {
-		PetPlushFeature plush = PetPlushFeature.INSTANCE;
-		int x0 = bodyLeft();
-		int x1 = bodyRight();
-		int y = bodyTop() + 2 - scroll;
-		y = toggleRow(g, Component.translatable("cobblecomfort.wardrobe.plush_on"), plush.config().enabled, true, x0, x1, y, () -> {
-			plush.config().enabled = !plush.config().enabled;
-			plush.save();
-		});
-		PetStore store = PetFeature.INSTANCE.store();
-		if (!PetFeature.INSTANCE.active() || !store.loaded()) {
-			drawHint(g, Component.translatable("cobblecomfort.wardrobe.no_pet_memory"), x0, x1, y + 8);
-			return;
+	/** Draws a piece on the figure in a tile. */
+	private interface Preview<P> {
+		void draw(GuiGraphicsExtractor g, P piece, int cx, int cy, int cx1, int cy1);
+	}
+
+	/** One place pieces are worn: its kinds, their colours, which are yours, which is worn and how to show them. */
+	private record Slot<S, P>(S[] styles, Function<S, Hat.Group> group, Function<S, Component> styleTitle,
+			Function<S, List<P>> variants, Function<P, S> styleOf, Function<P, Component> title, Function<P, Hat.Unlock> unlock,
+			Predicate<P> earned, Supplier<P> worn, Consumer<P> wear, ToIntFunction<P> swatch, Preview<P> preview, String on,
+			String off) {
+	}
+
+	private Slot<Neck.Style, Neck> neckSlot() {
+		WardrobeFeature f = feature();
+		return new Slot<>(Neck.Style.values(), s -> s.group, Neck.Style::title, Neck::variants, n -> n.style, Neck::title,
+				n -> n.unlock, f::earned, f::neck, f::wearNeck, n -> n.style == Neck.Style.NECKLACE ? n.accent : n.main[0],
+				this::neckPreview, "cobblecomfort.wardrobe.neck_on", "cobblecomfort.wardrobe.neck_off");
+	}
+
+	private Slot<BackPiece.Style, BackPiece> backSlot() {
+		WardrobeFeature f = feature();
+		return new Slot<>(BackPiece.Style.values(), s -> s.group, BackPiece.Style::title, BackPiece::variants, b -> b.style,
+				BackPiece::title, b -> b.unlock, f::earned, f::back, f::wearBack, b -> b.main[0], this::backPreview,
+				"cobblecomfort.wardrobe.back_on", "cobblecomfort.wardrobe.back_off");
+	}
+
+	private Slot<Trinket.Style, Trinket> trinketSlot() {
+		WardrobeFeature f = feature();
+		return new Slot<>(Trinket.Style.values(), s -> s.group, Trinket.Style::title, Trinket::variants, t -> t.style,
+				Trinket::title, t -> t.unlock, f::earned, f::trinket, f::wearTrinket, t -> t.main[0], this::trinketPreview,
+				"cobblecomfort.wardrobe.trinket_on", "cobblecomfort.wardrobe.trinket_off");
+	}
+
+	/** A slot's kinds by group, as for hats: the all-year ones, then the seasonal ones with their months. */
+	private <S, P> int kinds(GuiGraphicsExtractor g, Slot<S, P> slot, int x0, int y) {
+		for (Hat.Group group : Hat.Group.values()) {
+			List<S> styles = new ArrayList<>();
+			for (S style : slot.styles()) {
+				if (slot.group().apply(style) == group) {
+					styles.add(style);
+				}
+			}
+			if (styles.isEmpty()) {
+				continue;
+			}
+			g.text(font, group.title(), x0, y, MapUi.TEXT, false);
+			if (group.seasonal()) {
+				MapUi.smallText(g, font, group.season(), x0 + font.width(group.title()) + 6, y + 1,
+						group.inSeason() ? WORN : MapUi.TEXT_FAINT, 0.75f);
+			}
+			y = kindGrid(g, slot, styles, x0, y + 11) + 4;
 		}
-		List<PetEntry> pets = new ArrayList<>();
-		for (PetEntry pet : store.all()) {
-			if (PetPlushFeature.canWear(pet)) {
-				pets.add(pet);
+		return y;
+	}
+
+	/** A grid of kinds, one tile each, with the colours of the open kind right under its row; returns the y below. */
+	private <S, P> int kindGrid(GuiGraphicsExtractor g, Slot<S, P> slot, List<S> styles, int x0, int y) {
+		int columns = Math.max(1, (bodyRight() - x0) / HAT_CELL);
+		for (int row = 0; row * columns < styles.size(); row++) {
+			int end = Math.min(styles.size(), (row + 1) * columns);
+			S opened = null;
+			for (int i = row * columns; i < end; i++) {
+				int cx = x0 + (i - row * columns) * HAT_CELL;
+				kindTile(g, slot, styles.get(i), cx, y, cx + HAT_CELL - 2, y + HAT_CELL - 2);
+				if (styles.get(i) == openKind) {
+					opened = styles.get(i);
+				}
+			}
+			y += HAT_CELL;
+			if (opened != null) {
+				y = kindColours(g, slot, opened, x0, y, columns) + 4;
 			}
 		}
-		if (pets.isEmpty()) {
-			drawHint(g, Component.translatable("cobblecomfort.wardrobe.no_pets"), x0, x1, y + 8);
-			return;
+		return y;
+	}
+
+	/** One kind: shown in the colour worn, else its first; a dot below for each of its colours. */
+	private <S, P> void kindTile(GuiGraphicsExtractor g, Slot<S, P> slot, S style, int cx, int cy, int cx1, int cy1) {
+		List<P> variants = slot.variants().apply(style);
+		P current = slot.worn().get();
+		P worn = current != null && slot.styleOf().apply(current) == style ? current : null;
+		boolean earned = slot.earned().test(variants.getFirst());
+		Hat.Group group = slot.group().apply(style);
+		boolean season = group.inSeason();
+		boolean open = openKind == style;
+		tileBack(g, cx, cy, cx1, cy1, worn != null);
+		if (open) {
+			RenderUtil.roundedOutline(g, cx, cy, cx1, cy1, 4, MapUi.TEXT, RenderUtil.withAlpha(MapUi.TEXT, 0.5f));
 		}
-		MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.plush_hint"), x0, y + 2, MapUi.TEXT_FAINT, 0.75f);
-		y += 12;
-		boolean active = plush.config().enabled;
-		for (PetEntry pet : pets) {
-			g.item(PetFeature.INSTANCE.icon(pet), x0, y + 2);
-			g.text(font, PetFeature.title(pet), x0 + 20, y + 6, active ? MapUi.TEXT : MapUi.TEXT_DIM, false);
-			boolean charm = plush.isCharm(pet);
-			boolean pack = plush.isPack(pet);
-			int bx = x1 - 2 * 58;
-			chip(g, Component.translatable("cobblecomfort.wardrobe.as_pack"), pack, bx, y + 2, 56,
-					() -> plush.togglePack(pet), Component.translatable(pack ? "cobblecomfort.pets.pack_off" : "cobblecomfort.pets.pack_on"));
-			chip(g, Component.translatable("cobblecomfort.wardrobe.as_charm"), charm, bx + 58, y + 2, 56,
-					() -> plush.toggleCharm(pet), Component.translatable(charm ? "cobblecomfort.pets.charm_off" : "cobblecomfort.pets.charm_on"));
-			y += ROW;
+		slot.preview().draw(g, worn != null ? worn : variants.getFirst(), cx, cy, cx1, cy1);
+		if (!earned || !season) {
+			veil(g, cx, cy, cx1, cy1, !earned);
 		}
+		int dx = (cx + cx1) / 2 - (variants.size() * 4 - 1) / 2;
+		for (P piece : variants) {
+			int color = slot.swatch().applyAsInt(piece);
+			g.fill(dx - 1, cy1 - 6, dx + 4, cy1 - 1, 0xC0101014);
+			g.fill(dx, cy1 - 5, dx + 3, cy1 - 2, earned ? color : RenderUtil.withAlpha(color, 0.35f));
+			dx += 4;
+		}
+		List<Component> tooltip = new ArrayList<>();
+		tooltip.add(slot.styleTitle().apply(style).copy().withStyle(earned && season ? ChatFormatting.WHITE : ChatFormatting.GRAY));
+		if (!season) {
+			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", group.season()).withStyle(ChatFormatting.GRAY));
+		}
+		if (!earned) {
+			tooltip.add(unlockHint(slot.unlock().apply(variants.getFirst())).copy().withStyle(ChatFormatting.GRAY));
+		}
+		tooltip.add(Component.translatable(open ? "cobblecomfort.wardrobe.hat_colors_hide" : "cobblecomfort.wardrobe.hat_colors")
+				.withStyle(ChatFormatting.GRAY));
+		hits.add(new Hit(cx, cy, cx1, cy1, () -> {
+			openKind = openKind == style ? null : style;
+			reveal = openKind != null;
+		}, tooltip));
+	}
+
+	/** The colours of the open kind, in a panel of their own; click one to put it on or take it off. */
+	private <S, P> int kindColours(GuiGraphicsExtractor g, Slot<S, P> slot, S style, int x0, int y, int columns) {
+		List<P> variants = slot.variants().apply(style);
+		int rows = (variants.size() + columns - 1) / columns;
+		int bottom = y + 14 + rows * HAT_CELL + 2;
+		RenderUtil.roundedFill(g, x0 - 2, y, bodyRight() + 2, bottom, 4, 0x20FFFFFF);
+		MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.hat_colors_title", slot.styleTitle().apply(style)),
+				x0 + 2, y + 4, MapUi.TEXT_DIM, 0.75f);
+		for (int k = 0; k < variants.size(); k++) {
+			P piece = variants.get(k);
+			int cx = x0 + (k % columns) * HAT_CELL;
+			int cy = y + 14 + (k / columns) * HAT_CELL;
+			int cx1 = cx + HAT_CELL - 2;
+			int cy1 = cy + HAT_CELL - 2;
+			boolean earned = slot.earned().test(piece);
+			boolean worn = slot.worn().get() == piece;
+			Hat.Group group = slot.group().apply(style);
+			tileBack(g, cx, cy, cx1, cy1, worn);
+			slot.preview().draw(g, piece, cx, cy, cx1, cy1);
+			if (!earned || !group.inSeason()) {
+				veil(g, cx, cy, cx1, cy1, !earned);
+			}
+			List<Component> tooltip = new ArrayList<>();
+			tooltip.add(slot.title().apply(piece).copy().withStyle(earned && group.inSeason() ? ChatFormatting.WHITE : ChatFormatting.GRAY));
+			if (!group.inSeason()) {
+				tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", group.season()).withStyle(ChatFormatting.GRAY));
+			}
+			if (!earned) {
+				tooltip.add(unlockHint(slot.unlock().apply(piece)).copy().withStyle(ChatFormatting.GRAY));
+			} else if (group.inSeason()) {
+				tooltip.add(Component.translatable(worn ? slot.off() : slot.on()).withStyle(ChatFormatting.GRAY));
+			}
+			hits.add(new Hit(cx, cy, cx1, cy1, () -> {
+				if (slot.earned().test(piece) && group.inSeason()) {
+					slot.wear().accept(slot.worn().get() == piece ? null : piece);
+				}
+			}, tooltip));
+		}
+		if (reveal && bottom > visibleBottom()) {
+			smoothScroll.scroll(bottom - visibleBottom());
+		}
+		reveal = false;
+		return bottom;
+	}
+
+	private void drawNecks(GuiGraphicsExtractor g) {
+		int x0 = bodyLeft();
+		int y = hint(g, Component.translatable("cobblecomfort.wardrobe.neck_hint"), x0, bodyTop() + 2 - scroll);
+		y = kinds(g, neckSlot(), x0, y);
+		contentBottom = y + scroll - bodyTop();
+	}
+
+	/** A hint over the list, wrapped; returns the y below it. */
+	private int hint(GuiGraphicsExtractor g, Component text, int x0, int y) {
+		for (var line : font.split(text, bodyRight() - x0)) {
+			g.text(font, line, x0, y, MapUi.TEXT_DIM, false);
+			y += 10;
+		}
+		return y + 4;
+	}
+
+	/** Your neck and chest wearing {@code neck}, three-quarter on; the tile under the mouse turns. */
+	private void neckPreview(GuiGraphicsExtractor g, Neck neck, int cx, int cy, int cx1, int cy1) {
+		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, 35f);
+		if (state != null) {
+			state.setData(NeckLayer.PREVIEW, neck);
+			// The shoulders are half a block below the top of the head: the chin above, the chest below.
+			figure(g, state, (cy1 - cy - 2) / 0.95f, state.boundingBoxHeight - 0.55f, 10f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
+		}
+	}
+
+	/** Your back carrying {@code piece}, seen from behind and a little to the side. */
+	private void backPreview(GuiGraphicsExtractor g, BackPiece piece, int cx, int cy, int cx1, int cy1) {
+		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, BackLayer.winged(piece) ? 180f : 215f);
+		if (state != null) {
+			state.setData(BackLayer.PREVIEW, piece);
+			// Wings spread far: further away for them.
+			float view = BackLayer.winged(piece) ? 2.1f : 1.45f;
+			figure(g, state, (cy1 - cy - 2) / view, state.boundingBoxHeight - 0.8f, 10f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
+		}
+	}
+
+	/** Your back with {@code trinket} hanging from it, seen from behind and a little to the side. */
+	private void trinketPreview(GuiGraphicsExtractor g, Trinket trinket, int cx, int cy, int cx1, int cy1) {
+		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, 215f);
+		if (state != null) {
+			state.setData(TrinketModel.PREVIEW, trinket);
+			figure(g, state, (cy1 - cy - 2) / 1.05f, state.boundingBoxHeight - 0.95f, 10f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
+		}
+	}
+
+	/** The figure for a tile, turned {@code turn} degrees; the one under the mouse turns round. */
+	private EntityRenderState tileFigure(int cx, int cy, int cx1, int cy1, float turn) {
+		boolean hovered = hoverX >= cx && hoverX < cx1 && hoverY >= cy && hoverY < cy1;
+		return figure(hovered ? (System.nanoTime() / 1e9f * 90f + turn) % 360f : turn);
+	}
+
+	// ---- back
+
+	private void drawBack(GuiGraphicsExtractor g) {
+		int x0 = bodyLeft();
+		int y = bodyTop() + 2 - scroll;
+		// The two parts: what is carried, and what hangs from it.
+		int w = Math.max(font.width(Component.translatable("cobblecomfort.wardrobe.back_pieces")),
+				font.width(Component.translatable("cobblecomfort.wardrobe.back_charms"))) + 16;
+		chip(g, Component.translatable("cobblecomfort.wardrobe.back_pieces"), !charms, x0, y, w, () -> {
+			charms = false;
+			openKind = null;
+		}, Component.translatable("cobblecomfort.wardrobe.back_pieces_hint"));
+		chip(g, Component.translatable("cobblecomfort.wardrobe.back_charms"), charms, x0 + w + 4, y, w, () -> {
+			charms = true;
+			openKind = null;
+		}, Component.translatable("cobblecomfort.wardrobe.back_charms_hint"));
+		y += 22;
+		y = hint(g, Component.translatable(charms ? "cobblecomfort.wardrobe.back_charms_hint" : "cobblecomfort.wardrobe.back_pieces_hint"),
+				x0, y);
+		y = charms ? kinds(g, trinketSlot(), x0, y) : kinds(g, backSlot(), x0, y);
 		contentBottom = y + scroll - bodyTop();
 	}
 
@@ -693,7 +914,25 @@ public final class WardrobeScreen extends Screen {
 				g.item(hat.icon(), 0, 0);
 				g.pose().popMatrix();
 			}
-			int textX = hatX + Badge.CELL + 4;
+			Neck neck = Neck.byKey(outfit.neck);
+			if (neck != null) {
+				g.pose().pushMatrix();
+				g.pose().translate(hatX + 12, y + 4);
+				g.pose().scale(0.75f);
+				g.item(neck.icon(), 0, 0);
+				g.pose().popMatrix();
+			}
+			BackPiece back = BackPiece.byKey(outfit.back);
+			Trinket trinket = Trinket.byKey(outfit.trinket);
+			ItemStack[] more = {back == null ? ItemStack.EMPTY : back.icon(), trinket == null ? ItemStack.EMPTY : trinket.icon()};
+			for (int i = 0; i < more.length; i++) {
+				g.pose().pushMatrix();
+				g.pose().translate(hatX + 24 + 12 * i, y + 4);
+				g.pose().scale(0.75f);
+				g.item(more[i], 0, 0);
+				g.pose().popMatrix();
+			}
+			int textX = hatX + 48 + 4;
 			g.text(font, outfit.name, textX, y + 6, wearing ? MapUi.TEXT : MapUi.TEXT_DIM, false);
 			if (wearing) {
 				MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.wearing"), textX + font.width(outfit.name) + 6, y + 7, WORN, 0.75f);

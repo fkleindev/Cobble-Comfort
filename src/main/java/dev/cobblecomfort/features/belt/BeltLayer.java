@@ -3,6 +3,7 @@ package dev.cobblecomfort.features.belt;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import dev.cobblecomfort.core.VanillaAssets;
 import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.namecharm.NameCharmRenderer;
 import dev.cobblecomfort.features.petplush.Torso;
@@ -240,9 +241,13 @@ final class BeltLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		return true;
 	}
 
-	/** Draws an item centred on the origin (its model as is, without a hand or display transform). */
+	/** Draws an item centred on the origin, without a hand or display transform. */
 	private static void submitItem(PoseStack pose, SubmitNodeCollector collector, ItemStack stack, LivingEntity holder, int light) {
 		if (stack.isEmpty()) {
+			return;
+		}
+		// As the game ships it, whatever the resource pack; its model only for items without a plain icon.
+		if (VanillaAssets.submitItem(pose, collector, stack, light)) {
 			return;
 		}
 		ItemStackRenderState state = new ItemStackRenderState();

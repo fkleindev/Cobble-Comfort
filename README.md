@@ -19,6 +19,11 @@ the map.
    - optional: [Mod Menu](https://modrinth.com/mod/modmenu), to open the settings from the mod list
 3. Start the game. Java 25 or newer is required (the official launcher brings it along).
 
+**Updates:** when a new release is out, a button on the title screen says so. From there you can read what is new, or
+download it: the new jar replaces the old one as soon as you quit the game, and is active from the next start (checked
+against the release's SHA-256). Nothing is downloaded unless you click; the check itself can be turned off under
+General.
+
 **Settings:** through Mod Menu, the map's side bar, or bind a key to *Open settings* under Options → Controls → Key Binds →
 Cobble Comfort. The settings have a category list with icons, a search over all options, and every change applies at
 once.
@@ -171,18 +176,15 @@ There is also a key for the HUD editor.
   as you walk and look around, and it squishes when you take it, when it saves you and when its holder is hit
   (harder the more damage). Works with Punchy's first-person arms.
 - **Name charm:** renamed weapons and tools get a little tag with their name, hanging from the handle on a string. The
-  tag is cut from the tool's material (planks, cobblestone, copper, iron, gold, diamond or netherite, using your
-  resource pack's block textures). It swings with real pendulum physics as you swing, look around, walk and jump, also
-  on other players, mobs, in item frames and on the ground. It hangs on top of whatever model your resource pack gives
-  the item and follows Punchy's first-person arms.
-- **Pet plush:** wear your wolf or cat as a plush. As a **charm** it hangs on your back on a string, back to you,
-  looking out with its legs dangling, and swings with pendulum physics as you walk, jump and turn. As a **backpack**
-  it is worn bigger with straps over your shoulders, its face peeking out behind you; a charm then hangs from the
-  backpack. Head, legs and tail jiggle, the plush is squeezed when you are hit, and each plush comes in your pet's
-  variant and collar colour (baby model and textures, so resource packs apply). In the pets tab of the storage
-  screen, ♥ picks the charm and ☗ the backpack (one pet each); without a choice the pet you saw last hangs as the
-  charm. Other players with the mod see your plushes through the server plugin, and without it while your pet is
-  near you.
+  tag is cut from the tool's material (planks, cobblestone, copper, iron, gold, diamond or netherite, always in the
+  game's own block textures, whatever resource pack is on). It swings with real pendulum physics as you swing, look
+  around, walk and jump, also on other players, mobs, in item frames and on the ground. It hangs on top of whatever
+  model your resource pack gives the item and follows Punchy's first-person arms.
+- **Plush pets:** a wolf or cat plush on your back, picked in the wardrobe's back tab in any of the game's wolf
+  and cat variants once you have tamed one. As a **charm** it hangs on a string, back to you, looking out with its
+  legs dangling, and swings with pendulum physics as you walk, jump and turn. As a **backpack** it is worn bigger with
+  straps over your shoulders, its face peeking out behind you. Head, legs and tail jiggle and the plush is squeezed
+  when you are hit (the game's own baby model and textures, whatever resource pack is on).
 - **Wardrobe (J):** one screen to dress your character, with the figure on a turntable: up to three badges pinned to
   your chest as little voxel pins, the symbol a vanilla item where there is one (ten to wear right away, twelve more
   earned with advancements such as Diamonds!, Free the End or Hero of the Village), a hat worn instead of your
@@ -190,14 +192,34 @@ There is also a key for the HUD editor.
   Also opened with the hanger on your figure in the inventory or from the map. Other players with the mod see your
   badges and hat through the server plugin.
 - **Hats:** voxel models that take the place of your helmet or turtle shell: crowns, flower wreaths, an aviator cap
-  with goggles, a miner's helmet with a lamp, a pirate tricorne, a halo, a straw hat, a fisherman's hat and a chef's
-  hat. In October and November there are also autumn and Halloween hats (a leaf wreath, an acorn cap, a mushroom cap,
-  a witch hat with a dangling spider, a jack o' lantern, devil horns, a bat on a spring), which can only be worn then.
-  A band, ring or brim shows which helmet is under it (leather in its dye, chainmail links, iron, gold, diamond,
-  netherite, copper, turtle scutes) and glints when the helmet is enchanted; an armour trim colours a gem, flower,
-  buckle, lens or lamp. Strands, ribbons, ear flaps, feathers and tips swing as you move. Each kind comes in several
-  colours, earned with an advancement, by finding an item or by entering a biome; the wardrobe shows one tile per kind
-  and opens its colours on a click.
+  with goggles, a miner's helmet with a lamp, a pirate tricorne, a halo, a straw hat, a fisherman's hat, a chef's hat,
+  a beanie (one of them a bee beanie with a little bee buzzing round it), a baseball cap (one with a creeper face), a
+  nightcap, a propeller beanie, bunny ears, a mortarboard, a top hat, a cowboy hat, headphones (notes rise from them
+  while a jukebox plays nearby), a party hat that sheds confetti, a sombrero with dancing pompoms, a beret, a
+  Tyrolean hat, a captain's cap, an ushanka, a tiara and a ninja headband. In October and November there are also
+  autumn and Halloween hats (a leaf wreath, an acorn cap, a mushroom cap, a witch hat with a dangling spider, a
+  jack o' lantern, devil horns, a bat on a spring), which can only be worn then. A band, ring, stripe, brim or visor
+  edge shows which helmet is under it (leather in its dye, chainmail links, iron, gold, diamond, netherite, copper,
+  turtle scutes) and glints when the helmet is enchanted; an armour trim colours a gem, flower, buckle, lens, lamp,
+  patch or logo. Strands, ribbons, ear flaps, ears, feathers, pompoms, tassels, cables and tips swing as you move, and
+  a propeller spins. Each kind comes in several colours, earned with an advancement, by finding an item or by
+  entering a biome; the wardrobe shows one tile per kind and opens its colours on a click.
+- **Neck:** a wardrobe tab for what you wear round your neck, over a chestplate too: scarves with fringed ends,
+  necklaces with a pendant (heart, emerald, ender pearl, totem, compass), bow ties, ties, bandanas, leis, bell collars
+  (the bell rings softly as you walk) and feather boas, each in several colours. Ends, pendants and tips swing as you
+  move. Bow ties and ties are free, the others are earned by finding an item or entering a biome. In October and
+  November there are also a scarf knitted with autumn leaves, a chain of little pumpkins with a glowing jack o'
+  lantern, a tall vampire collar and a bone necklace with a skull.
+- **Back:** a wardrobe tab with two parts. **Back:** what you carry: a wolf or cat plush backpack, a hiking pack
+  with a bedroll and a dangling mug, wings (angel, fairy or bat) that beat as you move, a sword (the game's own
+  icon) across your back, a guitar or a turtle shell pack. **Back charms:** what hangs on a string
+  from it (from one of the wings, or from your shoulder without anything): a wolf or cat plush, mini plushes
+  (creeper, axolotl, bee, slime), a glowing lantern, lucky charms (clover, horseshoe, star) or a little bell that
+  rings as you walk. Any charm goes with anything on the back. In October and November there are also night wings
+  (leathery bat wings with finger bones), a witch's broom, a glowing carved pumpkin pack and a scythe, and as
+  charms a softly glowing ghost, a little jack o' lantern, an acorn and a wrapped sweet.
+  Cosmetics that borrow the game's textures (pins, plushes, the belt's weapons, the sword, name charms) always use
+  the vanilla ones, whatever resource pack is on, so they look the same for everyone.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
   Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
   hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace

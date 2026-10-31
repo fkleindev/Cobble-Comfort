@@ -37,7 +37,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static final Identifier TEXTURE = Identifier.fromNamespaceAndPath("cobblecomfort", "textures/misc/hat.png");
 	private static final RenderType TYPE = RenderTypes.entityCutout(TEXTURE);
 	/** One voxel: half a skin pixel. */
-	private static final float V = 1f / 32f;
+	static final float V = 1f / 32f;
 	/** The top of the head, in the head's space (y down). */
 	private static final float HEAD_TOP = -0.5f;
 	private static final long FORGET_NANOS = 2_000_000_000L;
@@ -46,11 +46,26 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static final int STRAND_PIECES = 3;
 	private static final float PIECE = 4f;
 	/** Wreath strands: speed lost per second on top of the setting, and how freely each piece bends from the one above. */
-	private static final double STRAND_DAMPING = 6.0;
+	static final double STRAND_DAMPING = 6.0;
 	private static final float STRAND_BEND = 0.35f;
 	private static final int PENDULUMS = 6;
 	/** Witch's hat: the cone above the band in pieces that sway. */
 	private static final int WITCH_PIECES = 5;
+	/** Beanie: how far the pompom follows its pendulum. */
+	private static final float POMPOM_STIFF = 0.6f;
+	/** Party hat: its layers, where its middle sits and how far each layer leans left (voxels). */
+	/** Bunny ears: each of their two pieces this long, and half as wide (voxels). */
+	private static final float EAR_PIECE = 8f;
+	private static final float EAR_HALF = 2.6f;
+	/** Sombrero: where its pompoms hang round the brim (x, z in voxels). */
+	private static final float[][] SOMBRERO_POMPOMS = {{17f, 0f}, {-17f, 0f}, {10f, 14f}, {-10f, 14f}, {10f, -14f}, {-10f, -14f}};
+	private static final int PARTY_LAYERS = 6;
+	private static final float PARTY_X = -2f;
+	private static final float PARTY_LEAN = 0.4f;
+	/** Cap: where its lower edge and visor sit, in voxels up from the top of the head. */
+	private static final float CAP_BASE = -2f;
+	/** Cap: the colour under its visor. */
+	private static final int CAP_UNDER = 0xFF2E4A26;
 	/** Witch's hat: how far the cone follows its pendulums, and the speed it loses per second on top of the setting. */
 	private static final float WITCH_STIFF = 0.18f;
 	private static final double WITCH_DAMPING = 3.0;
@@ -71,6 +86,8 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	static final RenderStateDataKey<Hat> PREVIEW = RenderStateDataKey.create(() -> "cobblecomfort:hat_preview");
 
 	private static final Int2ObjectOpenHashMap<Swing> SWINGS = new Int2ObjectOpenHashMap<>();
+	/** Each wearer's propeller: how far it has turned (radians) and when (seconds). */
+	private static final Int2ObjectOpenHashMap<float[]> SPINS = new Int2ObjectOpenHashMap<>();
 
 	/** The swinging parts of one player's hat, for the style they were made for. */
 	private record Swing(Hat.Style style, CharmPendulum[] pendulums) {
@@ -80,7 +97,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	 * A box in head space (blocks, y down) and its colour; {@code helmet} if it is part of what shows the helmet,
 	 * {@code glow} if it lights itself (a carved pumpkin's face).
 	 */
-	private record Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet, boolean glow) {
+	record Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet, boolean glow) {
 		Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet) {
 			this(x0, y0, z0, x1, y1, z1, color, helmet, false);
 		}
@@ -130,18 +147,39 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case STRAW -> strawHat(boxes, hat, helmet);
 			case FISHER -> fisherHat(boxes, hat, helmet);
 			case CHEF -> chefHat(boxes, hat, helmet);
+			case BEANIE -> beanieHat(boxes, hat, helmet);
+			case CAP -> capHat(boxes, hat, helmet);
+			case NIGHTCAP -> nightcapHat(boxes, hat, helmet);
+			case PROPELLER -> propellerHat(boxes, hat, helmet);
+			case BUNNY -> bunnyHat(boxes, hat, helmet);
+			case MORTARBOARD -> mortarboardHat(boxes, hat, helmet);
+			case TOPHAT -> tophatHat(boxes, hat, helmet);
+			case COWBOY -> cowboyHat(boxes, hat, helmet);
+			case HEADPHONES -> headphonesHat(boxes, hat, helmet);
+			case PARTY -> partyHat(boxes, hat, helmet);
+			case SOMBRERO -> sombreroHat(boxes, hat, helmet);
+			case BERET -> beretHat(boxes, hat, helmet);
+			case TYROLEAN -> tyroleanHat(boxes, hat, helmet);
+			case CAPTAIN -> captainHat(boxes, hat, helmet);
+			case USHANKA -> ushankaHat(boxes, hat, helmet);
+			case TIARA -> tiaraHat(boxes, hat, helmet);
+			case NINJA -> ninjaHat(boxes, hat, helmet);
 		}
 		submit(pose, collector, boxes, helmet, light);
 		if (hat.fancy && hat.style != Hat.Style.CROWN) {
 			// A tile shows another hat than the one worn: it gets its own pendulums (which just hang in a screen).
 			CharmPendulum[] pendulums = preview != null ? fresh() : pendulums(state.id, hat.style);
-			new Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light).draw(hat, helmet);
+			// How fast the wearer moves, in blocks a second (a tile in the wardrobe stands still).
+			float speed = preview != null ? 0f : (float) player.position().subtract(player.xo, player.yo, player.zo).length() * 20f;
+			new Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light, preview != null ? -1 : state.id, speed)
+					.draw(hat, helmet);
 		}
 		pose.popPose();
 	}
 
 	/** Draws a hat's moving parts: chains of stiff pieces, hanging down or standing up, each on its own pendulum. */
-	private record Chains(PoseStack pose, SubmitNodeCollector collector, CharmPendulum[] pendulums, double damping, int light) {
+	record Chains(PoseStack pose, SubmitNodeCollector collector, CharmPendulum[] pendulums, double damping, int light,
+			int entityId, float speed) {
 		void draw(Hat hat, HelmetLook helmet) {
 			switch (hat.style) {
 				case WREATH, LEAVES -> {
@@ -170,11 +208,14 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				case HORNS -> hang(0, at(0f, -3f, 10.5f), 4f, 3, damping + TAIL_DAMPING, TAIL_BEND, k -> tail(hat, k));
 				case BAT -> stand(0, at(0f, 1f, -2f), 3f, 2, new Vector3f(), k -> spring(hat, k));
 				case AVIATOR -> {
-					hang(0, at(-9.75f, -3f, 0f), 6f, 1, k -> earFlap(hat));
-					hang(1, at(9.75f, -3f, 0f), 6f, 1, k -> earFlap(hat));
+					hang(0, at(-9.25f, -3f, 0f), 6f, 1, k -> earFlap(hat));
+					hang(1, at(9.25f, -3f, 0f), 6f, 1, k -> earFlap(hat));
 				}
 				case MINER -> hang(0, at(0f, 0f, 11.5f), 5f, 2, k -> lampCable(hat, k));
-				case PIRATE -> stand(0, at(6f, 6f, 6f), 4f, 2, new Vector3f(0.15f, 0f, 0.25f), k -> feather(hat, k));
+				case PIRATE -> {
+					stand(0, at(6f, 7f, 6f), 4f, 2, new Vector3f(0.15f, 0f, 0.25f), k -> feather(hat.accent, 1f, k));
+					stand(2, at(7.5f, 6.5f, 3.5f), 3.5f, 2, new Vector3f(0.3f, 0f, 0.1f), k -> feather(ARGB.scaleRGB(hat.accent, 0.85f), 0.7f, k));
+				}
 				// Tilted back a little, so it shows from the front.
 				case HALO -> stand(0, at(0f, 1f, 0f), 5f, 1, new Vector3f(0f, 0f, 0.3f), k -> halo(hat));
 				case STRAW -> {
@@ -187,6 +228,54 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 					hang(1, at(-11.5f, -2f, 4f), 6f, 1, k -> fish());
 				}
 				case CHEF -> stand(0, at(0f, 2f, 0f), 3f, 2, new Vector3f(), k -> toque(hat, k));
+				case CAP -> hang(0, at(2.5f, CAP_BASE + 0.5f, 9.9f), 3f, 1, k -> strapEnd(hat));
+				case NIGHTCAP -> hang(0, at(10f, 3f, 0f), 4f, 3, damping + STRAND_DAMPING, 0.6f, k -> nightcapTip(hat, k));
+				case PROPELLER -> spin(at(0f, 6.5f, 0f), blades(hat));
+				case BUNNY -> {
+					int inner = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
+					stand(0, at(-4.5f, 1f, -1f), EAR_PIECE, 2, new Vector3f(-0.08f, 0f, -0.15f), k -> ear(hat, inner, k));
+					stand(2, at(4.5f, 1f, -1f), EAR_PIECE, 2, new Vector3f(0.08f, 0f, -0.15f), k -> ear(hat, inner, k));
+				}
+				case MORTARBOARD -> hang(0, at(12f, 2.5f, 0f), 3f, 2, k -> tassel(hat, k));
+				case TOPHAT -> stand(0, at(8.5f, 2.5f, 3f), 4f, 2, new Vector3f(0.2f, 0f, 0.15f), k -> plume(hat, k));
+				case COWBOY -> {
+					hang(0, at(-9.5f, -1f, 0f), 9f, 1, k -> stampedeString(hat));
+					hang(1, at(9.5f, -1f, 0f), 9f, 1, k -> stampedeString(hat));
+				}
+				case HEADPHONES -> hang(0, at(-10f, -11f, 0f), 5f, 2, k -> cable(hat, k));
+				case SOMBRERO -> {
+					for (int i = 0; i < SOMBRERO_POMPOMS.length; i++) {
+						hang(i, at(SOMBRERO_POMPOMS[i][0], -1f, SOMBRERO_POMPOMS[i][1]), 4f, 1, k -> sombreroPompom(hat));
+					}
+				}
+				case BERET -> stand(0, at(1f, 3.75f, 0f), 1.5f, 1, new Vector3f(), POMPOM_STIFF, damping, k -> beretStalk(hat));
+				case TYROLEAN -> {
+					stand(0, at(-8.5f, 1f, 4f), 3f, 2, new Vector3f(-0.1f, 0f, 0.2f), k -> chamoisBrush(hat, k));
+					stand(2, at(-8.75f, 1f, 1.5f), 4f, 2, new Vector3f(-0.1f, 0f, 0.35f), k -> feather(hat.accent, 0.8f, k));
+				}
+				case CAPTAIN -> {
+					hang(0, at(-8.25f, -1.6f, -10f), 2.75f, 1, k -> captainTassel(hat));
+					hang(1, at(8.25f, -1.6f, -10f), 2.75f, 1, k -> captainTassel(hat));
+				}
+				case USHANKA -> {
+					hang(0, at(-9.9f, -1f, 0f), 7f, 1, k -> earFlapTied(hat));
+					hang(1, at(9.9f, -1f, 0f), 7f, 1, k -> earFlapTied(hat));
+				}
+				case TIARA -> hang(0, at(0f, 1.5f, -10f), 3.6f, 1, k -> tiaraDrop(hat));
+				case NINJA -> {
+					hang(0, at(-1f, -4f, 10.75f), 4f, 3, damping, 0.6f, k -> bandTail(hat, k));
+					hang(3, at(1f, -4f, 10.75f), 4f, 3, damping, 0.6f, k -> bandTail(hat, k + 1));
+				}
+				case PARTY -> stand(0, at(PARTY_X - PARTY_LEAN * PARTY_LAYERS, 1.5f * PARTY_LAYERS, 0f), 1f, 1, new Vector3f(), POMPOM_STIFF,
+						damping, k -> partyPompom(hat));
+				case BEANIE -> {
+					if (hat == Hat.BEANIE_BEE) {
+						stand(0, at(8f, 1f, -4f), 7f, 1, new Vector3f(0.7f, 0f, -0.3f), k -> bee());
+					} else {
+						// A pompom bounces: it follows its pendulum more than other standing parts.
+						stand(0, at(0f, 6.5f, 0f), 1.5f, 1, new Vector3f(), POMPOM_STIFF, damping, k -> pompom(hat));
+					}
+				}
 				default -> {
 				}
 			}
@@ -198,7 +287,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		}
 
 		/** {@code count} pieces of {@code length} voxels hanging one from the next. Pieces are given y down. */
-		private void hang(int first, Vector3f anchor, float length, int count, IntFunction<List<Box>> piece) {
+		void hang(int first, Vector3f anchor, float length, int count, IntFunction<List<Box>> piece) {
 			hang(first, anchor, length, count, damping, 1f, piece);
 		}
 
@@ -206,7 +295,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		 * As above, losing {@code damping} speed per second; each piece bends from the one above only by {@code bend} of
 		 * what its pendulum would (1: freely, less: stiffer).
 		 */
-		private void hang(int first, Vector3f anchor, float length, int count, double damping, float bend, IntFunction<List<Box>> piece) {
+		void hang(int first, Vector3f anchor, float length, int count, double damping, float bend, IntFunction<List<Box>> piece) {
 			Vector3f above = null;
 			for (int k = 0; k < count; k++) {
 				Vector3f down = pendulums[first + k].hang(pose.last().pose(), anchor, length * V, damping);
@@ -230,12 +319,12 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		 * {@code count} pieces standing on each other, springing back like pendulums turned upside down; each piece leans
 		 * {@code bend} more than the one below (a witch's hat tip that flops). Pieces are given y down, from -length to 0.
 		 */
-		private void stand(int first, Vector3f anchor, float length, int count, Vector3f bend, IntFunction<List<Box>> piece) {
+		void stand(int first, Vector3f anchor, float length, int count, Vector3f bend, IntFunction<List<Box>> piece) {
 			stand(first, anchor, length, count, bend, STIFF, damping, piece);
 		}
 
 		/** As above, following the pendulums by {@code stiff} (less: stiffer) and losing {@code damping} speed per second. */
-		private void stand(int first, Vector3f anchor, float length, int count, Vector3f bend, float stiff, double damping,
+		void stand(int first, Vector3f anchor, float length, int count, Vector3f bend, float stiff, double damping,
 				IntFunction<List<Box>> piece) {
 			for (int k = 0; k < count; k++) {
 				Vector3f down = pendulums[first + k].hang(pose.last().pose(), anchor, length * V, damping);
@@ -248,6 +337,19 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			}
 		}
 
+		/** Boxes turning round {@code anchor} (a propeller): faster the faster the wearer moves. */
+		private void spin(Vector3f anchor, List<Box> boxes) {
+			double now = System.nanoTime() / 1e9;
+			if (SPINS.size() > 64) {
+				SPINS.clear();
+			}
+			float[] turn = SPINS.computeIfAbsent(entityId, id -> new float[]{0f, (float) (now % 1e4)});
+			float seconds = (float) Math.clamp(now % 1e4 - turn[1], 0.0, 0.1);
+			turn[1] = (float) (now % 1e4);
+			turn[0] = (turn[0] + seconds * (1.5f + Math.min(speed, 12f) * 1.5f) * Mth.TWO_PI) % Mth.TWO_PI;
+			place(anchor, new Quaternionf().rotationY(turn[0]), boxes);
+		}
+
 		private void place(Vector3f anchor, Quaternionf rotation, List<Box> boxes) {
 			pose.pushPose();
 			pose.translate(anchor.x, anchor.y, anchor.z);
@@ -257,7 +359,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		}
 	}
 
-	private static void submit(PoseStack pose, SubmitNodeCollector collector, List<Box> boxes, HelmetLook helmet, int light) {
+	static void submit(PoseStack pose, SubmitNodeCollector collector, List<Box> boxes, HelmetLook helmet, int light) {
 		collector.submitCustomGeometry(pose, TYPE, (p, vc) -> {
 			for (Box box : boxes) {
 				box(vc, p, box, light);
@@ -458,15 +560,30 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	 */
 	private static void aviatorHat(List<Box> out, Hat hat, HelmetLook helmet) {
 		ring(out, null, 4, 1f, 8f, 9.5f, (i, row) -> row == 3 ? hat.main[2] : hat.main[i % 5 == 0 ? 1 : 0]);
-		out.add(up(-9.5f, 1f, -9.5f, 9.5f, 2.5f, 9.5f, hat.main[0], false));
-		out.add(up(-0.5f, 2.5f, -9.5f, 0.5f, 3f, 9.5f, hat.main[1], false));
+		// A dome over the head in steps.
+		ring(out, null, 2, 3f, 6f, 9f, (i, row) -> hat.main[i % 5 == 0 ? 1 : 0]);
+		out.add(up(-6f, 1f, -6f, 6f, 3f, 6f, hat.main[0], false));
+		out.add(up(-7f, 3f, -7f, 7f, 4f, 7f, hat.main[0], false));
+		out.add(up(-4.5f, 4f, -4.5f, 4.5f, 4.75f, 4.5f, hat.main[0], false));
+		// Seams over the top, front to back.
+		for (float x : new float[]{-3f, 0f, 3f}) {
+			out.add(up(x - 0.3f, 4f, -7f, x + 0.3f, 4.2f, 7f, hat.main[1], false));
+			out.add(up(x - 0.3f, 4.75f, -4.5f, x + 0.3f, 4.95f, 4.5f, hat.main[1], false));
+		}
 		ring(out, helmet, 2, -0.5f, 9.5f, 10.25f, (i, row) -> hat.main[1]);
 		int lens = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
 		for (int s = -1; s <= 1; s += 2) {
 			float x0 = s < 0 ? -6f : 1f;
 			out.add(up(x0, -2f, -11.5f, x0 + 5f, 1.5f, -10.25f, hat.second, false));
 			out.add(up(x0 + 0.75f, -1.25f, -11.75f, x0 + 4.25f, 0.75f, -11.5f, lens, false));
+			// A glint on the glass.
+			out.add(up(x0 + 1f, 0f, -11.85f, x0 + 1.75f, 0.5f, -11.75f, 0xFFF4F8FF, false));
+			// The strap's buckle at the side.
+			float bx = s < 0 ? -10.6f : 10.25f;
+			out.add(up(bx, -2.75f, -1.25f, bx + 0.35f, -0.25f, 1.25f, hat.second, false));
+			out.add(up(s < 0 ? -10.65f : 10.6f, -2f, -0.5f, s < 0 ? -10.6f : 10.65f, -1f, 0.5f, ARGB.scaleRGB(hat.second, 0.6f), false));
 		}
+		out.add(up(-1f, -1f, -11f, 1f, 0f, -10.25f, hat.second, false));
 	}
 
 	private static List<Box> earFlap(Hat hat) {
@@ -476,14 +593,34 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	/** A miner's hard hat: a dome with a ridge, its brim showing the helmet, and a lamp in front shining in the trim's colour. */
 	private static void minerHat(List<Box> out, Hat hat, HelmetLook helmet) {
 		ring(out, helmet, 1, 0f, 9f, 11.5f, (i, row) -> hat.main[1]);
-		ring(out, null, 3, 3f, 8f, 10f, (i, row) -> hat.main[0]);
-		out.add(up(-8f, 3f, -8f, 8f, 5f, 8f, hat.main[0], false));
-		out.add(up(-5f, 5f, -5f, 5f, 6f, 5f, hat.main[0], false));
-		out.add(up(-1f, 3f, -10.5f, 1f, 5.5f, 10.5f, hat.main[1], false));
-		out.add(up(-1f, 5.5f, -6f, 1f, 6.5f, 6f, hat.main[1], false));
+		// A tall dome in steps, with a ridge from front to back over it.
+		ring(out, null, 4, 4f, 8f, 10f, (i, row) -> hat.main[0]);
+		ring(out, null, 2, 6f, 6f, 9f, (i, row) -> hat.main[0]);
+		out.add(up(-6f, 4f, -6f, 6f, 7f, 6f, hat.main[0], false));
+		out.add(up(-4f, 7f, -4f, 4f, 7.75f, 4f, hat.main[0], false));
+		out.add(up(-1f, 4f, -10.5f, 1f, 6.5f, 10.5f, hat.main[1], false));
+		out.add(up(-1f, 6.5f, -7f, 1f, 7.75f, 7f, hat.main[1], false));
+		out.add(up(-1f, 7.75f, -4.5f, 1f, 8.5f, 4.5f, hat.main[1], false));
+		// A lip round the brim's edge.
+		ring(out, null, 1, 0.25f, 11.5f, 12f, (i, row) -> lighter(hat.main[1]));
+		// Rivets round the dome (the front ones either side of the lamp).
+		for (int side = 0; side < 4; side++) {
+			List<Box> part = new ArrayList<>();
+			for (float x : side == 0 ? new float[]{-6.5f, 6.5f} : new float[]{-5f, 0f, 5f}) {
+				part.add(up(x - 0.4f, 1.25f, -10.25f, x + 0.4f, 2.05f, -10f, lighter(hat.main[0]), false));
+			}
+			turn(part, side, out);
+		}
 		int glow = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
 		out.add(up(-2.5f, 0.5f, -12f, 2.5f, 4f, -10f, hat.second, false));
 		out.add(up(-1.75f, 1.25f, -12.3f, 1.75f, 3.25f, -12f, glow, false).glowing());
+		// A metal ring round the lamp's glass, and the clip holding it to the dome.
+		int metal = 0xFFA0A0A8;
+		out.add(up(-2.25f, 3.25f, -12.35f, 2.25f, 3.75f, -12f, metal, false));
+		out.add(up(-2.25f, 0.75f, -12.35f, 2.25f, 1.25f, -12f, metal, false));
+		out.add(up(-2.25f, 1.25f, -12.35f, -1.75f, 3.25f, -12f, metal, false));
+		out.add(up(1.75f, 1.25f, -12.35f, 2.25f, 3.25f, -12f, metal, false));
+		out.add(up(-1f, 4f, -11f, 1f, 4.5f, -9.75f, hat.second, false));
 	}
 
 	private static List<Box> lampCable(Hat hat, int k) {
@@ -498,8 +635,9 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static void pirateHat(List<Box> out, Hat hat, HelmetLook helmet) {
 		int felt = hat.main[0];
 		ring(out, helmet, 2, 2f, 8.5f, 9.25f, (i, row) -> hat.main[1]);
-		out.add(up(-8.5f, 2f, -8.5f, 8.5f, 6f, 8.5f, felt, false));
-		out.add(up(-7f, 6f, -7f, 7f, 7f, 7f, felt, false));
+		out.add(up(-8.5f, 2f, -8.5f, 8.5f, 7f, 8.5f, felt, false));
+		out.add(up(-7f, 7f, -7f, 7f, 8.5f, 7f, felt, false));
+		out.add(up(-5f, 8.5f, -5f, 5f, 9.25f, 5f, felt, false));
 		// The brim: a triangle from the back corners to a point in front, its edges turned up.
 		for (float z = -14f; z < 12f; z += 2f) {
 			float half = 13f * (z + 15f) / 26f;
@@ -517,11 +655,18 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		}
 		int cockade = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
 		out.add(up(-8.5f, 1f, -3f, -7f, 4f, 0f, cockade, false));
+		// A skull and bones on the front point.
+		int bone = 0xFFF0EEE6;
+		out.add(up(-2f, 0.75f, -15.3f, 2f, 1.25f, -15.2f, bone, false));
+		out.add(up(-1f, 1.5f, -15.35f, 1f, 3.25f, -15.2f, bone, false));
+		out.add(up(-0.75f, 2.25f, -15.4f, -0.25f, 2.75f, -15.35f, 0xFF1A1A1A, false));
+		out.add(up(0.25f, 2.25f, -15.4f, 0.75f, 2.75f, -15.35f, 0xFF1A1A1A, false));
 	}
 
-	private static List<Box> feather(Hat hat, int k) {
-		float half = k == 0 ? 1.6f : 1f;
-		return List.of(raw(-half, -4f, -0.3f, half, 0f, 0.3f, hat.accent), raw(-0.15f, -4f, -0.4f, 0.15f, 0f, 0.4f, ARGB.scaleRGB(hat.accent, 0.8f)));
+	/** A feather, {@code size} times as broad as the big one. */
+	private static List<Box> feather(int color, float size, int k) {
+		float half = (k == 0 ? 1.6f : 1f) * size;
+		return List.of(raw(-half, -4f, -0.3f, half, 0f, 0.3f, color), raw(-0.15f, -4f, -0.4f, 0.15f, 0f, 0.4f, ARGB.scaleRGB(color, 0.8f)));
 	}
 
 	/** A halo floating over the head, glowing; a thin circlet round the head shows the helmet. */
@@ -552,8 +697,10 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		IntBinaryOperator weave = (i, row) -> (i + row) % 2 == 0 ? hat.main[0] : hat.main[1];
 		ring(out, null, 1, 0f, 9f, 14f, weave);
 		ring(out, helmet, 2, 2f, 9f, 9.75f, (i, row) -> hat.accent);
-		ring(out, null, 3, 5f, 7f, 9f, weave);
-		out.add(up(-7f, 4f, -7f, 7f, 5f, 7f, hat.main[0], false));
+		ring(out, null, 5, 7f, 7f, 9f, weave);
+		out.add(up(-7f, 6f, -7f, 7f, 7f, 7f, hat.main[0], false));
+		// A smaller layer on top rounds the crown off.
+		out.add(up(-5.5f, 7f, -5.5f, 5.5f, 7.75f, 5.5f, hat.main[1], false));
 		int bow = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
 		out.add(up(-6.5f, 0f, -10.5f, -3f, 2f, -9.75f, bow, false));
 		out.add(up(-5.25f, 0.5f, -10.75f, -4.25f, 1.5f, -10.5f, ARGB.scaleRGB(bow, 0.8f), false));
@@ -568,8 +715,24 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		ring(out, null, 1, -1f, 9.5f, 12.5f, (i, row) -> hat.main[1]);
 		ring(out, null, 1, -2f, 11.5f, 13f, (i, row) -> hat.main[1]);
 		ring(out, helmet, 2, 1f, 9f, 9.75f, (i, row) -> hat.accent);
-		ring(out, null, 3, 4f, 8f, 9.5f, (i, row) -> i % 4 == 0 ? hat.main[1] : hat.main[0]);
-		out.add(up(-8f, 3f, -8f, 8f, 4.5f, 8f, hat.main[0], false));
+		// A tall crown, a little narrower at the top.
+		IntBinaryOperator panels = (i, row) -> i % 4 == 0 ? hat.main[1] : hat.main[0];
+		ring(out, null, 3, 4f, 8f, 9.5f, panels);
+		ring(out, null, 2, 6f, 7.5f, 9f, panels);
+		out.add(up(-7.5f, 3f, -7.5f, 7.5f, 6.5f, 7.5f, hat.main[0], false));
+		out.add(up(-5.5f, 6.5f, -5.5f, 5.5f, 7.25f, 5.5f, hat.main[0], false));
+		// Rows of stitching round the brim, and two fishing flies hooked into the band.
+		int stitch = lighter(hat.main[1]);
+		for (int side = 0; side < 4; side++) {
+			List<Box> part = new ArrayList<>();
+			part.add(up(-11f, -1f, -11.15f, 11f, -0.9f, -10.85f, stitch, false));
+			part.add(up(-12.75f, -2f, -12.9f, 12.75f, -1.9f, -12.6f, stitch, false));
+			turn(part, side, out);
+		}
+		out.add(up(5f, 0f, -10.1f, 6f, 0.75f, -9.75f, 0xFFE8C040, false));
+		out.add(up(5.25f, 0.75f, -10.05f, 5.75f, 1.5f, -9.85f, 0xFFC83A3A, false));
+		out.add(up(-6.5f, 0f, -10.1f, -5.5f, 0.75f, -9.75f, 0xFF3A6AC8, false));
+		out.add(up(-6.25f, 0.75f, -10.05f, -5.75f, 1.5f, -9.85f, 0xFFF4F4F0, false));
 	}
 
 	/** The float on its line; its top takes the trim's colour (red without one). */
@@ -604,6 +767,565 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			out.add(raw(-10.2f, -5f, x - 0.5f, 10.2f, 0f, x + 0.5f, hat.main[1]));
 		}
 		return out;
+	}
+
+	/**
+	 * A knitted beanie: a ribbed body with a stripe showing the helmet above the folded cuff, and a patch in front
+	 * framed in the trim's colour. The bee beanie has stitched daisies and a bee on its patch (and one buzzing round
+	 * it); the others a pompom.
+	 */
+	private static void beanieHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		IntBinaryOperator ribs = (i, row) -> i % 2 == 0 ? hat.main[0] : hat.main[1];
+		ring(out, null, 4, -1f, 9f, 10.5f, (i, row) -> i % 2 == 0 ? hat.main[2] : hat.main[1]);
+		// A knitted-in stripe just above the cuff shows the helmet (plain knit without one).
+		ring(out, helmet, 1, 0f, 8f, 9.75f, ribs);
+		ring(out, null, 3, 3f, 8f, 9.75f, ribs);
+		ring(out, null, 2, 5f, 6f, 8.75f, ribs);
+		out.add(up(-6f, 3f, -6f, 6f, 5f, 6f, hat.main[0], false));
+		out.add(up(-7f, 5f, -7f, 7f, 6f, 7f, hat.main[0], false));
+		out.add(up(-4.5f, 6f, -4.5f, 4.5f, 6.5f, 4.5f, hat.main[0], false));
+		// The patch on the cuff.
+		int frame = helmet != null && helmet.trim() != 0 ? helmet.trim() : ARGB.scaleRGB(hat.accent, 0.8f);
+		out.add(up(-3.25f, -4.75f, -10.8f, 3.25f, -1.25f, -10.5f, frame, false));
+		out.add(up(-2.75f, -4.25f, -10.9f, 2.75f, -1.75f, -10.8f, hat.accent, false));
+		if (hat != Hat.BEANIE_BEE) {
+			return;
+		}
+		// A bee on the patch, facing left: body, stripes, eye and a wing.
+		int yellow = 0xFFF6CE3A;
+		int brown = 0xFF4A2A14;
+		out.add(up(-2f, -3.75f, -11f, 1.5f, -2.25f, -10.9f, yellow, false));
+		out.add(up(-0.75f, -3.75f, -11.05f, -0.25f, -2.25f, -11f, brown, false));
+		out.add(up(0.5f, -3.75f, -11.05f, 1f, -2.25f, -11f, brown, false));
+		out.add(up(-2f, -3f, -11.05f, -1.5f, -2.5f, -11f, 0xFFF4F4F0, false));
+		out.add(up(-1.75f, -2.75f, -11.1f, -1.5f, -2.5f, -11.05f, 0xFF1A1A1A, false));
+		out.add(up(-0.75f, -2.25f, -11f, 0.75f, -1.75f, -10.9f, 0xFFE8F0FF, false));
+		// Stitched daisies round the body.
+		float[][] daisies = {{-5f, 1.75f, -9.75f}, {3.5f, 2.25f, -9.75f}, {-1f, 4f, -8.75f}};
+		for (int side = 0; side < 4; side++) {
+			List<Box> part = new ArrayList<>();
+			for (float[] d : daisies) {
+				float x = d[0] + (side % 2 == 0 ? 0f : 1.5f);
+				float z = d[2] - 0.2f;
+				part.add(up(x - 1.25f, d[1] - 0.4f, z, x + 1.25f, d[1] + 0.4f, d[2], hat.second, false));
+				part.add(up(x - 0.4f, d[1] - 1.25f, z, x + 0.4f, d[1] + 1.25f, d[2], hat.second, false));
+				part.add(up(x - 0.4f, d[1] - 0.4f, z - 0.05f, x + 0.4f, d[1] + 0.4f, d[2], hat.third, false));
+			}
+			turn(part, side, out);
+		}
+	}
+
+	private static List<Box> pompom(Hat hat) {
+		int shade = ARGB.scaleRGB(hat.second, 0.88f);
+		return List.of(raw(-0.5f, -1.5f, -0.5f, 0.5f, 0f, 0.5f, hat.second), raw(-2.5f, -6f, -2.5f, 2.5f, -1.5f, 2.5f, hat.second),
+				raw(-3f, -5.25f, -2f, 3f, -2.25f, 2f, shade), raw(-2f, -5.25f, -3f, 2f, -2.25f, 3f, shade),
+				raw(-1.75f, -6.5f, -1.75f, 1.75f, -6f, 1.75f, hat.second));
+	}
+
+	/** The bee buzzing beside the bee beanie, at the end of an invisible stalk: it bobs and beats its wings. */
+	private static List<Box> bee() {
+		double seconds = System.nanoTime() % 1_000_000_000_000L / 1e9;
+		float y = -7f + (float) Math.sin(seconds * 3.0) * 0.7f;
+		float lift = (float) Math.sin(seconds * 40.0) * 0.5f;
+		int yellow = 0xFFF6CE3A;
+		int brown = 0xFF4A2A14;
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-1.25f, y - 1f, -1.75f, 1.25f, y + 1f, 1.75f, yellow));
+		out.add(raw(-1.3f, y - 1.05f, -0.5f, 1.3f, y + 1.05f, 0f, brown));
+		out.add(raw(-1.3f, y - 1.05f, 0.75f, 1.3f, y + 1.05f, 1.25f, brown));
+		out.add(raw(-0.25f, y - 0.25f, 1.75f, 0.25f, y + 0.25f, 2.25f, brown));
+		out.add(raw(-1f, y - 0.5f, -1.85f, -0.4f, y + 0.1f, -1.75f, 0xFF1A1A1A));
+		out.add(raw(0.4f, y - 0.5f, -1.85f, 1f, y + 0.1f, -1.75f, 0xFF1A1A1A));
+		out.add(raw(-2.75f, y - 1.5f + lift, -0.75f, -0.25f, y - 1f + lift, 0.75f, 0xFFE8F0FF));
+		out.add(raw(0.25f, y - 1.5f + lift, -0.75f, 2.75f, y - 1f + lift, 0.75f, 0xFFE8F0FF));
+		return out;
+	}
+
+	/**
+	 * A baseball cap: six panels with a button on top, a curved visor whose edge shows the helmet, a logo in front in the
+	 * trim's colour (a creeper's face on the creeper cap) and a strap end dangling from the closure behind.
+	 */
+	private static void capHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		float b = CAP_BASE;
+		IntBinaryOperator panels = (i, row) -> i % 5 == 0 ? hat.main[1] : hat.main[0];
+		ring(out, null, 5, b + 5f, 8f, 9.5f, panels);
+		ring(out, null, 2, b + 7f, 6f, 8.75f, panels);
+		out.add(up(-6f, b + 3f, -6f, 6f, b + 7f, 6f, hat.main[0], false));
+		out.add(up(-6.5f, b + 7f, -6.5f, 6.5f, b + 8f, 6.5f, hat.main[0], false));
+		out.add(up(-4f, b + 8f, -4f, 4f, b + 8.5f, 4f, hat.main[0], false));
+		out.add(up(-1f, b + 8.5f, -1f, 1f, b + 9.25f, 1f, hat.main[1], false));
+		out.add(up(-3f, b, 9.5f, 3f, b + 1f, 9.75f, hat.main[1], false));
+		// The visor, row by row from the forehead to its rounded tip, dipping a little; its edge shows the helmet.
+		float[][] rows = {{-10.5f, 8.5f}, {-11.5f, 8.5f}, {-12.5f, 8.25f}, {-13.5f, 7.75f}, {-14.5f, 7f}, {-15.5f, 5.75f},
+				{-16.25f, 3.75f}};
+		float z1 = -9.5f;
+		for (int k = 0; k < rows.length; k++) {
+			float z0 = rows[k][0];
+			float half = rows[k][1];
+			float dip = b - 0.12f * k * k;
+			int edge = helmet != null ? helmet.tile(k, 0) : hat.main[1];
+			out.add(up(-half, dip, z0, half, dip + 0.75f, z1, edge, helmet != null));
+			float inner = k == rows.length - 1 ? 0f : 1f;
+			if (half - 1f > 0f) {
+				out.add(up(-half + 1f, dip + 0.75f, z0 + inner, half - 1f, dip + 0.85f, z1, hat.main[0], false));
+				// Stitching along the edge, and the underside in its own colour.
+				for (int s = -1; s <= 1; s += 2) {
+					float x = s * (half - 2f);
+					out.add(up(x - 0.2f, dip + 0.85f, z0, x + 0.2f, dip + 0.95f, z1, lighter(hat.main[0]), false));
+				}
+				out.add(up(-half + 0.5f, dip - 0.1f, z0 + 0.5f, half - 0.5f, dip, z1, CAP_UNDER, false));
+			}
+			z1 = z0;
+		}
+		// Eyelets near the top of the panels.
+		for (int side = 0; side < 4; side++) {
+			List<Box> part = new ArrayList<>();
+			for (float x : new float[]{-5f, 5f}) {
+				part.add(up(x - 0.4f, b + 4f, -9.6f, x + 0.4f, b + 4.8f, -9.5f, ARGB.scaleRGB(hat.main[1], 0.6f), false));
+			}
+			turn(part, side, out);
+		}
+		// The logo on the front panels.
+		int trim = helmet != null && helmet.trim() != 0 ? helmet.trim() : 0;
+		if (hat == Hat.CAP_CREEPER) {
+			out.add(up(-2f, b + 1f, -9.75f, 2f, b + 5f, -9.5f, trim != 0 ? trim : hat.accent, false));
+			// A creeper's face, eight pixels of half a voxel: eyes, nose, mouth.
+			int[][] face = {{1, 1, 2, 2}, {5, 1, 6, 2}, {3, 3, 4, 4}, {2, 4, 5, 5}, {2, 6, 2, 6}, {5, 6, 5, 6}};
+			for (int[] f : face) {
+				float x0 = -2f + f[0] * 0.5f;
+				float x1 = -2f + (f[2] + 1) * 0.5f;
+				float y1 = b + 5f - f[1] * 0.5f;
+				float y0 = b + 5f - (f[3] + 1) * 0.5f;
+				out.add(up(x0, y0, -9.85f, x1, y1, -9.75f, hat.second, false));
+			}
+		} else {
+			int logo = trim != 0 ? trim : hat.accent;
+			out.add(up(-1.75f, b + 1.5f, -9.75f, 1.75f, b + 4.5f, -9.5f, logo, false));
+			out.add(up(-0.75f, b + 2.5f, -9.85f, 0.75f, b + 3.5f, -9.75f, hat.main[0], false));
+		}
+	}
+
+	private static List<Box> strapEnd(Hat hat) {
+		return List.of(raw(-0.6f, 0f, -0.15f, 0.6f, 3f, 0.15f, hat.main[1]), raw(-0.7f, 3f, -0.2f, 0.7f, 3.5f, 0.2f, 0xFFC0C0C8));
+	}
+
+	/** A long striped nightcap: a rim showing the helmet, its tip flopped over to one side, hanging down with a pompom. */
+	private static void nightcapHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 2, -1f, 9f, 10f, (i, row) -> hat.main[2]);
+		IntBinaryOperator stripes = (i, row) -> row % 2 == 0 ? hat.main[0] : hat.main[1];
+		ring(out, null, 3, 2f, 8f, 9.5f, stripes);
+		ring(out, null, 2, 4f, 6f, 8.5f, stripes);
+		out.add(up(-6f, 2f, -6f, 6f, 5f, 6f, hat.main[0], false));
+		// Rising to the right, where the tip flops over.
+		out.add(up(-3f, 5f, -4f, 7f, 6.5f, 4f, hat.main[1], false));
+		out.add(up(3f, 6.5f, -3f, 9f, 7.5f, 3f, hat.main[0], false));
+		out.add(up(7f, 3f, -3f, 11f, 7f, 3f, hat.main[1], false));
+	}
+
+	private static List<Box> nightcapTip(Hat hat, int k) {
+		float half = 2.25f - 0.5f * k;
+		// Striped on like the cap: two stripes a piece.
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-half, 0f, -half, half, 2f, half, hat.main[1]));
+		out.add(raw(-half, 2f, -half, half, 4f, half, hat.main[0]));
+		if (k == 2) {
+			// A fluffy pompom: a ball with tufts on every side.
+			out.add(raw(-1.75f, 4f, -1.75f, 1.75f, 7.5f, 1.75f, hat.accent));
+			int tuft = ARGB.scaleRGB(hat.accent, 0.92f);
+			out.add(raw(-2.25f, 4.75f, -1f, 2.25f, 6.75f, 1f, tuft));
+			out.add(raw(-1f, 4.75f, -2.25f, 1f, 6.75f, 2.25f, tuft));
+			out.add(raw(-1f, 7.5f, -1f, 1f, 8f, 1f, tuft));
+		}
+		return out;
+	}
+
+	private static List<Box> partyPompom(Hat hat) {
+		int shade = ARGB.scaleRGB(hat.second, 0.88f);
+		return List.of(raw(-1.5f, -3.5f, -1.5f, 1.5f, -0.5f, 1.5f, hat.second), raw(-1.75f, -3f, -1f, 1.75f, -1f, 1f, shade),
+				raw(-1f, -3f, -1.75f, 1f, -1f, 1.75f, shade), raw(-0.4f, -0.5f, -0.4f, 0.4f, 0f, 0.4f, hat.second));
+	}
+
+	/** A propeller beanie: coloured segments, a short visor whose edge shows the helmet, a propeller on top that spins. */
+	private static void propellerHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, null, 4, 2f, 8f, 9.5f, (i, row) -> hat.main[(i / 5) % 3]);
+		ring(out, null, 2, 4f, 6f, 8.75f, (i, row) -> hat.main[(i / 5 + 1) % 3]);
+		out.add(up(-6f, 2f, -6f, 6f, 4.5f, 6f, hat.main[2], false));
+		out.add(up(-4f, 4.5f, -4f, 4f, 5f, 4f, hat.main[2], false));
+		out.add(up(-1f, 5f, -1f, 1f, 5.5f, 1f, hat.accent, false));
+		out.add(up(-0.4f, 5.5f, -0.4f, 0.4f, 6.5f, 0.4f, 0xFFB0B0B8, false));
+		int edge = helmet != null ? helmet.tile(0, 0) : hat.main[1];
+		out.add(up(-6f, -2f, -12.5f, 6f, -1.25f, -9.5f, edge, helmet != null));
+		out.add(up(-5f, -1.25f, -11.5f, 5f, -1.15f, -9.5f, hat.main[0], false));
+	}
+
+	/** The propeller's blades round its hub, drawn turned by the caller. */
+	private static List<Box> blades(Hat hat) {
+		// Each blade pitched: its leading edge a step higher than its trailing one.
+		return List.of(raw(-8f, -1f, -1.25f, -0.75f, -0.5f, 0f, hat.main[1]), raw(-8f, -0.5f, 0f, -0.75f, 0f, 1.25f, hat.main[1]),
+				raw(0.75f, -1f, 0f, 8f, -0.5f, 1.25f, hat.main[2]), raw(0.75f, -0.5f, -1.25f, 8f, 0f, 0f, hat.main[2]),
+				raw(-1f, -1f, -1f, 1f, 0.25f, 1f, hat.accent), raw(-0.6f, -1.5f, -0.6f, 0.6f, -1f, 0.6f, lighter(hat.accent)));
+	}
+
+	/** A headband showing the helmet with two long bunny ears that flop. */
+	private static void bunnyHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		headband(out, helmet, hat.main[2], -1f);
+	}
+
+	/** A band over the top of the head from ear to ear, {@code z} its front edge; the helmet's look if one is worn. */
+	private static void headband(List<Box> out, HelmetLook helmet, int own, float z) {
+		boolean shows = helmet != null;
+		// From the head's surface out past its hat layer, so it sits close with or without one.
+		out.add(up(-9.25f, 0f, z - 1.5f, 9.25f, 1.25f, z + 1.5f, shows ? helmet.tile(0, 0) : own, shows));
+		out.add(up(-9.25f, -6f, z - 1.5f, -8f, 1.25f, z + 1.5f, shows ? helmet.tile(1, 1) : own, shows));
+		out.add(up(8f, -6f, z - 1.5f, 9.25f, 1.25f, z + 1.5f, shows ? helmet.tile(2, 1) : own, shows));
+	}
+
+	private static List<Box> ear(Hat hat, int inner, int k) {
+		float half = k == 0 ? EAR_HALF : EAR_HALF - 0.4f;
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-half, -EAR_PIECE, -0.8f, half, 0f, 0.8f, hat.main[0]));
+		// The inside runs on from one piece into the next, with fur round it only at the base and the tip.
+		float tip = k == 0 ? -EAR_PIECE : -EAR_PIECE + 0.75f;
+		out.add(raw(-half + 0.8f, tip, -0.9f, half - 0.8f, k == 0 ? -0.75f : 0f, -0.8f, inner));
+		if (k == 1) {
+			out.add(raw(-half + 0.6f, -EAR_PIECE - 1f, -0.7f, half - 0.6f, -EAR_PIECE, 0.7f, hat.main[0]));
+		}
+		return out;
+	}
+
+	/** A mortarboard: a cap whose band shows the helmet, a flat square board, a button in the trim's colour and a cord. */
+	private static void mortarboardHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 2, 1f, 8.5f, 9.5f, (i, row) -> hat.main[1]);
+		out.add(up(-8.5f, 1f, -8.5f, 8.5f, 2f, 8.5f, hat.main[0], false));
+		out.add(up(-13f, 2f, -13f, 13f, 3f, 13f, hat.main[0], false));
+		// A bound edge round the board.
+		for (int side = 0; side < 4; side++) {
+			turn(List.of(up(-13.1f, 2f, -13.1f, 12.75f, 3.15f, -12.75f, hat.main[1], false)), side, out);
+		}
+		int button = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
+		out.add(up(-1f, 3f, -1f, 1f, 3.5f, 1f, button, false));
+		out.add(up(0f, 3f, -0.25f, 12f, 3.25f, 0.25f, hat.accent, false));
+	}
+
+	private static List<Box> tassel(Hat hat, int k) {
+		Box cord = raw(-0.3f, 0f, -0.3f, 0.3f, 3f, 0.3f, hat.accent);
+		if (k == 0) {
+			return List.of(cord);
+		}
+		List<Box> out = new ArrayList<>(List.of(cord, raw(-1.25f, 2.75f, -1.25f, 1.25f, 3.5f, 1.25f, hat.second),
+				raw(-1f, 3.5f, -1f, 1f, 5f, 1f, hat.accent)));
+		// The fringe: loose threads of slightly different lengths.
+		float[] lengths = {7f, 7.5f, 6.75f, 7.25f};
+		int t = 0;
+		for (float dx : new float[]{-0.7f, 0.2f}) {
+			for (float dz : new float[]{-0.7f, 0.2f}) {
+				out.add(raw(dx, 5f, dz, dx + 0.5f, lengths[t++], dz + 0.5f, t % 2 == 0 ? hat.accent : ARGB.scaleRGB(hat.accent, 0.85f)));
+			}
+		}
+		return out;
+	}
+
+	/** A top hat: a brim curled at the sides, a band showing the helmet with a pin in the trim's colour, a feather. */
+	private static void tophatHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		out.add(up(-12f, -1f, -12f, 12f, 0f, 12f, hat.main[1], false));
+		out.add(up(-12f, 0f, -11f, -10.5f, 0.75f, 11f, hat.main[1], false));
+		out.add(up(10.5f, 0f, -11f, 12f, 0.75f, 11f, hat.main[1], false));
+		// Lit at one corner and shaded at the next, so the crown looks round.
+		ring(out, null, 10, 12f, 8.5f, 9.5f, (i, row) -> i % 10 == 0 ? lighter(hat.main[0]) : i % 10 == 9 ? ARGB.scaleRGB(hat.main[0], 0.75f) : hat.main[0]);
+		ring(out, helmet, 2, 2.5f, 9.5f, 9.75f, (i, row) -> hat.accent);
+		out.add(up(-8.5f, 11f, -8.5f, 8.5f, 12f, 8.5f, hat.main[0], false));
+		out.add(up(-9.5f, 12f, -9.5f, 9.5f, 12.5f, 9.5f, hat.main[0], false));
+		int pin = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
+		out.add(up(5f, 0.75f, -10f, 6.5f, 2.25f, -9.75f, pin, false));
+		// A bow on the band at the left.
+		out.add(up(-10.25f, 0.75f, -2.5f, -9.75f, 2.25f, -0.5f, hat.accent, false));
+		out.add(up(-10.25f, 0.75f, 0.5f, -9.75f, 2.25f, 2.5f, hat.accent, false));
+		out.add(up(-10.4f, 1f, -0.5f, -9.75f, 2f, 0.5f, ARGB.scaleRGB(hat.accent, 0.75f), false));
+	}
+
+	private static List<Box> plume(Hat hat, int k) {
+		float half = k == 0 ? 1.5f : 1f;
+		return List.of(raw(-0.3f, -4f, -half, 0.3f, 0f, half, hat.second), raw(-0.4f, -4f, -0.15f, 0.4f, 0f, 0.15f,
+				ARGB.scaleRGB(hat.second, 0.8f)));
+	}
+
+	/**
+	 * A cowboy hat: a wide brim curled up at the sides, a creased crown, a band showing the helmet with a concho in the
+	 * trim's colour, and a stampede string hanging loose under the chin.
+	 */
+	private static void cowboyHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		out.add(up(-13f, -1f, -13f, 13f, 0f, 13f, hat.main[1], false));
+		out.add(up(-15f, 0f, -11f, -13f, 2f, 11f, hat.main[1], false));
+		out.add(up(13f, 0f, -11f, 15f, 2f, 11f, hat.main[1], false));
+		out.add(up(-14f, -0.5f, -12f, -13f, 1f, 12f, hat.main[1], false));
+		out.add(up(13f, -0.5f, -12f, 14f, 1f, 12f, hat.main[1], false));
+		// The crown narrows towards its creased top.
+		ring(out, null, 3, 3f, 8.5f, 9.5f, (i, row) -> hat.main[0]);
+		ring(out, null, 3, 6f, 7.5f, 8.75f, (i, row) -> hat.main[0]);
+		ring(out, null, 2, 8f, 6.5f, 7.75f, (i, row) -> hat.main[0]);
+		ring(out, helmet, 2, 2f, 9.5f, 10f, (i, row) -> hat.accent);
+		out.add(up(-6.5f, 3f, -6.5f, 6.5f, 8f, 6.5f, hat.main[0], false));
+		out.add(up(-5.5f, 8f, -5f, -1f, 9f, 5f, hat.main[0], false));
+		out.add(up(1f, 8f, -5f, 5.5f, 9f, 5f, hat.main[0], false));
+		out.add(up(-1f, 8f, -4f, 1f, 8.4f, 4f, ARGB.scaleRGB(hat.main[0], 0.75f), false));
+		int concho = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
+		out.add(up(-1.25f, 0.25f, -10.25f, 1.25f, 1.75f, -10f, concho, false));
+	}
+
+	private static List<Box> stampedeString(Hat hat) {
+		return List.of(raw(-0.2f, 0f, -0.2f, 0.2f, 9f, 0.2f, hat.accent), raw(-0.6f, 9f, -0.6f, 0.6f, 10.2f, 0.6f, hat.second));
+	}
+
+	/** Headphones: the band over the head shows the helmet, the cups' caps take the trim's colour, a cable dangles. */
+	private static void headphonesHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		headband(out, helmet, hat.main[0], 0f);
+		// A soft pad on top of the band.
+		out.add(up(-5f, 1.25f, -1.25f, 5f, 2f, 1.25f, hat.main[1], false));
+		int cap = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
+		for (int s = -1; s <= 1; s += 2) {
+			float x0 = s < 0 ? -11f : 9f;
+			out.add(up(x0, -11f, -3f, x0 + 2f, -5f, 3f, hat.main[0], false));
+			out.add(up(s < 0 ? -9f : 8f, -10.5f, -2.5f, s < 0 ? -8f : 9f, -5.5f, 2.5f, hat.main[1], false));
+			float c0 = s < 0 ? -11.5f : 11f;
+			out.add(up(c0, -10f, -2f, c0 + 0.5f, -6f, 2f, cap, false));
+			// A grille on the cap.
+			float g0 = s < 0 ? c0 - 0.1f : c0 + 0.5f;
+			for (float y : new float[]{-9f, -8.25f, -7.5f}) {
+				out.add(up(g0, y, -1.5f, g0 + 0.1f, y + 0.4f, 1.5f, ARGB.scaleRGB(cap, 0.7f), false));
+			}
+		}
+	}
+
+	private static List<Box> cable(Hat hat, int k) {
+		Box wire = raw(-0.25f, 0f, -0.25f, 0.25f, 5f, 0.25f, 0xFF2A2A2C);
+		return k == 0 ? List.of(wire) : List.of(wire, raw(-0.5f, 5f, -0.5f, 0.5f, 6.5f, 0.5f, 0xFFC0C0C8));
+	}
+
+	/** A party hat: a striped cone with a pompom on its tip, the elastic down the cheeks showing the helmet. */
+	private static void partyHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		// Leaning a little to the left, as party hats do.
+		for (int k = 0; k < PARTY_LAYERS; k++) {
+			float half = 4.5f - 0.7f * k;
+			float x = PARTY_X - PARTY_LEAN * k;
+			out.add(up(x - half, 1.5f * k, -half, x + half, 1.5f * k + 1.5f, half, k % 2 == 0 ? hat.main[0] : hat.main[1], false));
+		}
+		boolean shows = helmet != null;
+		for (int s = -1; s <= 1; s += 2) {
+			float x0 = s < 0 ? -9.25f : 8f;
+			out.add(up(x0, -13f, -0.5f, x0 + 1.25f, 0f, 0.5f, shows ? helmet.tile(s < 0 ? 0 : 1, 0) : 0xFFE8E8E8, shows));
+		}
+	}
+
+	/**
+	 * A sombrero: a tall rounded cone, its band showing the helmet, and a very wide brim turned up at the rim with an
+	 * embroidered border in the trim's colour; pompoms dangle all round the brim.
+	 */
+	private static void sombreroHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		out.add(up(-16.5f, -1f, -16.5f, 16.5f, 0f, 16.5f, hat.main[1], false));
+		ring(out, null, 2, 1.5f, 16.5f, 18f, (i, row) -> row == 0 ? lighter(hat.main[1]) : hat.main[1]);
+		int embroidery = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
+		ring(out, null, 1, 0.15f, 13.5f, 15f, (i, row) -> i % 2 == 0 ? embroidery : hat.second);
+		ring(out, helmet, 2, 2f, 8.5f, 9.5f, (i, row) -> i % 2 == 0 ? hat.accent : hat.second);
+		ring(out, null, 3, 5f, 8f, 9.25f, (i, row) -> hat.main[0]);
+		ring(out, null, 3, 8f, 7f, 8.5f, (i, row) -> hat.main[0]);
+		ring(out, null, 2, 10f, 5.5f, 7.5f, (i, row) -> hat.main[0]);
+		out.add(up(-7f, 2f, -7f, 7f, 8f, 7f, hat.main[0], false));
+		out.add(up(-5.5f, 8f, -5.5f, 5.5f, 10f, 5.5f, hat.main[0], false));
+		out.add(up(-5f, 10f, -5f, 5f, 11f, 5f, hat.main[0], false));
+		out.add(up(-3f, 11f, -3f, 3f, 11.75f, 3f, hat.main[0], false));
+	}
+
+	private static List<Box> sombreroPompom(Hat hat) {
+		return List.of(raw(-0.15f, 0f, -0.15f, 0.15f, 2f, 0.15f, hat.main[1]), raw(-1f, 2f, -1f, 1f, 4f, 1f, hat.accent),
+				raw(-1.25f, 2.5f, -0.5f, 1.25f, 3.5f, 0.5f, ARGB.scaleRGB(hat.accent, 0.88f)));
+	}
+
+	/**
+	 * A beret: a soft disc pulled over to the right, its rim showing the helmet, a palette pinned at the side with dabs of
+	 * paint (one in the trim's colour) and a brush tucked in; the little stalk on top wobbles.
+	 */
+	private static void beretHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 1, 0f, 8.5f, 9.25f, (i, row) -> hat.main[1]);
+		out.add(up(-9f, 0f, -9.5f, 11f, 1.5f, 9.5f, hat.main[0], false));
+		out.add(up(-8f, 1.5f, -8.5f, 12f, 2.5f, 8.5f, hat.main[0], false));
+		out.add(up(10f, -0.5f, -7.5f, 12.5f, 1.5f, 7.5f, hat.main[0], false));
+		out.add(up(-6f, 2.5f, -6.5f, 9f, 3.25f, 6.5f, hat.main[0], false));
+		out.add(up(-3f, 3.25f, -4f, 6f, 3.75f, 4f, hat.main[0], false));
+		// The palette on the left front, with dabs of paint.
+		int wood = 0xFFC8A06A;
+		out.add(up(-7f, -0.25f, -9.85f, -3f, 1.25f, -9.5f, wood, false));
+		out.add(up(-6.5f, 1.25f, -9.85f, -3.5f, 1.5f, -9.5f, wood, false));
+		int paint = helmet != null && helmet.trim() != 0 ? helmet.trim() : 0xFFD83A30;
+		int[] dabs = {paint, 0xFF3A6AD8, 0xFFF2D23A};
+		for (int i = 0; i < dabs.length; i++) {
+			float x = -6.5f + i * 1.2f;
+			out.add(up(x, 0.5f, -9.95f, x + 0.6f, 1.1f, -9.85f, dabs[i], false));
+		}
+		// A brush tucked in at the left, its bristles dipped in paint.
+		out.add(up(-9.75f, 0.5f, 1f, -9f, 6f, 1.75f, 0xFF8A5A32, false));
+		out.add(up(-9.85f, 6f, 0.9f, -8.9f, 7f, 1.85f, 0xFFD8D0C0, false));
+		out.add(up(-9.9f, 7f, 0.85f, -8.85f, 7.75f, 1.9f, hat.accent, false));
+	}
+
+	private static List<Box> beretStalk(Hat hat) {
+		return List.of(raw(-0.4f, -1.5f, -0.4f, 0.4f, 0f, 0.4f, hat.main[1]));
+	}
+
+	/**
+	 * A Tyrolean hat: a creased crown, a narrow brim turned up behind, a twisted cord band showing the helmet with a
+	 * badge in the trim's colour, and a chamois brush and a feather that bob at the side.
+	 */
+	private static void tyroleanHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		out.add(up(-11.5f, -1f, -11.5f, 11.5f, 0f, 11.5f, hat.main[1], false));
+		out.add(up(-10f, 0f, 10f, 10f, 3f, 11.5f, hat.main[1], false));
+		out.add(up(-8f, 0f, 11.5f, 8f, 3.75f, 12f, hat.main[1], false));
+		ring(out, helmet, 1, 1f, 9f, 9.75f, (i, row) -> i % 2 == 0 ? hat.main[2] : lighter(hat.main[2]));
+		ring(out, null, 4, 5f, 8f, 9f, (i, row) -> hat.main[0]);
+		ring(out, null, 2, 7f, 6.5f, 8.25f, (i, row) -> hat.main[0]);
+		out.add(up(-6.5f, 1f, -6.5f, 6.5f, 7f, 6.5f, hat.main[0], false));
+		out.add(up(-6f, 7f, -5f, -0.75f, 7.75f, 5f, hat.main[0], false));
+		out.add(up(0.75f, 7f, -5f, 6f, 7.75f, 5f, hat.main[0], false));
+		out.add(up(-0.75f, 7f, -4f, 0.75f, 7.3f, 4f, ARGB.scaleRGB(hat.main[0], 0.75f), false));
+		int badge = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
+		out.add(up(-6.5f, 1.5f, -9.2f, -4.5f, 3.5f, -8.95f, badge, false));
+		out.add(up(-6f, 2f, -9.3f, -5f, 3f, -9.2f, lighter(badge), false));
+	}
+
+	private static List<Box> chamoisBrush(Hat hat, int k) {
+		if (k == 0) {
+			return List.of(raw(-0.6f, -3f, -0.6f, 0.6f, 0f, 0.6f, 0xFF4A3424));
+		}
+		// The brush fans out, dark at the base and pale at the tips.
+		return List.of(raw(-1f, -2f, -1f, 1f, 0f, 1f, 0xFF3A2C22), raw(-1.75f, -4f, -1.75f, 1.75f, -2f, 1.75f, 0xFF6A5444),
+				raw(-1.5f, -5.5f, -1.5f, 1.5f, -4f, 1.5f, 0xFFD8D0C0));
+	}
+
+	/**
+	 * A captain's cap: a wide flat top over a band showing the helmet, an anchor in a laurel wreath (the anchor in the
+	 * trim's colour), a gold cord over the glossy visor and buttons at its ends, from which small tassels hang.
+	 */
+	private static void captainHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 4, 2f, 9f, 9.75f, (i, row) -> hat.main[1]);
+		ring(out, null, 2, 4f, 8.5f, 10f, (i, row) -> hat.main[0]);
+		out.add(up(-8.5f, 2f, -8.5f, 8.5f, 4f, 8.5f, hat.main[0], false));
+		out.add(up(-11f, 4f, -11f, 11f, 5.5f, 11f, hat.main[0], false));
+		out.add(up(-10f, 5.5f, -10f, 10f, 6f, 10f, hat.main[0], false));
+		out.add(up(-11.1f, 4f, -11.1f, 11.1f, 4.3f, 11.1f, ARGB.scaleRGB(hat.main[0], 0.85f), false));
+		// The visor, glossy, with a highlight along it.
+		float[][] rows = {{-10.75f, 7.5f}, {-11.75f, 7.25f}, {-12.75f, 6.5f}, {-13.5f, 5f}};
+		float z1 = -9.5f;
+		for (int k = 0; k < rows.length; k++) {
+			float dip = -2f - 0.15f * k * k;
+			out.add(up(-rows[k][1], dip, rows[k][0], rows[k][1], dip + 0.75f, z1, hat.main[2], false));
+			z1 = rows[k][0];
+		}
+		out.add(up(-5f, -1.25f, -11.5f, 5f, -1.15f, -11f, lighter(hat.main[2]), false));
+		// The gold cord and its buttons.
+		out.add(up(-8f, -1.25f, -10.15f, 8f, -0.75f, -9.75f, hat.accent, false));
+		for (int s = -1; s <= 1; s += 2) {
+			float x = s * 8.25f;
+			out.add(up(x - 0.6f, -1.6f, -10.3f, x + 0.6f, -0.4f, -9.75f, hat.accent, false));
+		}
+		// The badge: an anchor in a laurel wreath.
+		int anchor = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
+		float z = -9.85f;
+		out.add(up(-0.25f, -0.25f, z - 0.1f, 0.25f, 1.75f, z, anchor, false));
+		out.add(up(-0.9f, 1.25f, z - 0.1f, 0.9f, 1.5f, z, anchor, false));
+		out.add(up(-1f, -0.5f, z - 0.1f, 1f, -0.25f, z, anchor, false));
+		out.add(up(-1f, -0.25f, z - 0.1f, -0.75f, 0.25f, z, anchor, false));
+		out.add(up(0.75f, -0.25f, z - 0.1f, 1f, 0.25f, z, anchor, false));
+		for (int s = -1; s <= 1; s += 2) {
+			out.add(up(s < 0 ? -2.25f : 1.75f, -0.25f, z - 0.05f, s < 0 ? -1.75f : 2.25f, 1.5f, z, hat.accent, false));
+			out.add(up(s < 0 ? -2f : 1.25f, -0.5f, z - 0.05f, s < 0 ? -1.25f : 2f, -0.25f, z, hat.accent, false));
+		}
+	}
+
+	private static List<Box> captainTassel(Hat hat) {
+		return List.of(raw(-0.15f, 0f, -0.15f, 0.15f, 1.5f, 0.15f, hat.accent), raw(-0.4f, 1.5f, -0.4f, 0.4f, 2.75f, 0.4f, hat.accent));
+	}
+
+	/**
+	 * An ushanka: a tall cloth crown, a thick fur rim with its front flap turned up (its edge showing the helmet, as does a
+	 * strip round the crown), a badge in the trim's colour on the flap, and ear flaps with ties that dangle.
+	 */
+	private static void ushankaHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		IntBinaryOperator fur = (i, row) -> (i * 7 + row * 3) % 5 == 0 ? hat.main[2] : hat.main[1];
+		ring(out, null, 3, 1f, 9f, 10.75f, fur);
+		ring(out, helmet, 1, 2f, 9.25f, 9.75f, (i, row) -> ARGB.scaleRGB(hat.main[0], 0.75f));
+		ring(out, null, 3, 5f, 8f, 9.25f, (i, row) -> hat.main[0]);
+		out.add(up(-8f, 1f, -8f, 8f, 5f, 8f, hat.main[0], false));
+		out.add(up(-8f, 5f, -8f, 8f, 6f, 8f, hat.main[0], false));
+		out.add(up(-6f, 6f, -6f, 6f, 6.6f, 6f, hat.main[0], false));
+		// The front flap, turned up, its fur tufted.
+		out.add(up(-8.75f, 0f, -11.25f, 8.75f, 4.5f, -9.25f, hat.main[1], false));
+		for (float x = -7.5f; x <= 7.5f; x += 2.5f) {
+			out.add(up(x, 0.5f + (Math.abs(x) % 2f), -11.4f, x + 1f, 1.5f + (Math.abs(x) % 2f), -11.25f, hat.main[2], false));
+		}
+		boolean shows = helmet != null;
+		out.add(up(-8.75f, 4.5f, -11.25f, 8.75f, 5f, -9.25f, shows ? helmet.tile(0, 0) : hat.main[2], shows));
+		int badge = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
+		out.add(up(-1f, 1.75f, -11.4f, 1f, 3.25f, -11.25f, badge, false));
+		out.add(up(-0.4f, 2.15f, -11.5f, 0.4f, 2.85f, -11.4f, lighter(badge), false));
+	}
+
+	private static List<Box> earFlapTied(Hat hat) {
+		return List.of(raw(-1f, 0f, -3.5f, 1f, 7f, 3.5f, hat.main[1]), raw(-1.1f, 1f, -3f, 1.1f, 2f, -2f, hat.main[2]),
+				raw(-0.15f, 7f, -0.15f, 0.15f, 10f, 0.15f, hat.accent), raw(-0.4f, 10f, -0.4f, 0.4f, 10.75f, 0.4f, hat.accent));
+	}
+
+	/**
+	 * A tiara: a fine circlet showing the helmet, rising in front to points with pearls, a big centre stone in the trim's
+	 * colour between smaller ones, and a drop pendant that swings on the forehead.
+	 */
+	private static void tiaraHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 1, 0.5f, 8.75f, 9.25f, (i, row) -> hat.main[1]);
+		float z = -9.25f;
+		// Points either side of the middle, lower further out, joined by a fine arch.
+		float[][] points = {{-6.5f, 1.5f}, {-4f, 2.75f}, {4f, 2.75f}, {6.5f, 1.5f}};
+		for (float[] p : points) {
+			out.add(up(p[0] - 0.6f, 0.5f, z - 0.5f, p[0] + 0.6f, 0.5f + p[1], z, hat.main[0], false));
+			out.add(up(p[0] - 0.45f, 0.5f + p[1], z - 0.45f, p[0] + 0.45f, 1.4f + p[1], z + 0.05f, 0xFFF4F0E6, false));
+			out.add(up(p[0] - 0.5f, 0.9f, z - 0.6f, p[0] + 0.5f, 1.9f, z - 0.5f, hat.second, false));
+		}
+		out.add(up(-7f, 1.75f, z - 0.3f, 7f, 2f, z, hat.main[0], false));
+		// The middle: a tall setting with the big stone.
+		int stone = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.accent;
+		out.add(up(-1.75f, 0.5f, z - 0.5f, 1.75f, 4.75f, z, hat.main[0], false));
+		out.add(up(-0.75f, 4.75f, z - 0.4f, 0.75f, 5.75f, z, hat.main[0], false));
+		out.add(up(-1.1f, 1.5f, z - 0.75f, 1.1f, 3.75f, z - 0.5f, stone, false));
+		out.add(up(-0.5f, 2.9f, z - 0.85f, 0f, 3.4f, z - 0.75f, lighter(stone), false));
+	}
+
+	private static List<Box> tiaraDrop(Hat hat) {
+		return List.of(raw(-0.15f, 0f, -0.15f, 0.15f, 1.5f, 0.15f, hat.main[0]), raw(-0.6f, 1.5f, -0.6f, 0.6f, 3f, 0.6f, hat.second),
+				raw(-0.35f, 3f, -0.35f, 0.35f, 3.6f, 0.35f, hat.second));
+	}
+
+	/**
+	 * A ninja's headband: the band round the brow shows the helmet, a metal plate in front engraved in the trim's colour,
+	 * a knot behind and two long tails that stream out as the wearer moves.
+	 */
+	private static void ninjaHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		ring(out, helmet, 2, -3f, 9f, 9.75f, (i, row) -> row == 0 ? hat.main[0] : hat.main[1]);
+		int metal = 0xFFB8BCC4;
+		out.add(up(-3.25f, -5.25f, -10.25f, 3.25f, -2.75f, -9.75f, ARGB.scaleRGB(metal, 0.7f), false));
+		out.add(up(-3f, -5f, -10.35f, 3f, -3f, -10.25f, metal, false));
+		int engraving = helmet != null && helmet.trim() != 0 ? helmet.trim() : 0xFF3A3A40;
+		// A leaf-like mark: a curl and a stroke.
+		float z = -10.45f;
+		out.add(up(-1.5f, -4.5f, z, 1f, -4.25f, -10.35f, engraving, false));
+		out.add(up(0.75f, -4.5f, z, 1f, -3.5f, -10.35f, engraving, false));
+		out.add(up(-1f, -3.75f, z, 1f, -3.5f, -10.35f, engraving, false));
+		out.add(up(-1.5f, -4.25f, z, -1.25f, -3.25f, -10.35f, engraving, false));
+		out.add(up(1.5f, -4.75f, z, 1.75f, -4f, -10.35f, engraving, false));
+		for (float[] r : new float[][]{{-2.6f, -4.6f}, {2.35f, -4.6f}, {-2.6f, -3.65f}, {2.35f, -3.65f}}) {
+			out.add(up(r[0], r[1], z, r[0] + 0.25f, r[1] + 0.25f, -10.35f, ARGB.scaleRGB(metal, 0.6f), false));
+		}
+		out.add(up(-1.5f, -5.5f, 9.5f, 1.5f, -2.5f, 10.75f, hat.main[1], false));
+	}
+
+	private static List<Box> bandTail(Hat hat, int k) {
+		return List.of(raw(-0.75f, 0f, -0.15f, 0.75f, 4f, 0.15f, k % 2 == 0 ? hat.main[0] : hat.main[1]));
 	}
 
 	// ---------------------------------------------------------------- autumn and halloween
@@ -670,6 +1392,14 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			float shift = side % 2 == 0 ? 0f : 2f;
 			part.add(up(-7f + shift, 2f, -12.3f, -5f + shift, 3f, -12f, hat.accent, false));
 			part.add(up(4f + shift, 1.5f, -12.3f, 6f + shift, 3f, -12f, hat.accent, false));
+			// More on the brim's edge and the upper tier.
+			part.add(up(-9.5f + shift, 0.25f, -13.3f, -8f + shift, 1.25f, -13f, hat.accent, false));
+			part.add(up(0.5f - shift, 0.25f, -13.3f, 2f - shift, 1.25f, -13f, hat.accent, false));
+			part.add(up(-4f + shift, 4f, -9.8f, -2.5f + shift, 5f, -9.5f, hat.accent, false));
+			// Gills under the cap, round the stem.
+			for (float x = -9f; x <= 9f; x += 3f) {
+				part.add(up(x - 0.15f, -1.1f, -12f, x + 0.15f, -1f, -10f, ARGB.scaleRGB(hat.third, 0.8f), false));
+			}
 			turn(part, side, out);
 		}
 	}
@@ -686,6 +1416,12 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		out.add(up(-14f, -1f, -14f, 14f, 0f, 14f, hat.main[1], false));
 		ring(out, helmet, 2, 2f, 8.5f, 9.5f, (i, row) -> hat.accent);
 		out.add(up(-8.5f, 2f, -8.5f, 8.5f, 5f, 8.5f, hat.main[0], false));
+		// A patch sewn on the cone, with big stitches at its corners.
+		int patch = ARGB.scaleRGB(hat.accent, 0.7f);
+		out.add(up(-6.5f, 2.5f, -8.75f, -3f, 4.75f, -8.5f, patch, false));
+		for (float[] c : new float[][]{{-6.5f, 2.5f}, {-3.5f, 2.5f}, {-6.5f, 4.25f}, {-3.5f, 4.25f}}) {
+			out.add(up(c[0], c[1], -8.85f, c[0] + 0.5f, c[1] + 0.5f, -8.75f, 0xFFD8D0C0, false));
+		}
 		int buckle = helmet != null && helmet.trim() != 0 ? helmet.trim() : hat.second;
 		out.add(up(-2f, 0f, -10f, -1.25f, 2f, -9.5f, buckle, false));
 		out.add(up(1.25f, 0f, -10f, 2f, 2f, -9.5f, buckle, false));
@@ -697,11 +1433,22 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static List<Box> witchTip(Hat hat, int k) {
 		float half = 7f - 1.4f * k;
 		int color = k < 2 ? hat.main[0] : hat.main[2];
-		Box piece = raw(-half, -3f, -half, half, 0f, half, color);
-		if (k < WITCH_PIECES - 1) {
-			return List.of(piece);
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-half, -3f, -half, half, 0f, half, color));
+		// Folds in the cloth, darker creases down its sides.
+		int fold = ARGB.scaleRGB(color, 0.75f);
+		float x = half * 0.4f;
+		out.add(raw(x - 0.25f, -3f, -half - 0.05f, x + 0.25f, 0f, half + 0.05f, fold));
+		out.add(raw(-half - 0.05f, -3f, -x - 0.25f, half + 0.05f, 0f, -x + 0.25f, fold));
+		if (k == WITCH_PIECES - 1) {
+			out.add(raw(-1f, -5f, -1f, 1f, -3f, 1f, color));
+			out.add(raw(-0.5f, -6f, -0.5f, 0.5f, -5f, 0.5f, color));
+			// A little star on the tip.
+			out.add(raw(-1.25f, -7.25f, -0.25f, 1.25f, -6.75f, 0.25f, hat.second));
+			out.add(raw(-0.25f, -8.25f, -0.25f, 0.25f, -5.75f, 0.25f, hat.second));
+			out.add(raw(-0.6f, -7.6f, -0.3f, 0.6f, -6.4f, 0.3f, lighter(hat.second)));
 		}
-		return List.of(piece, raw(-1f, -5f, -1f, 1f, -3f, 1f, color), raw(-0.5f, -6f, -0.5f, 0.5f, -5f, 0.5f, color));
+		return out;
 	}
 
 	private static List<Box> spider(Hat hat) {
@@ -817,7 +1564,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	}
 
 	/** A box in voxels as given (y down), for things hanging. */
-	private static Box raw(float x0, float y0, float z0, float x1, float y1, float z1, int color) {
+	static Box raw(float x0, float y0, float z0, float x1, float y1, float z1, int color) {
 		return new Box(x0 * V, y0 * V, z0 * V, x1 * V, y1 * V, z1 * V, color, false);
 	}
 
@@ -868,7 +1615,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		}
 	}
 
-	private static int lighter(int color) {
+	static int lighter(int color) {
 		return ARGB.color(255, Math.min(255, ARGB.red(color) + 60), Math.min(255, ARGB.green(color) + 60), Math.min(255, ARGB.blue(color) + 60));
 	}
 
@@ -890,7 +1637,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		return swing.pendulums();
 	}
 
-	private static CharmPendulum[] fresh() {
+	static CharmPendulum[] fresh() {
 		long now = System.nanoTime();
 		CharmPendulum[] list = new CharmPendulum[PENDULUMS];
 		for (int i = 0; i < list.length; i++) {
@@ -902,5 +1649,6 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
 	static void forget() {
 		SWINGS.clear();
+		SPINS.clear();
 	}
 }

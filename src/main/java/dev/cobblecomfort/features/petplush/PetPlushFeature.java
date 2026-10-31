@@ -4,9 +4,6 @@ import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.core.IrisCompat;
 import dev.cobblecomfort.features.belt.BeltFeature;
 import dev.cobblecomfort.features.namecharm.CharmPendulum;
-import dev.cobblecomfort.features.pets.PetEntry;
-import dev.cobblecomfort.features.pets.PetFeature;
-import dev.cobblecomfort.features.pets.PetStore;
 import dev.cobblecomfort.features.plush.PlushJiggle;
 import dev.cobblecomfort.features.wardrobe.WardrobeFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
@@ -21,32 +18,22 @@ import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.TamableAnimal;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
- * A little plush of your wolf or cat dangles from your back, swinging with pendulum physics. You pick the pet in the
- * pets tab of the storage screen (or the one seen last is used). Other players with the mod see it through the Cobble
- * Comfort Sync plugin; without it, through their own pets that are nearby.
+ * Draws the plushes worn on the back (a wolf or cat backpack or charm, picked in the wardrobe) and the charms from the
+ * wardrobe, swinging with pendulum physics, and carries everything a player wears to others through the Cobble Comfort
+ * Sync plugin. Players on older versions may still share plushes of their own pets; those are shown too.
  */
 public final class PetPlushFeature extends Feature<PetPlushConfig> {
 	public static final PetPlushFeature INSTANCE = new PetPlushFeature();
-	public static final String NONE = "none";
 
-	private static final int NEARBY_SCAN_TICKS = 20;
 	private static final long FORGET_NANOS = 2_000_000_000L;
 
 	private final PetPlushSync sync = new PetPlushSync();
-	/** Owner UUID -> plush of their tamed wolf or cat nearest to us, refreshed every second. */
-	private Map<UUID, PetPlush> nearby = Map.of();
 	private final Int2ObjectOpenHashMap<Motion> motions = new Int2ObjectOpenHashMap<>();
-	private int ticks;
 
 	private PetPlushFeature() {
 		super("pet_plush", PetPlushConfig.class, PetPlushConfig::new);
@@ -58,7 +45,6 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
 			sync.clear();
-			nearby = Map.of();
 			motions.clear();
 		});
 		LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
@@ -79,13 +65,11 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
-		// One look carries everything worn: pet plushes, belt and badges, each shared if its feature allows.
-		PlushLook pets = isEnabled() && config.share ? ownLook() : PlushLook.NONE;
-		sync.tick(new PlushLook(pets.charm(), pets.pack(), BeltFeature.INSTANCE.shared(), BeltFeature.INSTANCE.sharedGear(),
-				WardrobeFeature.INSTANCE.shared(), WardrobeFeature.INSTANCE.sharedHat()));
-		if (++ticks % NEARBY_SCAN_TICKS == 0) {
-			nearby = isEnabled() && config.nearbyPets ? scanNearby(mc) : Map.of();
-		}
+		// One look carries everything worn (belt, badges, hat, neck, back), each shared if its feature allows.
+		sync.tick(new PlushLook(null, null, BeltFeature.INSTANCE.shared(), BeltFeature.INSTANCE.sharedGear(),
+				WardrobeFeature.INSTANCE.shared(), WardrobeFeature.INSTANCE.sharedHat(),
+				WardrobeFeature.INSTANCE.sharedNeck(), WardrobeFeature.INSTANCE.sharedBack(),
+				WardrobeFeature.INSTANCE.sharedTrinket()));
 	}
 
 	/** Speed lost per second: little with a long swing, a lot with a short one. */
@@ -132,137 +116,11 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 		return sync.get(player);
 	}
 
-	/** What this player wears, or null. */
+	/** The pet plushes a player on an older version shares, or null (our own come from the wardrobe). */
 	PlushLook lookFor(AbstractClientPlayer player) {
-		if (!isEnabled()) {
+		if (!isEnabled() || !config.showOthers || player == Minecraft.getInstance().player) {
 			return null;
 		}
-		Minecraft mc = Minecraft.getInstance();
-		if (player == mc.player) {
-			return config.showOwn ? ownLook() : null;
-		}
-		if (!config.showOthers) {
-			return null;
-		}
-		PlushLook shared = sync.get(player.getUUID());
-		if (shared != null) {
-			return shared;
-		}
-		PetPlush nearbyPet = nearby.get(player.getUUID());
-		return nearbyPet == null ? null : new PlushLook(nearbyPet, null);
-	}
-
-	// ---------------------------------------------------------------- choosing
-
-	/**
-	 * What this player wears: the pet chosen as backpack, and the pet chosen as charm (by default the wolf or cat seen
-	 * last that isn't the backpack). Without remembered pets, the nearest one of ours as charm.
-	 */
-	public PlushLook ownLook() {
-		PetStore store = PetFeature.INSTANCE.store();
-		if (PetFeature.INSTANCE.active()) {
-			PetEntry pack = packPet(store);
-			PetEntry charm = charmPet(store);
-			return new PlushLook(charm == null ? null : PetPlush.of(charm), pack == null ? null : PetPlush.of(pack));
-		}
-		Minecraft mc = Minecraft.getInstance();
-		PetPlush nearbyPet = mc.player == null ? null : nearby.get(mc.player.getUUID());
-		return new PlushLook(nearbyPet, null);
-	}
-
-	private static PetEntry packPet(PetStore store) {
-		PetEntry pet = store.pack().isEmpty() ? null : store.byUuid(store.pack());
-		return wearable(pet) ? pet : null;
-	}
-
-	private static PetEntry charmPet(PetStore store) {
-		String choice = store.charm();
-		if (NONE.equals(choice)) {
-			return null;
-		}
-		PetEntry pack = packPet(store);
-		PetEntry chosen = choice.isEmpty() ? null : store.byUuid(choice);
-		if (wearable(chosen) && chosen != pack) {
-			return chosen;
-		}
-		// Automatic: the wolf or cat seen last, other than the backpack.
-		PetEntry latest = null;
-		for (PetEntry pet : store.all()) {
-			if (wearable(pet) && pet != pack && (latest == null || pet.seen > latest.seen)) {
-				latest = pet;
-			}
-		}
-		return latest;
-	}
-
-	private static boolean wearable(PetEntry pet) {
-		return pet != null && !pet.dead() && PetPlush.of(pet) != null;
-	}
-
-	/** Whether this remembered pet hangs as the charm right now (chosen, or picked automatically). */
-	public boolean isCharm(PetEntry pet) {
-		return charmPet(PetFeature.INSTANCE.store()) == pet;
-	}
-
-	/** Whether this remembered pet is worn as the backpack. */
-	public boolean isPack(PetEntry pet) {
-		return packPet(PetFeature.INSTANCE.store()) == pet;
-	}
-
-	/** Hangs a pet on as the charm, or takes it off again (then no charm hangs there). */
-	public void toggleCharm(PetEntry pet) {
-		PetStore store = PetFeature.INSTANCE.store();
-		if (isCharm(pet)) {
-			store.setCharm(NONE);
-			return;
-		}
-		if (isPack(pet)) {
-			store.setPack("");
-		}
-		store.setCharm(pet.uuid);
-	}
-
-	/** Puts a pet on as the backpack, or takes it off again. A pet can't be the charm at the same time. */
-	public void togglePack(PetEntry pet) {
-		PetStore store = PetFeature.INSTANCE.store();
-		if (isPack(pet)) {
-			store.setPack("");
-			return;
-		}
-		if (store.charm().equals(pet.uuid)) {
-			store.setCharm("");
-		}
-		store.setPack(pet.uuid);
-	}
-
-	/** Whether a remembered pet can be worn as a plush (a living wolf or cat). */
-	public static boolean canWear(PetEntry pet) {
-		return wearable(pet);
-	}
-
-	// ---------------------------------------------------------------- nearby pets
-
-	/** For every owner, the plush of their tamed wolf or cat nearest to them, among the entities loaded here. */
-	private static Map<UUID, PetPlush> scanNearby(Minecraft mc) {
-		Map<UUID, PetPlush> found = new HashMap<>();
-		Map<UUID, Double> distance = new HashMap<>();
-		for (Entity entity : mc.level.entitiesForRendering()) {
-			if (!(entity instanceof TamableAnimal animal) || !animal.isTame() || ((LivingEntity) animal).isDeadOrDying()) {
-				continue;
-			}
-			PetPlush plush = PetPlush.of(entity);
-			EntityReference<LivingEntity> owner = animal.getOwnerReference();
-			if (plush == null || owner == null) {
-				continue;
-			}
-			UUID uuid = owner.getUUID();
-			Entity ownerEntity = mc.level.getPlayerByUUID(uuid);
-			double d = ownerEntity == null ? Double.MAX_VALUE : ownerEntity.distanceToSqr(entity);
-			if (d < distance.getOrDefault(uuid, Double.POSITIVE_INFINITY)) {
-				distance.put(uuid, d);
-				found.put(uuid, plush);
-			}
-		}
-		return found;
+		return sync.get(player.getUUID());
 	}
 }
