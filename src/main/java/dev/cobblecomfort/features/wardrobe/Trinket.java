@@ -99,15 +99,40 @@ public enum Trinket {
 	HALLOWEEN_CANDY_ORANGE(Style.CANDY, Hat.Unlock.item("sugar"), "sugar",
 			new int[]{0xFFE8862A, 0xFF1A1A1E, 0xFFC0661A}, 0xFFFFD0A0),
 	HALLOWEEN_CANDY_PURPLE(Style.CANDY, Hat.Unlock.item("sugar"), "sugar",
-			new int[]{0xFF8A3AC8, 0xFF7AD84A, 0xFF6A2AA0}, 0xFFD8B8F4);
+			new int[]{0xFF8A3AC8, 0xFF7AD84A, 0xFF6A2AA0}, 0xFFD8B8F4),
+	WINTER_BAUBLE_RED(Style.BAUBLE, Hat.Unlock.free(), "red_dye",
+			new int[]{0xFFD02A34, 0xFFE8C040, 0xFFFFB0B8}, 0xFFC8CCD4),
+	WINTER_BAUBLE_GOLD(Style.BAUBLE, Hat.Unlock.free(), "gold_nugget",
+			new int[]{0xFFE8C040, 0xFFF4F4F0, 0xFFFFF0B0}, 0xFFE8C040),
+	WINTER_BAUBLE_BLUE(Style.BAUBLE, Hat.Unlock.free(), "blue_dye",
+			new int[]{0xFF2A5AC8, 0xFFC8CCD4, 0xFFA8C8FF}, 0xFFC8CCD4),
+	WINTER_GINGERBREAD_CLASSIC(Style.GINGERBREAD, Hat.Unlock.item("cookie"), "cookie",
+			new int[]{0xFFB8743A, 0xFFF4F4F0, 0xFF3A2414}, 0xFFD82A3A),
+	WINTER_GINGERBREAD_DARK(Style.GINGERBREAD, Hat.Unlock.item("cookie"), "cookie",
+			new int[]{0xFF6A4228, 0xFFF4F4F0, 0xFF1E140C}, 0xFF3AA84A),
+	WINTER_GINGERBREAD_HONEY(Style.GINGERBREAD, Hat.Unlock.item("cookie"), "honey_bottle",
+			new int[]{0xFFD8A050, 0xFFF4C8D8, 0xFF5A3418}, 0xFF4A9AF2),
+	WINTER_CANDY_CANE_RED(Style.CANDY_CANE, Hat.Unlock.item("sugar_cane"), "sugar_cane",
+			new int[]{0xFFF4F4F0, 0xFFD02A34, 0xFFF4F4F0}, 0xFFFFFFFF),
+	WINTER_CANDY_CANE_GREEN(Style.CANDY_CANE, Hat.Unlock.item("sugar_cane"), "sugar_cane",
+			new int[]{0xFFF4F4F0, 0xFF2E8A3A, 0xFFF4F4F0}, 0xFFFFFFFF),
+	WINTER_CANDY_CANE_MINT(Style.CANDY_CANE, Hat.Unlock.item("sugar_cane"), "sugar_cane",
+			new int[]{0xFFD02A34, 0xFF2E8A3A, 0xFFF4F4F0}, 0xFFFFFFFF),
+	WINTER_SNOWMAN_RED(Style.SNOWMAN, Hat.Unlock.item("snow_block"), "snow_block",
+			new int[]{0xFFF4F6FA, 0xFFC8282A, 0xFFDCE2EC}, 0xFF1E1E22),
+	WINTER_SNOWMAN_GREEN(Style.SNOWMAN, Hat.Unlock.item("snow_block"), "snow_block",
+			new int[]{0xFFF4F6FA, 0xFF2E7A3A, 0xFFDCE2EC}, 0xFF1E1E22),
+	WINTER_SNOWMAN_BLUE(Style.SNOWMAN, Hat.Unlock.item("snow_block"), "snow_block",
+			new int[]{0xFFF4F6FA, 0xFF3A6AB8, 0xFFDCE2EC}, 0xFF1E1E22);
 
 	/** The kind of charm, shown in the wardrobe as one tile that opens its variants. */
 	public enum Style {
 		MINI(Hat.Group.ALL_YEAR), LANTERN(Hat.Group.ALL_YEAR), LUCKY(Hat.Group.ALL_YEAR), BELL(Hat.Group.ALL_YEAR),
 		PLUSH_WOLF(Hat.Group.ALL_YEAR), PLUSH_CAT(Hat.Group.ALL_YEAR),
-		GHOST(Hat.Group.SEASON), JACK(Hat.Group.SEASON), ACORN(Hat.Group.SEASON), CANDY(Hat.Group.SEASON);
+		GHOST(Hat.Group.SEASON), JACK(Hat.Group.SEASON), ACORN(Hat.Group.SEASON), CANDY(Hat.Group.SEASON),
+		BAUBLE(Hat.Group.WINTER), GINGERBREAD(Hat.Group.WINTER), CANDY_CANE(Hat.Group.WINTER), SNOWMAN(Hat.Group.WINTER);
 
-		/** Seasonal kinds can only be worn (and earned) in their months. */
+		/** Seasonal kinds can only be earned in their months; once earned, they can be worn all year. */
 		public final Hat.Group group;
 
 		Style(Hat.Group group) {
@@ -135,11 +160,12 @@ public enum Trinket {
 		this.accent = accent;
 	}
 
+	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE;
+		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
 	}
 
-	/** Whether it can be worn now: seasonal charms only in their months. */
+	/** Whether it can be earned now: seasonal charms only in their months. Once earned, they can be worn all year. */
 	public boolean inSeason() {
 		return style.group.inSeason();
 	}

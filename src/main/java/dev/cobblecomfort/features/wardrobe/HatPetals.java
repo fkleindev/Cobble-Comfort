@@ -16,9 +16,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * What falls from a hat: now and then a petal (or an autumn leaf) from a wreath and confetti from a party hat, more
- * often while its wearer runs; notes rise from headphones while a jukebox plays nearby; and a bell on the neck or
- * the back rings softly as its wearer walks.
+ * What falls from a hat: now and then a petal (or an autumn leaf) from a wreath and confetti from a party hat or a
+ * New Year's top hat, more often while its wearer runs; notes rise from headphones while a jukebox plays nearby; a
+ * bell on the neck or the back, an elf's hat or reindeer antlers rings softly as its wearer walks; snowflakes drift from
+ * ice wings, and rockets on the back spray sparks while their wearer is in the air.
  */
 final class HatPetals {
 	private static final double RANGE = 32.0;
@@ -55,6 +56,11 @@ final class HatPetals {
 				// The little bell on the back rings higher.
 				ring(mc, player, random, 2f);
 			}
+			Hat hat = WardrobeFeature.INSTANCE.hatFor(player);
+			if (bells && hat != null && (hat.style == Hat.Style.ELF || hat.style == Hat.Style.REINDEER)) {
+				// The jingle bell on an elf's tip or a reindeer's band.
+				ring(mc, player, random, 1.8f);
+			}
 			if (!particles) {
 				continue;
 			}
@@ -62,19 +68,38 @@ final class HatPetals {
 			if (player == mc.player && mc.options.getCameraType() == CameraType.FIRST_PERSON) {
 				continue;
 			}
-			Hat hat = WardrobeFeature.INSTANCE.hatFor(player);
+			BackPiece back = WardrobeFeature.INSTANCE.backFor(player);
+			if (back != null && back.style == BackPiece.Style.ICE_WINGS) {
+				fall(mc, player, random, ParticleTypes.SNOWFLAKE, 1f);
+			} else if (back != null && back.style == BackPiece.Style.ROCKETS) {
+				sparks(mc, player, random);
+			}
 			if (hat == null) {
 				continue;
 			}
 			switch (hat.style) {
 				case WREATH, LEAVES -> fall(mc, player, random, petal(hat, random), PETAL_SCALE);
-				case PARTY -> fall(mc, player, random,
+				case PARTY, SPARKLE -> fall(mc, player, random,
 						ColorParticleOption.create(ParticleTypes.TINTED_LEAVES, CONFETTI[random.nextInt(CONFETTI.length)]), CONFETTI_SCALE);
 				case HEADPHONES -> notes(mc, player, random);
 				default -> {
 				}
 			}
 		}
+	}
+
+	/** Sparks from the bottoms of the rockets on the back while their wearer is in the air: jumping or falling. */
+	private static void sparks(Minecraft mc, AbstractClientPlayer player, RandomSource random) {
+		if (player.onGround() || player.isPassenger() || random.nextFloat() > 0.6f) {
+			return;
+		}
+		double yaw = Math.toRadians(player.yBodyRot);
+		// Behind the back, a rocket to each side.
+		double side = random.nextBoolean() ? 0.2 : -0.2;
+		double x = player.getX() + Math.sin(yaw) * 0.35 - Math.cos(yaw) * side;
+		double z = player.getZ() - Math.cos(yaw) * 0.35 - Math.sin(yaw) * side;
+		double y = player.getY() + (player.isCrouching() ? 0.55 : 0.75);
+		mc.level.addParticle(ParticleTypes.FIREWORK, x, y, z, (random.nextDouble() - 0.5) * 0.04, -0.12, (random.nextDouble() - 0.5) * 0.04);
 	}
 
 	private static void fall(Minecraft mc, AbstractClientPlayer player, RandomSource random, ParticleOptions what, float scale) {

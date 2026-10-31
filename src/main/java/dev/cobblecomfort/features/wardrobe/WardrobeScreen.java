@@ -485,8 +485,8 @@ public final class WardrobeScreen extends Screen {
 			RenderUtil.roundedOutline(g, cx, cy, cx1, cy1, 4, MapUi.TEXT, RenderUtil.withAlpha(MapUi.TEXT, 0.5f));
 		}
 		preview(g, shown, cx, cy, cx1, cy1);
-		if (earned == 0 || !season) {
-			veil(g, cx, cy, cx1, cy1, earned == 0);
+		if (earned == 0) {
+			veil(g, cx, cy, cx1, cy1, true);
 		}
 		int dx = (cx + cx1) / 2 - (variants.size() * 4 - 1) / 2;
 		for (Hat hat : variants) {
@@ -495,8 +495,8 @@ public final class WardrobeScreen extends Screen {
 			dx += 4;
 		}
 		List<Component> tooltip = new ArrayList<>();
-		tooltip.add(style.title().copy().withStyle(earned > 0 && season ? ChatFormatting.WHITE : ChatFormatting.GRAY));
-		if (!season) {
+		tooltip.add(style.title().copy().withStyle(earned > 0 ? ChatFormatting.WHITE : ChatFormatting.GRAY));
+		if (earned < variants.size() && !season) {
 			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", style.group.season()).withStyle(ChatFormatting.GRAY));
 		}
 		tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_count", earned, variants.size()).withStyle(ChatFormatting.GRAY));
@@ -516,21 +516,18 @@ public final class WardrobeScreen extends Screen {
 		boolean worn = feature.hat() == hat;
 		tileBack(g, cx, cy, cx1, cy1, worn);
 		preview(g, hat, cx, cy, cx1, cy1);
-		if (!earned || !season) {
-			veil(g, cx, cy, cx1, cy1, !earned);
+		if (!earned) {
+			veil(g, cx, cy, cx1, cy1, true);
 		}
 		List<Component> tooltip = new ArrayList<>();
-		tooltip.add(hat.title().copy().withStyle(earned && season ? ChatFormatting.WHITE : ChatFormatting.GRAY));
-		if (!season) {
-			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", hat.style.group.season()).withStyle(ChatFormatting.GRAY));
-		}
+		tooltip.add(hat.title().copy().withStyle(earned ? ChatFormatting.WHITE : ChatFormatting.GRAY));
 		if (!earned) {
-			tooltip.add(unlockHint(hat.unlock).copy().withStyle(ChatFormatting.GRAY));
-		} else if (season) {
+			lockedHint(tooltip, hat.unlock, season, hat.style.group);
+		} else {
 			tooltip.add(Component.translatable(worn ? "cobblecomfort.wardrobe.hat_off" : "cobblecomfort.wardrobe.hat_on").withStyle(ChatFormatting.GRAY));
 		}
 		hits.add(new Hit(cx, cy, cx1, cy1, () -> {
-			if (feature.earned(hat) && hat.inSeason()) {
+			if (feature.earned(hat)) {
 				feature.wearHat(feature.hat() == hat ? null : hat);
 			}
 		}, tooltip));
@@ -657,6 +654,16 @@ public final class WardrobeScreen extends Screen {
 		return y;
 	}
 
+	/** How to earn something not yet yours: seasonal pieces only in their months (once earned, they stay), then the condition. */
+	private void lockedHint(List<Component> tooltip, Hat.Unlock unlock, boolean season, Hat.Group group) {
+		if (!season) {
+			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", group.season()).withStyle(ChatFormatting.GRAY));
+		}
+		if (unlock.kind() != Hat.Unlock.Kind.FREE) {
+			tooltip.add(unlockHint(unlock).copy().withStyle(ChatFormatting.GRAY));
+		}
+	}
+
 	/** One kind: shown in the colour worn, else its first; a dot below for each of its colours. */
 	private <S, P> void kindTile(GuiGraphicsExtractor g, Slot<S, P> slot, S style, int cx, int cy, int cx1, int cy1) {
 		List<P> variants = slot.variants().apply(style);
@@ -671,8 +678,8 @@ public final class WardrobeScreen extends Screen {
 			RenderUtil.roundedOutline(g, cx, cy, cx1, cy1, 4, MapUi.TEXT, RenderUtil.withAlpha(MapUi.TEXT, 0.5f));
 		}
 		slot.preview().draw(g, worn != null ? worn : variants.getFirst(), cx, cy, cx1, cy1);
-		if (!earned || !season) {
-			veil(g, cx, cy, cx1, cy1, !earned);
+		if (!earned) {
+			veil(g, cx, cy, cx1, cy1, true);
 		}
 		int dx = (cx + cx1) / 2 - (variants.size() * 4 - 1) / 2;
 		for (P piece : variants) {
@@ -682,12 +689,9 @@ public final class WardrobeScreen extends Screen {
 			dx += 4;
 		}
 		List<Component> tooltip = new ArrayList<>();
-		tooltip.add(slot.styleTitle().apply(style).copy().withStyle(earned && season ? ChatFormatting.WHITE : ChatFormatting.GRAY));
-		if (!season) {
-			tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", group.season()).withStyle(ChatFormatting.GRAY));
-		}
+		tooltip.add(slot.styleTitle().apply(style).copy().withStyle(earned ? ChatFormatting.WHITE : ChatFormatting.GRAY));
 		if (!earned) {
-			tooltip.add(unlockHint(slot.unlock().apply(variants.getFirst())).copy().withStyle(ChatFormatting.GRAY));
+			lockedHint(tooltip, slot.unlock().apply(variants.getFirst()), season, group);
 		}
 		tooltip.add(Component.translatable(open ? "cobblecomfort.wardrobe.hat_colors_hide" : "cobblecomfort.wardrobe.hat_colors")
 				.withStyle(ChatFormatting.GRAY));
@@ -716,21 +720,18 @@ public final class WardrobeScreen extends Screen {
 			Hat.Group group = slot.group().apply(style);
 			tileBack(g, cx, cy, cx1, cy1, worn);
 			slot.preview().draw(g, piece, cx, cy, cx1, cy1);
-			if (!earned || !group.inSeason()) {
-				veil(g, cx, cy, cx1, cy1, !earned);
+			if (!earned) {
+				veil(g, cx, cy, cx1, cy1, true);
 			}
 			List<Component> tooltip = new ArrayList<>();
-			tooltip.add(slot.title().apply(piece).copy().withStyle(earned && group.inSeason() ? ChatFormatting.WHITE : ChatFormatting.GRAY));
-			if (!group.inSeason()) {
-				tooltip.add(Component.translatable("cobblecomfort.wardrobe.hat_out_of_season", group.season()).withStyle(ChatFormatting.GRAY));
-			}
+			tooltip.add(slot.title().apply(piece).copy().withStyle(earned ? ChatFormatting.WHITE : ChatFormatting.GRAY));
 			if (!earned) {
-				tooltip.add(unlockHint(slot.unlock().apply(piece)).copy().withStyle(ChatFormatting.GRAY));
-			} else if (group.inSeason()) {
+				lockedHint(tooltip, slot.unlock().apply(piece), group.inSeason(), group);
+			} else {
 				tooltip.add(Component.translatable(worn ? slot.off() : slot.on()).withStyle(ChatFormatting.GRAY));
 			}
 			hits.add(new Hit(cx, cy, cx1, cy1, () -> {
-				if (slot.earned().test(piece) && group.inSeason()) {
+				if (slot.earned().test(piece)) {
 					slot.wear().accept(slot.worn().get() == piece ? null : piece);
 				}
 			}, tooltip));

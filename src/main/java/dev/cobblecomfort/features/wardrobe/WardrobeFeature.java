@@ -342,15 +342,15 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return false;
 	}
 
-	/** The hat you wear, or null (a seasonal one is put away out of its season). */
+	/** The hat you wear, or null. */
 	public Hat hat() {
 		Hat hat = Hat.byKey(config.hat);
-		return hat != null && earned(hat) && hat.inSeason() ? hat : null;
+		return hat != null && earned(hat) ? hat : null;
 	}
 
 	/** Puts a hat on (null: none). */
 	public void wearHat(Hat hat) {
-		if (hat != null && (!earned(hat) || !hat.inSeason())) {
+		if (hat != null && !earned(hat)) {
 			return;
 		}
 		config.hat = hat == null ? "" : hat.key();
@@ -430,15 +430,15 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return false;
 	}
 
-	/** What you wear round your neck, or null (a seasonal piece is put away out of its season). */
+	/** What you wear round your neck, or null. */
 	public Neck neck() {
 		Neck neck = Neck.byKey(config.neck);
-		return neck != null && earned(neck) && neck.inSeason() ? neck : null;
+		return neck != null && earned(neck) ? neck : null;
 	}
 
 	/** Puts a neck piece on (null: none). */
 	public void wearNeck(Neck neck) {
-		if (neck != null && (!earned(neck) || !neck.inSeason())) {
+		if (neck != null && !earned(neck)) {
 			return;
 		}
 		config.neck = neck == null ? "" : neck.key();
@@ -516,18 +516,18 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	/** What you carry on your back, or null. */
 	public BackPiece back() {
 		BackPiece piece = BackPiece.byKey(config.back);
-		return piece != null && earned(piece) && piece.inSeason() ? piece : null;
+		return piece != null && earned(piece) ? piece : null;
 	}
 
 	/** The charm hanging on your back, or null. */
 	public Trinket trinket() {
 		Trinket trinket = Trinket.byKey(config.trinket);
-		return trinket != null && earned(trinket) && trinket.inSeason() ? trinket : null;
+		return trinket != null && earned(trinket) ? trinket : null;
 	}
 
 	/** Puts a piece on your back (null: none). */
 	public void wearBack(BackPiece piece) {
-		if (piece != null && (!earned(piece) || !piece.inSeason())) {
+		if (piece != null && !earned(piece)) {
 			return;
 		}
 		config.back = piece == null ? "" : piece.key();
@@ -536,7 +536,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	/** Hangs a charm on your back (null: none). */
 	public void wearTrinket(Trinket trinket) {
-		if (trinket != null && (!earned(trinket) || !trinket.inSeason())) {
+		if (trinket != null && !earned(trinket)) {
 			return;
 		}
 		config.trinket = trinket == null ? "" : trinket.key();

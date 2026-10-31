@@ -100,7 +100,19 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 				pumpkin(boxes, piece, back);
 				shoulderStraps(straps, piece.main[2], back, front);
 			}
-			case WINGS, SWORD, GUITAR, PLUSH_WOLF, PLUSH_CAT, BAT_WINGS, BROOM, SCYTHE -> {
+			case GIFT_SACK -> {
+				sack(boxes, piece, back);
+				shoulderStraps(straps, piece.main[1], back, front);
+			}
+			case TREE -> {
+				tree(boxes, piece, back);
+				shoulderStraps(straps, LEATHER, back, front);
+			}
+			case ROCKETS -> {
+				rockets(boxes, piece, back);
+				shoulderStraps(straps, piece.second, back, front);
+			}
+			case WINGS, SWORD, GUITAR, PLUSH_WOLF, PLUSH_CAT, BAT_WINGS, BROOM, SCYTHE, ICE_WINGS -> {
 			}
 		}
 		// Bigger than life, grown out from the middle of the back; the straps stay on the body.
@@ -117,12 +129,12 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 				new HatLayer.Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light, state.id, 0f)
 						.hang(0, new Vector3f(7f * BIG * V, 9f * BIG * V, (back + 3f * BIG) * V), 1.5f, 1, k -> mug(piece));
 			}
-			case WINGS, BAT_WINGS -> wings(pose, collector, piece, back, player, preview != null, light);
+			case WINGS, BAT_WINGS, ICE_WINGS -> wings(pose, collector, piece, back, player, preview != null, light);
 			case SWORD -> sword(pose, collector, piece, back, front, player, light);
 			case GUITAR -> slanted(pose, collector, back, front, -SLANT, guitar(piece), strap(piece.main[2]), light);
 			case BROOM -> slanted(pose, collector, back, front, SLANT, broom(piece), strap(LEATHER), light);
 			case SCYTHE -> slanted(pose, collector, back, front, -SLANT, scythe(piece), strap(LEATHER), light);
-			case SHELL, PLUSH_WOLF, PLUSH_CAT, PUMPKIN_PACK -> {
+			case SHELL, PLUSH_WOLF, PLUSH_CAT, PUMPKIN_PACK, GIFT_SACK, TREE, ROCKETS -> {
 			}
 		}
 		pose.popPose();
@@ -130,7 +142,10 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 
 	/** Whether the piece is a pair of wings, which spread far beyond the back. */
 	static boolean winged(BackPiece piece) {
-		return piece.style == BackPiece.Style.WINGS || piece.style == BackPiece.Style.BAT_WINGS;
+		return switch (piece.style) {
+			case WINGS, BAT_WINGS, ICE_WINGS -> true;
+			default -> false;
+		};
 	}
 
 	/** How far behind the body's middle its back lies (blocks), over the jacket layer or a chestplate. */
@@ -154,6 +169,10 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			case BROOM -> slantPoint(SLANT, 0f, 7f * GUITAR_SCALE, b + 2.5f * GUITAR_SCALE);
 			case SCYTHE -> slantPoint(-SLANT, 3f * GUITAR_SCALE, -6f * GUITAR_SCALE, b + 1.5f * GUITAR_SCALE);
 			case PUMPKIN_PACK -> new Vector3f(-6f * BIG * V, 15f * BIG * V, (b + 4.5f * BIG) * V);
+			case GIFT_SACK -> new Vector3f(-6.5f * BIG * V, 15f * BIG * V, (b + 3.5f * BIG) * V);
+			case TREE -> new Vector3f(-6.5f * BIG * V, 15f * BIG * V, (b + 3f * BIG) * V);
+			case ROCKETS -> new Vector3f(0f, 15f * BIG * V, (b + 2.5f * BIG) * V);
+			case ICE_WINGS -> wingPoint(b, beat(player, still), 6f, 2f, 1.2f);
 		};
 	}
 
@@ -230,7 +249,8 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 	private static void wings(PoseStack pose, SubmitNodeCollector collector, BackPiece piece, float back, AbstractClientPlayer player,
 			boolean still, int light) {
 		float beat = beat(player, still);
-		List<Box> wing = piece.style == BackPiece.Style.BAT_WINGS ? leatherWing(piece) : switch (piece) {
+		List<Box> wing = piece.style == BackPiece.Style.BAT_WINGS ? leatherWing(piece)
+				: piece.style == BackPiece.Style.ICE_WINGS ? iceWing(piece) : switch (piece) {
 			case WINGS_FAIRY -> fairyWing(piece);
 			case WINGS_BAT -> batWing(piece);
 			default -> angelWing(piece);
@@ -411,6 +431,144 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		out.add(raw(-0.75f, 2f, back + 3.75f, 0.75f, 4f, back + 5.25f, piece.second));
 		out.add(raw(0.75f, 2f, back + 3.75f, 2f, 2.75f, back + 5.25f, piece.second));
 		out.add(raw(-3.5f, 3.5f, back + 4f, -0.75f, 4f, back + 6f, lighter(piece.second)));
+	}
+
+	// ---------------------------------------------------------------- christmas and new year
+
+	/** Santa's sack: bulging, gathered at the neck with a rope, a patch sewn on, and two wrapped gifts peeking out. */
+	private static void sack(List<Box> out, BackPiece piece, float back) {
+		int cloth = piece.main[0];
+		int shade = piece.main[1];
+		out.add(raw(-6f, 6f, back, 6f, 18f, back + 7f, cloth));
+		out.add(raw(-5f, 5f, back + 0.5f, 5f, 19f, back + 6.5f, cloth));
+		out.add(raw(-6.75f, 8f, back + 1f, 6.75f, 16f, back + 6f, cloth));
+		out.add(raw(-5f, 17f, back + 0.25f, 5f, 18.5f, back + 6.75f, shade));
+		// Folds where it is gathered.
+		out.add(raw(-3f, 2.5f, back + 2f, 3f, 5f, back + 5f, cloth));
+		for (float x : new float[]{-2f, 0f, 2f}) {
+			out.add(raw(x - 0.2f, 4.5f, back + 5f, x + 0.2f, 8f, back + 7.1f, shade));
+		}
+		out.add(raw(-3.25f, 3.5f, back + 1.75f, 3.25f, 4.25f, back + 5.25f, piece.main[2]));
+		out.add(raw(2.5f, 4.25f, back + 4.75f, 3.25f, 7f, back + 5.25f, piece.main[2]));
+		out.add(raw(1.5f, 11f, back + 7f, 4f, 13.5f, back + 7.1f, shade));
+		// The gifts, each with a ribbon round it and a bow on top.
+		gift(out, -4f, 0f, -2f, back + 1.5f, back + 5f, piece.accent, piece.main[2]);
+		gift(out, 0.25f, 3.25f, -0.5f, back + 2.5f, back + 5.5f, piece.second, piece.accent);
+	}
+
+	private static void gift(List<Box> out, float x0, float x1, float top, float z0, float z1, int paper, int ribbon) {
+		float mx = (x0 + x1) / 2f;
+		float mz = (z0 + z1) / 2f;
+		out.add(raw(x0, top, z0, x1, 3f, z1, paper));
+		out.add(raw(mx - 0.3f, top - 0.05f, z0 - 0.05f, mx + 0.3f, 3f, z1 + 0.05f, ribbon));
+		out.add(raw(x0 - 0.05f, top - 0.05f, mz - 0.3f, x1 + 0.05f, 3f, mz + 0.3f, ribbon));
+		out.add(raw(mx - 1.25f, top - 1f, mz - 0.4f, mx - 0.2f, top, mz + 0.4f, ribbon));
+		out.add(raw(mx + 0.2f, top - 1f, mz - 0.4f, mx + 1.25f, top, mz + 0.4f, ribbon));
+	}
+
+	/**
+	 * A little fir tree strapped to the back: tiers of needles narrowing up, snow or a shade on their edges, baubles,
+	 * lights that glow, and a shining star on top.
+	 */
+	private static void tree(List<Box> out, BackPiece piece, float back) {
+		int needles = piece.main[0];
+		int edge = piece.main[1];
+		out.add(raw(-1.25f, 17f, back + 2f, 1.25f, 19f, back + 4.5f, piece.main[2]));
+		// Tiers: top, bottom (voxels down), half width, depth.
+		float[][] tiers = {{12f, 17f, 6.5f, 6f}, {7.5f, 12.5f, 5f, 5f}, {3.5f, 8f, 3.5f, 4f}, {0.5f, 4f, 2f, 3f}};
+		for (float[] t : tiers) {
+			float z0 = back + 0.5f + (6f - t[3]) / 2f;
+			out.add(raw(-t[2], t[0], z0, t[2], t[1], z0 + t[3], needles));
+			out.add(raw(-t[2] - 0.25f, t[1] - 1f, z0 - 0.25f, t[2] + 0.25f, t[1], z0 + t[3] + 0.25f, edge));
+		}
+		// Baubles on the outer face, and lights glowing between them.
+		float[][] baubles = {{-4f, 14.5f}, {3f, 15f}, {-1f, 10f}, {2.5f, 9f}, {-2f, 6f}, {1f, 2.5f}};
+		int[] lights = {0xFFF2D23A, 0xFFF23A3A, 0xFF4A9AF2, 0xFFF4F4F0};
+		for (int i = 0; i < baubles.length; i++) {
+			float x = baubles[i][0];
+			float y = baubles[i][1];
+			float face = back + 6.5f - (6f - depthAt(tiers, y)) / 2f;
+			out.add(raw(x - 0.6f, y - 0.6f, face, x + 0.6f, y + 0.6f, face + 0.6f, i % 2 == 0 ? piece.second : piece.accent));
+			float lx = x + (i % 2 == 0 ? 2f : -2f);
+			out.add(raw(lx - 0.3f, y + 1f, face, lx + 0.3f, y + 1.6f, face + 0.3f, lights[i % lights.length]).glowing());
+		}
+		// The star: a point up, two to the sides, and a glowing middle.
+		float z = back + 2.75f;
+		out.add(raw(-1f, -2f, z, 1f, 0.5f, z + 1f, piece.accent).glowing());
+		out.add(raw(-0.4f, -3f, z, 0.4f, -2f, z + 1f, piece.accent).glowing());
+		out.add(raw(-2f, -1.25f, z, 2f, -0.5f, z + 1f, piece.accent).glowing());
+	}
+
+	/** The depth of the tree's tier at the height {@code y} (voxels down). */
+	private static float depthAt(float[][] tiers, float y) {
+		for (float[] t : tiers) {
+			if (y >= t[0] && y <= t[1]) {
+				return t[3];
+			}
+		}
+		return tiers[0][3];
+	}
+
+	/** Two New Year's rockets on a harness: striped tubes with pointed tips, fins and nozzles at the bottom, and fuses. */
+	private static void rockets(List<Box> out, BackPiece piece, float back) {
+		out.add(raw(-5f, 3f, back, 5f, 15f, back + 1f, piece.second));
+		out.add(raw(-5.5f, 8f, back - 0.1f, 5.5f, 9f, back + 1.1f, ARGB.scaleRGB(piece.second, 0.8f)));
+		for (int s = -1; s <= 1; s += 2) {
+			float x = s * 3.25f;
+			float z0 = back + 1f;
+			float z1 = back + 4.5f;
+			float mz = (z0 + z1) / 2f;
+			out.add(raw(x - 1.75f, 4f, z0, x + 1.75f, 16f, z1, piece.main[0]));
+			for (float y : new float[]{6f, 9.5f, 13f}) {
+				out.add(raw(x - 1.8f, y, z0 - 0.05f, x + 1.8f, y + 1f, z1 + 0.05f, piece.main[1]));
+			}
+			out.add(raw(x - 1.25f, 2f, mz - 1.25f, x + 1.25f, 4f, mz + 1.25f, piece.main[2]));
+			out.add(raw(x - 0.75f, 0.5f, mz - 0.75f, x + 0.75f, 2f, mz + 0.75f, piece.main[2]));
+			out.add(raw(x - 0.3f, -0.5f, mz - 0.3f, x + 0.3f, 0.5f, mz + 0.3f, lighter(piece.main[2])));
+			// Fins to the sides and out from the back.
+			out.add(raw(x - 2.75f, 13.5f, mz - 0.25f, x - 1.75f, 17f, mz + 0.25f, piece.accent));
+			out.add(raw(x + 1.75f, 13.5f, mz - 0.25f, x + 2.75f, 17f, mz + 0.25f, piece.accent));
+			out.add(raw(x - 0.25f, 13.5f, z1, x + 0.25f, 17f, z1 + 1f, piece.accent));
+			out.add(raw(x - 1f, 16f, mz - 1f, x + 1f, 17f, mz + 1f, 0xFF2A2A2E));
+			out.add(raw(x - 0.15f, 17f, mz - 0.15f, x + 0.15f, 18.5f, mz + 0.15f, 0xFFB8A070));
+		}
+	}
+
+	/**
+	 * A wing of ice: long crystal shards fanning out from the shoulder, tapering to glowing tips, with frosted plates
+	 * between them near the root and smaller shards branching off.
+	 */
+	private static List<Box> iceWing(BackPiece piece) {
+		List<Box> out = new ArrayList<>();
+		for (float x = 0f; x < 9f; x += 1f) {
+			float top = -0.5f - 0.9f * x;
+			float bottom = 3f - 0.1f * x;
+			out.add(raw(x, top, 0.4f, x + 1f, bottom, 0.85f, x % 2 == 0 ? piece.main[2] : piece.main[1]));
+		}
+		float[][] shards = {{14f, -13f}, {17f, -6f}, {16f, 1f}, {11f, 6f}};
+		for (float[] s : shards) {
+			shard(out, 0f, 0.5f, s[0], s[1], 2.4f, 0.6f, piece);
+			// A small shard off its middle.
+			float mx = s[0] * 0.55f;
+			float my = 0.5f + (s[1] - 0.5f) * 0.55f;
+			shard(out, mx, my, mx + 2.5f, my - 2.5f, 1f, 0.5f, piece);
+		}
+		return out;
+	}
+
+	/** A crystal from one point to another as a row of cubes, tapering, light outside and glowing at its tip. */
+	private static void shard(List<Box> out, float x0, float y0, float x1, float y1, float size0, float size1, BackPiece piece) {
+		float length = (float) Math.hypot(x1 - x0, y1 - y0);
+		int steps = Math.max(2, (int) Math.ceil(length / 0.7f));
+		for (int i = 0; i <= steps; i++) {
+			float t = (float) i / steps;
+			float x = x0 + (x1 - x0) * t;
+			float y = y0 + (y1 - y0) * t;
+			float h = (size0 + (size1 - size0) * t) / 2f;
+			int color = t < 0.4f ? piece.main[1] : piece.main[0];
+			Box cube = raw(x - h, y - h, 0.6f - h * 0.5f, x + h, y + h, 0.6f + h * 0.5f, t > 0.85f ? piece.accent : color);
+			out.add(t > 0.85f ? cube.glowing() : cube);
+		}
 	}
 
 	// ---------------------------------------------------------------- slanted: sword and guitar

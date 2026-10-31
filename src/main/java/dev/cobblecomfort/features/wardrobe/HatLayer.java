@@ -62,6 +62,14 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static final int PARTY_LAYERS = 6;
 	private static final float PARTY_X = -2f;
 	private static final float PARTY_LEAN = 0.4f;
+	/** Elf hat: its cone's layers, how far each leans back (voxels), and where the cone ends (voxels up). */
+	private static final int ELF_LAYERS = 6;
+	private static final float ELF_LEAN = 0.7f;
+	private static final float ELF_TOP = 1f + 1.5f * ELF_LAYERS;
+	/** Santa hat: its cone's layers, and how far each leans to the right and back (voxels). */
+	private static final int SANTA_LAYERS = 7;
+	private static final float SANTA_LEAN_X = 0.9f;
+	private static final float SANTA_LEAN_Z = 0.3f;
 	/** Cap: where its lower edge and visor sit, in voxels up from the top of the head. */
 	private static final float CAP_BASE = -2f;
 	/** Cap: the colour under its visor. */
@@ -164,6 +172,10 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case USHANKA -> ushankaHat(boxes, hat, helmet);
 			case TIARA -> tiaraHat(boxes, hat, helmet);
 			case NINJA -> ninjaHat(boxes, hat, helmet);
+			case SANTA -> santaHat(boxes, hat, helmet);
+			case REINDEER -> reindeerHat(boxes, hat, helmet);
+			case ELF -> elfHat(boxes, hat, helmet);
+			case SPARKLE -> sparkleHat(boxes, hat, helmet);
 		}
 		submit(pose, collector, boxes, helmet, light);
 		if (hat.fancy && hat.style != Hat.Style.CROWN) {
@@ -268,6 +280,11 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				}
 				case PARTY -> stand(0, at(PARTY_X - PARTY_LEAN * PARTY_LAYERS, 1.5f * PARTY_LAYERS, 0f), 1f, 1, new Vector3f(), POMPOM_STIFF,
 						damping, k -> partyPompom(hat));
+				case SANTA -> hang(0, at(SANTA_LEAN_X * (SANTA_LAYERS - 1) + 3.5f, 1.5f + 1.5f * SANTA_LAYERS, 0f),
+						4f, 2, damping + STRAND_DAMPING, 0.6f, k -> santaTip(hat, k));
+				case REINDEER -> hang(0, at(-9.75f, 0f, -1f), 1.5f, 1, k -> jingleBell(hat));
+				// The tip curls back, its bell bobbing at the end.
+				case ELF -> stand(0, at(0f, ELF_TOP, ELF_LEAN * (ELF_LAYERS - 1)), 3f, 3, new Vector3f(0f, 0f, 0.35f), k -> elfTip(hat, k));
 				case BEANIE -> {
 					if (hat == Hat.BEANIE_BEE) {
 						stand(0, at(8f, 1f, -4f), 7f, 1, new Vector3f(0.7f, 0f, -0.3f), k -> bee());
@@ -1554,6 +1571,152 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			}
 		}
 		return out;
+	}
+
+	// ---------------------------------------------------------------- christmas and new year
+
+	/**
+	 * A Santa hat: a thick tufted fur brim (with the helmet's look below it if one is worn), a tall soft cone leaning to
+	 * the back right, from whose top the tip flops over and hangs with a fluffy pompom.
+	 */
+	private static void santaHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		int cloth = hat.main[0];
+		int fur = hat.main[2];
+		if (helmet != null) {
+			ring(out, helmet, 1, -1.5f, 9f, 9.75f, (i, row) -> fur);
+		}
+		ring(out, null, 3, 1.5f, 9f, 11f, (i, row) -> (i + row) % 3 == 0 ? ARGB.scaleRGB(fur, 0.9f) : fur);
+		for (int k = 0; k < SANTA_LAYERS; k++) {
+			float half = 8.5f - 1.05f * k;
+			float x = SANTA_LEAN_X * k;
+			float z = SANTA_LEAN_Z * k;
+			// Shaded on the side it leans away from, so it looks soft and round.
+			out.add(up(x - half, 1.5f + 1.5f * k, z - half, x + half, 3f + 1.5f * k, z + half, cloth, false));
+			out.add(up(x - half - 0.1f, 1.5f + 1.5f * k, z - half + 1f, x - half + 0.9f, 3f + 1.5f * k, z + half - 1f, hat.main[1], false));
+		}
+	}
+
+	private static List<Box> santaTip(Hat hat, int k) {
+		float half = 2.25f - 0.5f * k;
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-half, 0f, -half, half, 4f, half, k == 0 ? hat.main[0] : hat.main[1]));
+		if (k == 1) {
+			out.add(raw(-2f, 4f, -2f, 2f, 8f, 2f, hat.accent));
+			int tuft = ARGB.scaleRGB(hat.accent, 0.9f);
+			out.add(raw(-2.5f, 4.75f, -1.25f, 2.5f, 7.25f, 1.25f, tuft));
+			out.add(raw(-1.25f, 4.75f, -2.5f, 1.25f, 7.25f, 2.5f, tuft));
+			out.add(raw(-1.25f, 8f, -1.25f, 1.25f, 8.5f, 1.25f, tuft));
+		}
+		return out;
+	}
+
+	/**
+	 * Reindeer antlers on a headband (showing the helmet): each a beam climbing outwards in steps with tines branching
+	 * off, light at their tips; furry ears below them, and a jingle bell on a bow at the side.
+	 */
+	private static void reindeerHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		headband(out, helmet, hat.main[2], -1f);
+		int antler = hat.main[0];
+		int tip = hat.main[1];
+		// Beam steps and tines on the right (x0, y0, x1, y1 in voxels up), mirrored for the left.
+		float[][] beam = {{4.5f, 1f, 6.5f, 4f}, {5.5f, 4f, 7.5f, 7f}, {6.5f, 7f, 8.5f, 10f}, {7.5f, 10f, 9f, 12.5f}};
+		float[][] tines = {{8.5f, 5f, 11f, 6f}, {10f, 6f, 11f, 8.5f}, {4f, 8f, 6.5f, 9f}, {4f, 9f, 5f, 11f}};
+		for (int s = -1; s <= 1; s += 2) {
+			for (float[] b : beam) {
+				out.add(up(s > 0 ? b[0] : -b[2], b[1], -1.75f, s > 0 ? b[2] : -b[0], b[3], -0.25f, antler, false));
+			}
+			for (float[] t : tines) {
+				out.add(up(s > 0 ? t[0] : -t[2], t[1], -1.6f, s > 0 ? t[2] : -t[0], t[3], -0.4f, antler, false));
+			}
+			// The tips, lighter.
+			for (float[] t : new float[][]{{7.5f, 12.5f, 9f}, {10f, 8.5f, 11f}, {4f, 11f, 5f}}) {
+				out.add(up(s > 0 ? t[0] : -t[2], t[1], -1.6f, s > 0 ? t[2] : -t[0], t[1] + 0.75f, -0.4f, tip, false));
+			}
+			// A front tine low on the beam.
+			out.add(up(s * 5.5f - 0.5f, 2.5f, -4f, s * 5.5f + 0.5f, 3.5f, -1.75f, antler, false));
+			// A furry ear sticking out sideways under the antler.
+			out.add(up(s < 0 ? -12f : 8.75f, -2f, -1.5f, s < 0 ? -8.75f : 12f, 0f, 0.5f, hat.accent, false));
+			out.add(up(s < 0 ? -11.5f : 9.25f, -1.5f, -1.6f, s < 0 ? -9.25f : 11.5f, -0.5f, -1.5f, lighter(hat.accent), false));
+		}
+		// The bow the bell hangs from.
+		out.add(up(-10.5f, -0.5f, -3f, -9.25f, 1.5f, -1.75f, hat.second, false));
+		out.add(up(-10.5f, -0.5f, -0.25f, -9.25f, 1.5f, 1f, hat.second, false));
+		out.add(up(-10.75f, 0f, -1.75f, -9.25f, 1f, -0.25f, ARGB.scaleRGB(hat.second, 0.8f), false));
+	}
+
+	private static List<Box> jingleBell(Hat hat) {
+		int metal = hat.third;
+		return List.of(raw(-0.3f, 0f, -0.3f, 0.3f, 0.6f, 0.3f, ARGB.scaleRGB(metal, 0.7f)), raw(-1.1f, 0.6f, -1.1f, 1.1f, 2.8f, 1.1f, metal),
+				raw(-1.4f, 1f, -0.8f, 1.4f, 2.4f, 0.8f, metal), raw(-0.8f, 1f, -1.4f, 0.8f, 2.4f, 1.4f, metal),
+				raw(-0.7f, 2.1f, -1.45f, 0.7f, 2.3f, -1.4f, 0xFF2A2A2E), raw(-0.6f, 1.1f, -1.45f, -0.2f, 1.5f, -1.4f, lighter(metal)));
+	}
+
+	/** An elf's hat: a cuff showing the helmet with zigzag points, and a tall cone leaning back to a curling tip with a bell. */
+	private static void elfHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		int cuff = hat.main[2];
+		ring(out, helmet, 2, 1f, 9f, 10.25f, (i, row) -> cuff);
+		for (int side = 0; side < 4; side++) {
+			List<Box> part = new ArrayList<>();
+			for (float x : new float[]{-7.5f, -2.5f, 2.5f, 7.5f}) {
+				part.add(up(x - 1.5f, -2f, -10.25f, x + 1.5f, -1f, -9.5f, cuff, false));
+				part.add(up(x - 0.6f, -3f, -10.25f, x + 0.6f, -2f, -9.5f, cuff, false));
+			}
+			turn(part, side, out);
+		}
+		boolean striped = hat == Hat.WINTER_ELF_STRIPED;
+		for (int k = 0; k < ELF_LAYERS; k++) {
+			float half = 8f - 1.1f * k;
+			float z = ELF_LEAN * k;
+			int color = striped && k % 2 == 1 ? hat.main[1] : hat.main[0];
+			out.add(up(-half, 1f + 1.5f * k, z - half, half, 2.5f + 1.5f * k, z + half, color, false));
+		}
+	}
+
+	private static List<Box> elfTip(Hat hat, int k) {
+		float half = 1.75f - 0.45f * k;
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-half, -3f, -half, half, 0f, half, hat == Hat.WINTER_ELF_STRIPED && k % 2 == 0 ? hat.main[1] : hat.main[0]));
+		if (k == 2) {
+			out.add(raw(-1f, -4.75f, -1f, 1f, -3f, 1f, hat.accent));
+			out.add(raw(-0.6f, -4.5f, -1.05f, -0.2f, -4.1f, -1f, lighter(hat.accent)));
+		}
+		return out;
+	}
+
+	/**
+	 * A small New Year's top hat worn tilted to one side: a band and a brim, glittering with sparkles that twinkle, and
+	 * the elastic down the cheeks showing the helmet.
+	 */
+	private static void sparkleHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		float cx = 2f;
+		out.add(up(cx - 7.5f, 0f, -7f, cx + 7.5f, 0.75f, 7f, hat.main[1], false));
+		float lean = 0.35f;
+		int layers = 7;
+		for (int k = 0; k < layers; k++) {
+			float x = cx + lean * k;
+			out.add(up(x - 4.5f, 0.75f + 1.25f * k, -4.5f, x + 4.5f, 2f + 1.25f * k, 4.5f, k < 2 ? hat.accent : hat.main[0], false));
+		}
+		float topX = cx + lean * (layers - 1);
+		out.add(up(topX - 4.5f, 0.75f + 1.25f * layers, -4.5f, topX + 4.5f, 1f + 1.25f * layers, 4.5f, lighter(hat.main[0]), false));
+		// Sparkles on the front and the right, a few lit at a time.
+		double seconds = System.nanoTime() % 1_000_000_000_000L / 1e9;
+		float[][] spots = {{-2.5f, 4f}, {1.5f, 6f}, {3f, 3.5f}, {-1f, 8f}, {2.5f, 8.75f}, {-3f, 6.75f}};
+		for (int i = 0; i < spots.length; i++) {
+			float y = spots[i][1];
+			float x = cx + lean * ((y - 0.75f) / 1.25f) + spots[i][0];
+			boolean lit = ((int) (seconds * 4.0) + i * 2) % 5 < 2;
+			Box front = up(x - 0.35f, y - 0.35f, -4.65f, x + 0.35f, y + 0.35f, -4.5f, lit ? hat.second : lighter(hat.main[0]), false);
+			out.add(lit ? front.glowing() : front);
+			float sx = cx + lean * ((y - 0.75f) / 1.25f) + 4.5f;
+			Box side = up(sx, y - 0.35f, spots[i][0] - 0.35f, sx + 0.15f, y + 0.35f, spots[i][0] + 0.35f,
+					lit ? lighter(hat.main[0]) : hat.second, false);
+			out.add(lit ? side : side.glowing());
+		}
+		boolean shows = helmet != null;
+		for (int s = -1; s <= 1; s += 2) {
+			float x0 = s < 0 ? -9.25f : 8f;
+			out.add(up(x0, -13f, -0.5f, x0 + 1.25f, 0f, 0.5f, shows ? helmet.tile(s < 0 ? 0 : 1, 0) : 0xFFE8E8E8, shows));
+		}
 	}
 
 	// ---------------------------------------------------------------- geometry

@@ -11,7 +11,8 @@ import java.util.Locale;
 
 /**
  * Something worn round the neck, in one of its colours, over a chestplate if there is one. The autumn and Halloween
- * ones can only be worn in October and November. All colours of a kind are earned together. The order is the piece's id when shared with other players: only ever append.
+ * ones can only be earned in October and November, then worn all year. All colours of a kind are earned together. The
+ * order is the piece's id when shared with other players: only ever append.
  */
 public enum Neck {
 	SCARF_STRIPED(Style.SCARF, Hat.Unlock.biome("snowy_plains"), "red_wool",
@@ -89,15 +90,34 @@ public enum Neck {
 	HALLOWEEN_BONES_WITHER(Style.BONES, Hat.Unlock.item("bone"), "wither_skeleton_skull",
 			new int[]{0xFF4A4A50, 0xFF333338, 0xFF1A1A1E}, 0xFF2A2A2E, 0xFF8A1E1E),
 	HALLOWEEN_BONES_GOLD(Style.BONES, Hat.Unlock.item("bone"), "gold_nugget",
-			new int[]{0xFFF2D25A, 0xFFC8A030, 0xFF3A2A1A}, 0xFFF2D25A, 0xFF1A1A1A);
+			new int[]{0xFFF2D25A, 0xFFC8A030, 0xFF3A2A1A}, 0xFFF2D25A, 0xFF1A1A1A),
+	WINTER_LIGHTS_CLASSIC(Style.LIGHTS, Hat.Unlock.item("glowstone_dust"), "glowstone_dust",
+			new int[]{0xFFF23A3A, 0xFF4AD25A, 0xFFF2D23A}, 0xFF4A9AF2, 0xFF1E3A22),
+	WINTER_LIGHTS_WARM(Style.LIGHTS, Hat.Unlock.item("glowstone_dust"), "glowstone_dust",
+			new int[]{0xFFFFE6A8, 0xFFFFD27A, 0xFFFFF0C8}, 0xFFFFDA90, 0xFF2A2A2E),
+	WINTER_LIGHTS_ICE(Style.LIGHTS, Hat.Unlock.item("glowstone_dust"), "glowstone_dust",
+			new int[]{0xFF8AD8FF, 0xFFF4FAFF, 0xFF4A9AF2}, 0xFFC8ECFF, 0xFFD8DCE4),
+	WINTER_TINSEL_GOLD(Style.TINSEL, Hat.Unlock.free(), "gold_nugget",
+			new int[]{0xFFE8C040, 0xFFC09A28, 0xFFFFE680}, 0xFFFFF8D0, 0),
+	WINTER_TINSEL_SILVER(Style.TINSEL, Hat.Unlock.free(), "iron_nugget",
+			new int[]{0xFFC8CCD4, 0xFF9AA0AA, 0xFFE8ECF2}, 0xFFFFFFFF, 0),
+	WINTER_TINSEL_RED(Style.TINSEL, Hat.Unlock.free(), "red_dye",
+			new int[]{0xFFD02A34, 0xFFA01E26, 0xFFF0606A}, 0xFFFFD0D4, 0),
+	WINTER_NORDIC_RED(Style.NORDIC, Hat.Unlock.item("snowball"), "snowball",
+			new int[]{0xFFB82A2E, 0xFFF4F4F0, 0xFF2A5A34}, 0, 0),
+	WINTER_NORDIC_NAVY(Style.NORDIC, Hat.Unlock.item("snowball"), "snowball",
+			new int[]{0xFF22325E, 0xFFF4F4F0, 0xFF6AA8E0}, 0, 0),
+	WINTER_NORDIC_GREEN(Style.NORDIC, Hat.Unlock.item("snowball"), "snowball",
+			new int[]{0xFF2E6A3A, 0xFFF4F4F0, 0xFFB82A2E}, 0, 0);
 
 	/** The kind of piece, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
 		SCARF(Hat.Group.ALL_YEAR), NECKLACE(Hat.Group.ALL_YEAR), BOWTIE(Hat.Group.ALL_YEAR), TIE(Hat.Group.ALL_YEAR),
 		BANDANA(Hat.Group.ALL_YEAR), LEI(Hat.Group.ALL_YEAR), BELL(Hat.Group.ALL_YEAR), BOA(Hat.Group.ALL_YEAR),
-		LEAF_SCARF(Hat.Group.SEASON), PUMPKIN_CHAIN(Hat.Group.SEASON), VAMPIRE(Hat.Group.SEASON), BONES(Hat.Group.SEASON);
+		LEAF_SCARF(Hat.Group.SEASON), PUMPKIN_CHAIN(Hat.Group.SEASON), VAMPIRE(Hat.Group.SEASON), BONES(Hat.Group.SEASON),
+		LIGHTS(Hat.Group.WINTER), TINSEL(Hat.Group.WINTER), NORDIC(Hat.Group.WINTER);
 
-		/** Seasonal kinds can only be worn (and earned) in their months. */
+		/** Seasonal kinds can only be earned in their months; once earned, they can be worn all year. */
 		public final Hat.Group group;
 
 		Style(Hat.Group group) {
@@ -117,7 +137,8 @@ public enum Neck {
 	 * pendant, pendant detail. Bow tie: cloth, shade; dots. Tie: cloth, stripes. Bandana: cloth, shade; pattern. Lei:
 	 * three flowers; centres. Bell: collar, shade; bell, buckle. Boa: fluff, shade, light. Leaf scarf: knit, shade,
 	 * leaf; two more leaves. Pumpkin chain: pumpkin, shade, cord; glow, stems. Vampire collar: outside, edge, lining;
-	 * brooch, gem. Bones: bone, shade, cord; skull, eyes.
+	 * brooch, gem. Bones: bone, shade, cord; skull, eyes. Fairy lights: three bulbs; fourth bulb, cable. Tinsel: tinsel,
+	 * shade, light; glints. Nordic scarf: ground, pattern, border.
 	 */
 	public final int[] main;
 	public final int accent;
@@ -133,11 +154,12 @@ public enum Neck {
 		this.second = second;
 	}
 
+	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE;
+		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
 	}
 
-	/** Whether it can be worn now: seasonal pieces only in their months. */
+	/** Whether it can be earned now: seasonal pieces only in their months. Once earned, they can be worn all year. */
 	public boolean inSeason() {
 		return style.group.inSeason();
 	}

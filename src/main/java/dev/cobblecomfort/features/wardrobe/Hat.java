@@ -12,7 +12,8 @@ import java.util.Locale;
 
 /**
  * A head covering in one of its colours. Worn instead of the helmet: its band or ring shows which helmet is under it.
- * The autumn and Halloween ones can only be worn in October and November. All colours of a kind are earned together,
+ * The autumn and Halloween ones can only be earned in October and November, the Christmas and New Year ones in December
+ * and January; once earned they can be worn all year. All colours of a kind are earned together,
  * except for crowns and wreaths. The order is the hat's id when shared with other players: only ever append.
  */
 public enum Hat {
@@ -221,7 +222,31 @@ public enum Hat {
 	NINJA_RED(Style.NINJA, Unlock.biome("bamboo_jungle"), "bamboo",
 			new int[]{0xFFB02A2E, 0xFF8A1E22}, 0, 0, 0, true),
 	NINJA_BLACK(Style.NINJA, Unlock.biome("bamboo_jungle"), "bamboo",
-			new int[]{0xFF26262A, 0xFF1A1A1E}, 0, 0, 0, true);
+			new int[]{0xFF26262A, 0xFF1A1A1E}, 0, 0, 0, true),
+	WINTER_SANTA_RED(Style.SANTA, Unlock.free(), "red_wool",
+			new int[]{0xFFC8282A, 0xFFA01E22, 0xFFF4F4F0}, 0xFFF4F4F0, 0, 0, true),
+	WINTER_SANTA_GREEN(Style.SANTA, Unlock.free(), "green_wool",
+			new int[]{0xFF2E7A3A, 0xFF22602C, 0xFFF4F4F0}, 0xFFF4F4F0, 0, 0, true),
+	WINTER_SANTA_FROST(Style.SANTA, Unlock.free(), "light_blue_wool",
+			new int[]{0xFF3A6AB8, 0xFF2A5090, 0xFFF4F4F0}, 0xFFE8F4FF, 0, 0, true),
+	WINTER_REINDEER_BROWN(Style.REINDEER, Unlock.biome("snowy_taiga"), "spruce_sapling",
+			new int[]{0xFF8A6A42, 0xFFB08A5A, 0xFF5A3C24}, 0xFF9A7A52, 0xFFC8282A, 0xFFE8C040, true),
+	WINTER_REINDEER_SNOW(Style.REINDEER, Unlock.biome("snowy_taiga"), "snowball",
+			new int[]{0xFFE8E8EC, 0xFFFFFFFF, 0xFF3A6AB8}, 0xFFD8D8DC, 0xFF3A6AB8, 0xFFC8CCD4, true),
+	WINTER_REINDEER_GOLD(Style.REINDEER, Unlock.biome("snowy_taiga"), "gold_nugget",
+			new int[]{0xFFE8C040, 0xFFFFE27A, 0xFF2E7A3A}, 0xFF9A7A52, 0xFF2E7A3A, 0xFFE8C040, true),
+	WINTER_ELF_GREEN(Style.ELF, Unlock.item("cake"), "cake",
+			new int[]{0xFF3A8A3A, 0xFF2E7030, 0xFFC8282A}, 0xFFE8C040, 0, 0, true),
+	WINTER_ELF_RED(Style.ELF, Unlock.item("cake"), "cake",
+			new int[]{0xFFC8282A, 0xFFA01E22, 0xFF3A8A3A}, 0xFFE8C040, 0, 0, true),
+	WINTER_ELF_STRIPED(Style.ELF, Unlock.item("cake"), "cake",
+			new int[]{0xFFC8282A, 0xFFF4F4F0, 0xFF3A8A3A}, 0xFFC8CCD4, 0, 0, true),
+	WINTER_SPARKLE_GOLD(Style.SPARKLE, Unlock.item("firework_star"), "firework_star",
+			new int[]{0xFFE8C040, 0xFFC09A28}, 0xFF1E1E22, 0xFFFFF4B0, 0, false),
+	WINTER_SPARKLE_SILVER(Style.SPARKLE, Unlock.item("firework_star"), "firework_star",
+			new int[]{0xFFC8CCD4, 0xFF9AA0AA}, 0xFF3A6AB8, 0xFFFFFFFF, 0, false),
+	WINTER_SPARKLE_BLACK(Style.SPARKLE, Unlock.item("firework_star"), "firework_star",
+			new int[]{0xFF1E1E22, 0xFF141418}, 0xFFE8C040, 0xFFFFF4B0, 0, false);
 
 	/** The kind of hat: the shape it is made in, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
@@ -234,7 +259,8 @@ public enum Hat {
 		BERET(Group.ALL_YEAR, true), TYROLEAN(Group.ALL_YEAR, true), CAPTAIN(Group.ALL_YEAR, true),
 		USHANKA(Group.ALL_YEAR, true), TIARA(Group.ALL_YEAR, true), NINJA(Group.ALL_YEAR, true),
 		LEAVES(Group.SEASON, true), ACORN(Group.SEASON, true), MUSHROOM(Group.SEASON, true), WITCH(Group.SEASON, true),
-		PUMPKIN(Group.SEASON, true), HORNS(Group.SEASON, true), BAT(Group.SEASON, true);
+		PUMPKIN(Group.SEASON, true), HORNS(Group.SEASON, true), BAT(Group.SEASON, true),
+		SANTA(Group.WINTER, true), REINDEER(Group.WINTER, true), ELF(Group.WINTER, true), SPARKLE(Group.WINTER, true);
 
 		public final Group group;
 		/** Whether all its colours are earned together (crowns and wreaths each have their own way). */
@@ -250,9 +276,9 @@ public enum Hat {
 		}
 	}
 
-	/** The wardrobe's groups of hats. Seasonal ones can only be worn (and earned) in their months. */
+	/** The wardrobe's groups of hats. Seasonal ones can only be earned in their months, then worn all year. */
 	public enum Group {
-		ALL_YEAR(0, 0), SEASON(10, 11);
+		ALL_YEAR(0, 0), SEASON(10, 11), WINTER(12, 1);
 
 		private final int firstMonth;
 		private final int lastMonth;
@@ -268,7 +294,11 @@ public enum Hat {
 
 		public boolean inSeason() {
 			int month = LocalDate.now().getMonthValue();
-			return !seasonal() || month >= firstMonth && month <= lastMonth;
+			if (!seasonal()) {
+				return true;
+			}
+			// A season may run over the turn of the year (December to January).
+			return firstMonth <= lastMonth ? month >= firstMonth && month <= lastMonth : month >= firstMonth || month <= lastMonth;
 		}
 
 		public Component title() {
@@ -332,7 +362,9 @@ public enum Hat {
 	 * Top hat and cowboy hat: felt, brim; band, feather or concho. Headphones: cups, cushions; caps. Party: stripes;
 	 * (unused), pompom. Sombrero: crown, brim; pompom and embroidery, embroidery. Beret: cloth, rim; paint. Tyrolean:
 	 * felt, brim, cord; feather, badge. Captain: top, band, visor; cord, anchor. Ushanka: cloth, fur, light fur; ties,
-	 * badge. Tiara: metal, setting; stone, small stones. Ninja: band, shade.
+	 * badge. Tiara: metal, setting; stone, small stones. Ninja: band, shade. Santa: cloth, shade, fur; pompom. Reindeer:
+	 * antlers, antler light, band; ears, bow, bell. Elf: cone, stripe or shade, cuff; bell. Sparkle (New Year's top
+	 * hat): felt, brim; band, sparkles.
 	 */
 	public final int[] main;
 	public final int accent;
@@ -353,13 +385,14 @@ public enum Hat {
 		this.fancy = fancy;
 	}
 
-	/** Whether it can be worn now: seasonal hats only in their months. */
+	/** Whether it can be earned now: seasonal hats only in their months. Once earned, they can be worn all year. */
 	public boolean inSeason() {
 		return style.group.inSeason();
 	}
 
+	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Unlock.Kind.FREE;
+		return unlock.kind() == Unlock.Kind.FREE && !style.group.seasonal();
 	}
 
 	public String key() {

@@ -111,15 +111,40 @@ public enum BackPiece {
 	HALLOWEEN_SCYTHE_SOUL(Style.SCYTHE, Hat.Unlock.biome("soul_sand_valley"), "soul_torch",
 			new int[]{0xFF2A2A30, 0xFF1A1A1E, 0xFF2E4A58}, 0xFF7AE8F0, 0xFF4A3A2A),
 	HALLOWEEN_SCYTHE_GOLD(Style.SCYTHE, Hat.Unlock.biome("soul_sand_valley"), "golden_hoe",
-			new int[]{0xFF2A1A1A, 0xFF1A1010, 0xFFF2D25A}, 0xFFFFF0A0, 0xFF6A2A8A);
+			new int[]{0xFF2A1A1A, 0xFF1A1010, 0xFFF2D25A}, 0xFFFFF0A0, 0xFF6A2A8A),
+	WINTER_SACK_BURLAP(Style.GIFT_SACK, Hat.Unlock.free(), "bundle",
+			new int[]{0xFFB8925A, 0xFF967444, 0xFFE8D8B0}, 0xFFC8282A, 0xFF2E7A3A),
+	WINTER_SACK_RED(Style.GIFT_SACK, Hat.Unlock.free(), "bundle",
+			new int[]{0xFFB8282A, 0xFF961E22, 0xFFE8C040}, 0xFF2E7A3A, 0xFF3A6AB8),
+	WINTER_SACK_GREEN(Style.GIFT_SACK, Hat.Unlock.free(), "bundle",
+			new int[]{0xFF2E6A3A, 0xFF22542C, 0xFFE8C040}, 0xFFC8282A, 0xFFF4F4F0),
+	WINTER_ICEWINGS_FROST(Style.ICE_WINGS, Hat.Unlock.biome("ice_spikes"), "packed_ice",
+			new int[]{0xFFE8F6FF, 0xFFB8E0F8, 0xFF7AB8E8}, 0xFFFFFFFF, 0),
+	WINTER_ICEWINGS_AURORA(Style.ICE_WINGS, Hat.Unlock.biome("ice_spikes"), "packed_ice",
+			new int[]{0xFFC8F8E8, 0xFF8AE8C8, 0xFF8A7AE8}, 0xFFE0FFF4, 0),
+	WINTER_ICEWINGS_DEEP(Style.ICE_WINGS, Hat.Unlock.biome("ice_spikes"), "blue_ice",
+			new int[]{0xFFA8D0F8, 0xFF5A8AE0, 0xFF2A4AA8}, 0xFFD8ECFF, 0),
+	WINTER_TREE_CLASSIC(Style.TREE, Hat.Unlock.item("spruce_sapling"), "spruce_sapling",
+			new int[]{0xFF2E7A3A, 0xFF1E5A2A, 0xFF6A4A2A}, 0xFFF2D23A, 0xFFD82A3A),
+	WINTER_TREE_SNOWY(Style.TREE, Hat.Unlock.item("spruce_sapling"), "snowball",
+			new int[]{0xFF2E6A42, 0xFFF4F8FF, 0xFF6A4A2A}, 0xFFE8ECF4, 0xFF3A6AB8),
+	WINTER_TREE_GOLD(Style.TREE, Hat.Unlock.item("spruce_sapling"), "gold_nugget",
+			new int[]{0xFF2E7A3A, 0xFF1E5A2A, 0xFF6A4A2A}, 0xFFF2D23A, 0xFFE8C040),
+	WINTER_ROCKETS_RED(Style.ROCKETS, Hat.Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFFD02A2A, 0xFFF4F4F0, 0xFFE8C040}, 0xFF3A3A40, 0xFF5A3A22),
+	WINTER_ROCKETS_BLUE(Style.ROCKETS, Hat.Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFF2A5AC8, 0xFFC8CCD4, 0xFFF4F4F0}, 0xFFC8CCD4, 0xFF3A3A40),
+	WINTER_ROCKETS_GOLD(Style.ROCKETS, Hat.Unlock.item("firework_rocket"), "firework_rocket",
+			new int[]{0xFFE8C040, 0xFF1E1E22, 0xFFD02A2A}, 0xFF1E1E22, 0xFF3A3A40);
 
 	/** The kind of piece, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
 		HIKING(Hat.Group.ALL_YEAR), WINGS(Hat.Group.ALL_YEAR), SWORD(Hat.Group.ALL_YEAR), GUITAR(Hat.Group.ALL_YEAR),
 		SHELL(Hat.Group.ALL_YEAR), PLUSH_WOLF(Hat.Group.ALL_YEAR), PLUSH_CAT(Hat.Group.ALL_YEAR),
-		BAT_WINGS(Hat.Group.SEASON), BROOM(Hat.Group.SEASON), PUMPKIN_PACK(Hat.Group.SEASON), SCYTHE(Hat.Group.SEASON);
+		BAT_WINGS(Hat.Group.SEASON), BROOM(Hat.Group.SEASON), PUMPKIN_PACK(Hat.Group.SEASON), SCYTHE(Hat.Group.SEASON),
+		GIFT_SACK(Hat.Group.WINTER), ICE_WINGS(Hat.Group.WINTER), TREE(Hat.Group.WINTER), ROCKETS(Hat.Group.WINTER);
 
-		/** Seasonal kinds can only be worn (and earned) in their months. */
+		/** Seasonal kinds can only be earned in their months; once earned, they can be worn all year. */
 		public final Hat.Group group;
 
 		Style(Hat.Group group) {
@@ -138,7 +163,9 @@ public enum BackPiece {
 	 * Its colours, by style. Hiking pack: cloth, shade, straps; bedroll, buckles. Wings: light, middle, shade; edge.
 	 * Sword: scabbard, shade; blade metal, metal shade. Guitar: body, edge, neck; pickguard, strings. Shell: plates,
 	 * shade, lines; rim, straps. Bat wings: membrane, shade, bones; claws. Broom: handle, handle detail, bristles; band,
-	 * bristle shade. Pumpkin pack: pumpkin, shade, straps; glow, stem. Scythe: handle, shade, blade; edge, grip.
+	 * bristle shade. Pumpkin pack: pumpkin, shade, straps; glow, stem. Scythe: handle, shade, blade; edge, grip. Gift
+	 * sack: sack, shade, rope; two gifts. Ice wings: light, middle, deep; glow. Tree: needles, shade (or snow), trunk;
+	 * star, baubles. Rockets: tubes, stripes, tips; fins, harness.
 	 */
 	public final int[] main;
 	public final int accent;
@@ -154,11 +181,12 @@ public enum BackPiece {
 		this.second = second;
 	}
 
+	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE;
+		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
 	}
 
-	/** Whether it can be worn now: seasonal pieces only in their months. */
+	/** Whether it can be earned now: seasonal pieces only in their months. Once earned, they can be worn all year. */
 	public boolean inSeason() {
 		return style.group.inSeason();
 	}

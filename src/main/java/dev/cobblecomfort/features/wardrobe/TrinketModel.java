@@ -171,6 +171,65 @@ public final class TrinketModel {
 				}
 				out.add(raw(-1.2f, 1.9f, 1.25f, -0.6f, 2.4f, 1.35f, t.accent));
 			}
+			case WINTER_BAUBLE_RED, WINTER_BAUBLE_GOLD, WINTER_BAUBLE_BLUE -> {
+				// A glass bauble under its metal cap, with a band round it and a shine.
+				out.add(raw(-0.25f, 0f, -0.25f, 0.25f, 0.5f, 0.25f, t.accent));
+				out.add(raw(-0.75f, 0.5f, -0.75f, 0.75f, 1.3f, 0.75f, t.accent));
+				out.add(raw(-1.75f, 1.6f, -1.75f, 1.75f, 4.6f, 1.75f, a));
+				out.add(raw(-2.1f, 2.1f, -1.25f, 2.1f, 4.1f, 1.25f, a));
+				out.add(raw(-1.25f, 2.1f, -2.1f, 1.25f, 4.1f, 2.1f, a));
+				out.add(raw(-1.25f, 1.25f, -1.25f, 1.25f, 4.95f, 1.25f, a));
+				out.add(raw(-2.15f, 2.9f, -1.3f, 2.15f, 3.3f, 1.3f, b));
+				out.add(raw(-1.3f, 2.9f, -2.15f, 1.3f, 3.3f, 2.15f, b));
+				out.add(raw(-1.1f, 2.15f, 2.1f, -0.5f, 2.75f, 2.15f, c));
+			}
+			case WINTER_GINGERBREAD_CLASSIC, WINTER_GINGERBREAD_DARK, WINTER_GINGERBREAD_HONEY -> {
+				// A flat gingerbread man with an iced face, buttons and zigzags on his arms and legs.
+				out.add(raw(-0.25f, 0f, -0.25f, 0.25f, 0.5f, 0.25f, b));
+				out.add(raw(-1.25f, 0.5f, -0.4f, 1.25f, 2.75f, 0.4f, a));
+				out.add(raw(-1.5f, 2.75f, -0.4f, 1.5f, 5.25f, 0.4f, a));
+				out.add(raw(-2.75f, 3f, -0.4f, -1.5f, 4f, 0.4f, a));
+				out.add(raw(1.5f, 3f, -0.4f, 2.75f, 4f, 0.4f, a));
+				out.add(raw(-1.5f, 5.25f, -0.4f, -0.25f, 7f, 0.4f, a));
+				out.add(raw(0.25f, 5.25f, -0.4f, 1.5f, 7f, 0.4f, a));
+				out.add(raw(-0.75f, 1.2f, 0.4f, -0.35f, 1.6f, 0.45f, c));
+				out.add(raw(0.35f, 1.2f, 0.4f, 0.75f, 1.6f, 0.45f, c));
+				out.add(raw(-0.6f, 2f, 0.4f, 0.6f, 2.25f, 0.45f, b));
+				out.add(raw(-0.25f, 3.25f, 0.4f, 0.25f, 3.75f, 0.45f, t.accent));
+				out.add(raw(-0.25f, 4.25f, 0.4f, 0.25f, 4.75f, 0.45f, t.accent));
+				for (int s = -1; s <= 1; s += 2) {
+					out.add(raw(s < 0 ? -2.55f : 2.15f, 3.4f, 0.4f, s < 0 ? -2.15f : 2.55f, 3.6f, 0.45f, b));
+					out.add(raw(s < 0 ? -1.3f : 0.45f, 6.4f, 0.4f, s < 0 ? -0.45f : 1.3f, 6.6f, 0.45f, b));
+				}
+			}
+			case WINTER_CANDY_CANE_RED, WINTER_CANDY_CANE_GREEN, WINTER_CANDY_CANE_MINT -> {
+				// Hung by its crook: the hook to the left, the long stem down the right, striped all along.
+				out.add(raw(-1.5f, 0f, -0.5f, 1.5f, 1f, 0.5f, a));
+				out.add(raw(-0.5f, 0f, -0.55f, 0.25f, 1f, 0.55f, b));
+				out.add(raw(-1.5f, 1f, -0.5f, -0.5f, 2.5f, 0.5f, b));
+				for (float y = 1f; y < 8f; y += 0.75f) {
+					boolean stripe = Math.round((y - 1f) / 0.75f) % 2 == 0;
+					out.add(raw(0.5f, y, -0.5f, 1.5f, Math.min(y + 0.75f, 8f), 0.5f, stripe ? b : c));
+				}
+				out.add(raw(0.6f, 1.5f, 0.5f, 0.9f, 6.5f, 0.55f, t.accent));
+			}
+			case WINTER_SNOWMAN_RED, WINTER_SNOWMAN_GREEN, WINTER_SNOWMAN_BLUE -> {
+				// Three snowballs with a little top hat, coal eyes and buttons, a carrot nose and a scarf.
+				int coal = t.accent;
+				out.add(raw(-0.75f, 0f, -0.75f, 0.75f, 1.2f, 0.75f, coal));
+				out.add(raw(-1.2f, 1.2f, -1.2f, 1.2f, 1.45f, 1.2f, coal));
+				out.add(raw(-1f, 1.45f, -1f, 1f, 3.1f, 1f, a));
+				out.add(raw(-1.3f, 3f, -1.3f, 1.3f, 3.6f, 1.3f, b));
+				out.add(raw(0.5f, 3.6f, 1f, 1.1f, 5f, 1.4f, b));
+				out.add(raw(-1.3f, 3.6f, -1.3f, 1.3f, 5.1f, 1.3f, a));
+				out.add(raw(-1.75f, 5f, -1.75f, 1.75f, 8f, 1.75f, a));
+				out.add(raw(-2.05f, 5.5f, -1.4f, 2.05f, 7.5f, 1.4f, c));
+				out.add(raw(-0.55f, 2f, 1f, -0.2f, 2.35f, 1.05f, coal));
+				out.add(raw(0.2f, 2f, 1f, 0.55f, 2.35f, 1.05f, coal));
+				out.add(raw(-0.2f, 2.45f, 1f, 0.2f, 2.75f, 1.8f, 0xFFE8862A));
+				out.add(raw(-0.2f, 4f, 1.3f, 0.2f, 4.35f, 1.35f, coal));
+				out.add(raw(-0.2f, 6f, 1.75f, 0.2f, 6.35f, 1.8f, coal));
+			}
 			default -> {
 				out.add(raw(-0.4f, 0f, -0.2f, 0.4f, 0.75f, 0.2f, ARGB.scaleRGB(a, 0.7f)));
 				out.add(raw(-1f, 0.75f, -1f, 1f, 2.5f, 1f, a));

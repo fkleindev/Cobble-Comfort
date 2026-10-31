@@ -198,7 +198,10 @@ There is also a key for the HUD editor.
   while a jukebox plays nearby), a party hat that sheds confetti, a sombrero with dancing pompoms, a beret, a
   Tyrolean hat, a captain's cap, an ushanka, a tiara and a ninja headband. In October and November there are also
   autumn and Halloween hats (a leaf wreath, an acorn cap, a mushroom cap, a witch hat with a dangling spider, a
-  jack o' lantern, devil horns, a bat on a spring), which can only be worn then. A band, ring, stripe, brim or visor
+  jack o' lantern, devil horns, a bat on a spring), and in December and January Christmas and New Year hats (a Santa
+  hat with a flopping pompom, reindeer antlers, an elf hat with a jingle bell, a glittering New Year's top hat that
+  sheds confetti). Seasonal cosmetics (hats, neck and back pieces, charms) can only be earned in their months, the
+  free ones just by playing then, and once earned they can be worn all year. A band, ring, stripe, brim or visor
   edge shows which helmet is under it (leather in its dye, chainmail links, iron, gold, diamond, netherite, copper,
   turtle scutes) and glints when the helmet is enchanted; an armour trim colours a gem, flower, buckle, lens, lamp,
   patch or logo. Strands, ribbons, ear flaps, ears, feathers, pompoms, tassels, cables and tips swing as you move, and
@@ -209,7 +212,8 @@ There is also a key for the HUD editor.
   (the bell rings softly as you walk) and feather boas, each in several colours. Ends, pendants and tips swing as you
   move. Bow ties and ties are free, the others are earned by finding an item or entering a biome. In October and
   November there are also a scarf knitted with autumn leaves, a chain of little pumpkins with a glowing jack o'
-  lantern, a tall vampire collar and a bone necklace with a skull.
+  lantern, a tall vampire collar and a bone necklace with a skull; in December and January fairy lights that glow
+  and twinkle, a glittering tinsel boa and a Nordic scarf.
 - **Back:** a wardrobe tab with two parts. **Back:** what you carry: a wolf or cat plush backpack, a hiking pack
   with a bedroll and a dangling mug, wings (angel, fairy or bat) that beat as you move, a sword (the game's own
   icon) across your back, a guitar or a turtle shell pack. **Back charms:** what hangs on a string
@@ -217,7 +221,10 @@ There is also a key for the HUD editor.
   (creeper, axolotl, bee, slime), a glowing lantern, lucky charms (clover, horseshoe, star) or a little bell that
   rings as you walk. Any charm goes with anything on the back. In October and November there are also night wings
   (leathery bat wings with finger bones), a witch's broom, a glowing carved pumpkin pack and a scythe, and as
-  charms a softly glowing ghost, a little jack o' lantern, an acorn and a wrapped sweet.
+  charms a softly glowing ghost, a little jack o' lantern, an acorn and a wrapped sweet. In December and January:
+  Santa's gift sack, ice wings that shed snowflakes, a little decorated Christmas tree with a shining star, and a pack
+  of New Year's rockets that spray sparks while you jump or fall; as charms a bauble, a gingerbread man, a candy cane
+  and a little snowman.
   Cosmetics that borrow the game's textures (pins, plushes, the belt's weapons, the sword, name charms) always use
   the vanilla ones, whatever resource pack is on, so they look the same for everyone.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.

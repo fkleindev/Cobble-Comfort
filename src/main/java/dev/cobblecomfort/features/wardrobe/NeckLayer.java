@@ -67,20 +67,21 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		getParentModel().body.translateAndRotate(pose);
 		List<Box> boxes = new ArrayList<>();
 		switch (neck.style) {
-			case SCARF -> scarf(boxes, neck, z);
+			case SCARF, NORDIC -> scarf(boxes, neck, z);
 			case NECKLACE -> necklace(boxes, neck, z);
 			case BOWTIE, LEI -> {
 			}
 			case TIE -> boxes.add(raw(-1.25f, 0f, -z - 1.2f, 1.25f, 2f, -z, neck.main[0]));
 			case BANDANA -> bandana(boxes, neck, z);
 			case BELL -> collar(boxes, neck, z);
-			case BOA -> boa(boxes, neck, z);
+			case BOA, TINSEL -> boa(boxes, neck, z);
 			case LEAF_SCARF -> {
 				scarf(boxes, neck, z);
 				leaves(boxes, neck, z);
 			}
 			case PUMPKIN_CHAIN -> pumpkinChain(boxes, neck, z);
 			case VAMPIRE -> vampire(boxes, neck, z);
+			case LIGHTS -> lights(boxes, neck, z);
 			case BONES -> bones(boxes, neck, z);
 		}
 		HatLayer.submit(pose, collector, boxes, null, light);
@@ -89,7 +90,7 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				preview != null ? -1 : state.id, 0f);
 		double damping = WardrobeFeature.INSTANCE.damping();
 		switch (neck.style) {
-			case SCARF, LEAF_SCARF -> {
+			case SCARF, LEAF_SCARF, NORDIC -> {
 				chains.hang(0, at(2f, 3f, -z - 1.25f), 4f, 2, damping + HatLayer.STRAND_DAMPING, 0.5f, k -> scarfEnd(neck, k, 2));
 				chains.hang(2, at(5f, 3f, -z - 1.25f), 4f, 3, damping + HatLayer.STRAND_DAMPING, 0.5f, k -> scarfEnd(neck, k, 3));
 			}
@@ -106,13 +107,13 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				backFlowers(neck, z, pose, collector, light);
 			}
 			case BELL -> chains.hang(0, at(0f, 1.75f, -z - 0.6f), 1f, 1, k -> bell(neck));
-			case BOA -> {
+			case BOA, TINSEL -> {
 				chains.hang(0, at(-3f, 2.5f, -z - 1.5f), 4f, 2, damping + 2.0, 0.6f, k -> boaEnd(neck, k));
 				chains.hang(2, at(3f, 2.5f, -z - 1.5f), 4f, 2, damping + 2.0, 0.6f, k -> boaEnd(neck, k + 1));
 			}
 			case PUMPKIN_CHAIN -> chains.hang(0, at(0f, 6.2f, -z - 0.5f), 1f, 1, k -> jack(neck));
 			case BONES -> chains.hang(0, at(0f, 6.2f, -z - 0.5f), 1f, 1, k -> skull(neck));
-			case VAMPIRE -> {
+			case VAMPIRE, LIGHTS -> {
 			}
 		}
 		pose.popPose();
@@ -132,6 +133,9 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		return switch (neck) {
 			case SCARF_STRIPED -> column == 0 ? neck.main[0] : neck.main[1];
 			case SCARF_PLAID -> column == row ? neck.main[0] : column == 0 ? neck.main[2] : neck.main[1];
+			// A band of little zigzags between borders, as on a Nordic sweater.
+			case WINTER_NORDIC_RED, WINTER_NORDIC_NAVY, WINTER_NORDIC_GREEN -> row == 0
+					? Math.floorMod((int) Math.floor(x), 2) == 0 ? neck.main[1] : neck.main[0] : neck.main[2];
 			default -> row == 1 ? neck.main[1] : neck.main[0];
 		};
 	}
@@ -482,7 +486,7 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
 	// ---------------------------------------------------------------- boa
 
-	/** Puffs of feathers round the neck, in front and behind. */
+	/** Puffs of feathers round the neck, in front and behind; tinsel glints here and there as it moves. */
 	private static void boa(List<Box> out, Neck neck, float z) {
 		int i = 0;
 		for (float x = -7f; x <= 7f; x += 1.75f) {
@@ -490,14 +494,64 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			int color = neck.main[i % 3];
 			out.add(raw(x - 1.2f, -0.5f + lift, -z - 2.5f, x + 1.2f, 2.5f + lift, -z, color));
 			out.add(raw(x - 1.2f, -0.5f + lift, z, x + 1.2f, 2.5f + lift, z + 2.5f, color));
+			if (neck.style == Neck.Style.TINSEL && glint(i)) {
+				out.add(raw(x - 0.3f, 0.5f + lift, -z - 2.6f, x + 0.3f, 1.1f + lift, -z - 2.5f, neck.accent).glowing());
+			}
 			i++;
 		}
 	}
 
-	/** A piece of a hanging boa end: a puff with tufts out of it. */
+	/** A piece of a hanging boa end: a puff with tufts out of it (glinting, for tinsel). */
 	private static List<Box> boaEnd(Neck neck, int k) {
-		return List.of(raw(-1.3f, 0f, -1.3f, 1.3f, 4f, 1.3f, neck.main[k % 2]), raw(-1.7f, 1f, -0.8f, 1.7f, 3f, 0.8f, neck.main[2]),
-				raw(-0.8f, 1f, -1.7f, 0.8f, 3f, 1.7f, neck.main[(k + 1) % 2]));
+		List<Box> out = new ArrayList<>(List.of(raw(-1.3f, 0f, -1.3f, 1.3f, 4f, 1.3f, neck.main[k % 2]),
+				raw(-1.7f, 1f, -0.8f, 1.7f, 3f, 0.8f, neck.main[2]), raw(-0.8f, 1f, -1.7f, 0.8f, 3f, 1.7f, neck.main[(k + 1) % 2])));
+		if (neck.style == Neck.Style.TINSEL && glint(k + 20)) {
+			out.add(raw(-0.3f, 1.6f, -1.8f, 0.3f, 2.2f, -1.7f, neck.accent).glowing());
+		}
+		return out;
+	}
+
+	/** Whether the glint number {@code i} is lit now: a few at a time, moving on every moment. */
+	private static boolean glint(int i) {
+		long moment = System.nanoTime() / 150_000_000L;
+		return Math.floorMod(moment * 7 + i * 13, 9) < 2;
+	}
+
+	// ---------------------------------------------------------------- fairy lights
+
+	/**
+	 * Fairy lights: a cable round the neck, hanging in two loops over the chest and straight across the back, with
+	 * bulbs in turn; they light up in slow waves.
+	 */
+	private static void lights(List<Box> out, Neck neck, float z) {
+		int[] bulbs = {neck.main[0], neck.main[1], neck.main[2], neck.accent};
+		long moment = System.nanoTime() / 400_000_000L;
+		int i = 0;
+		// In front: two shallow loops from the shoulders to the middle.
+		for (int t = 0; t <= 20; t++) {
+			float x = -6f + 12f * t / 20f;
+			float sag = (float) Math.sin(Math.PI * ((t % 10) / 10f)) * 2.5f;
+			float y = 1f + sag + (float) Math.sin(Math.PI * t / 20f) * 1.5f;
+			out.add(raw(x - 0.3f, y - 0.25f, -z - 0.5f, x + 0.3f, y + 0.25f, -z, neck.second));
+			if (t % 2 == 1) {
+				bulb(out, x, y + 0.25f, -z - 0.75f, bulbs[i % 4], Math.floorMod(moment + i, 4) != 0, false);
+				i++;
+			}
+		}
+		out.add(raw(-6f, 0.5f, z, 6f, 1f, z + 0.5f, neck.second));
+		for (float x = -5f; x <= 5f; x += 2.5f) {
+			bulb(out, x, 1f, z + 0.75f, bulbs[i % 4], Math.floorMod(moment + i, 4) != 0, true);
+			i++;
+		}
+	}
+
+	/** A little bulb with its socket at (x, y), facing the front (or the back); lit or dim. */
+	private static void bulb(List<Box> out, float x, float y, float z, int color, boolean lit, boolean back) {
+		float s = back ? 1f : -1f;
+		out.add(raw(x - 0.4f, y, z - 0.4f, x + 0.4f, y + 0.5f, z + 0.4f, 0xFF3A3A3A));
+		Box glass = raw(x - 0.55f, y + 0.5f, z - 0.55f + s * 0.25f, x + 0.55f, y + 1.9f, z + 0.55f + s * 0.25f,
+				lit ? color : ARGB.scaleRGB(color, 0.45f));
+		out.add(lit ? glass.glowing() : glass);
 	}
 
 	// ---------------------------------------------------------------- pendulums
