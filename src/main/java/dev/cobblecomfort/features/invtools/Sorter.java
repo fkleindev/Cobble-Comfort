@@ -1,7 +1,9 @@
 package dev.cobblecomfort.features.invtools;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
@@ -95,17 +97,56 @@ final class Sorter {
 			}
 			for (int j = i + 1; j < slots.size(); j++) {
 				if (same(slots.get(j).getItem(), want)) {
-					click(slots.get(j));
-					click(slots.get(i));
-					if (!menu.getCarried().isEmpty()) {
-						click(slots.get(j));
-					}
-					return true;
+					return swap(slots.get(i), slots.get(j));
 				}
 			}
 			return false;
 		}
 		return false;
+	}
+
+	/** Swaps two slots; {@code to} gets the stack of {@code from}. */
+	private boolean swap(Slot to, Slot from) {
+		if (to.hasItem() && (holdsItems(to.getItem()) || holdsItems(from.getItem()))) {
+			// Clicking a stack onto a bundle (or a bundle onto a stack) puts it inside instead of swapping,
+			// so go through an empty slot: every click then lands on an empty slot.
+			Slot spare = spareSlot();
+			if (spare == null) {
+				return false;
+			}
+			click(to);
+			click(spare);
+			click(from);
+			click(to);
+			click(spare);
+			click(from);
+			return true;
+		}
+		click(from);
+		click(to);
+		if (!menu.getCarried().isEmpty()) {
+			click(from);
+		}
+		return true;
+	}
+
+	private static boolean holdsItems(ItemStack stack) {
+		return stack.has(DataComponents.BUNDLE_CONTENTS);
+	}
+
+	/** An empty slot to park a stack in: one of the sorted slots, otherwise one of the player's inventory. */
+	private Slot spareSlot() {
+		for (Slot slot : slots) {
+			if (!slot.hasItem()) {
+				return slot;
+			}
+		}
+		for (Slot slot : menu.slots) {
+			if (slot.container instanceof Inventory && slot.getContainerSlot() < Inventory.INVENTORY_SIZE && !slot.hasItem()) {
+				return slot;
+			}
+		}
+		return null;
 	}
 
 	private static boolean same(ItemStack a, ItemStack b) {

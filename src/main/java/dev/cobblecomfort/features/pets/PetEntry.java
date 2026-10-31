@@ -16,6 +16,9 @@ public final class PetEntry {
 	public float maxHealth;
 	public boolean sitting;
 	public boolean leashed;
+	/** Wolves and cats: variant id (e.g. "minecraft:ashen") and collar colour id (-1 for none), for the backpack plush. */
+	public String variant = "";
+	public int collar = -1;
 	/** Horse-like mounts: top speed (blocks/s) and jump height (blocks); -1 for others. */
 	public double speed = -1;
 	public double jump = -1;

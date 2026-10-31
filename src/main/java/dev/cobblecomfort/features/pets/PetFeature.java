@@ -3,6 +3,7 @@ package dev.cobblecomfort.features.pets;
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.lookinfo.providers.EntityInfoProvider;
 import dev.cobblecomfort.features.map.MapFeature;
+import dev.cobblecomfort.features.petplush.PetPlush;
 import dev.cobblecomfort.features.storage.StorageItems;
 import dev.cobblecomfort.features.tracker.TrackerStorage;
 import dev.cobblecomfort.features.tracker.TrackerToast;
@@ -234,6 +235,12 @@ public final class PetFeature extends Feature<PetConfig> {
 		pet.maxHealth = entity.getMaxHealth();
 		pet.sitting = sitting;
 		pet.leashed = leashed;
+		PetPlush plush = PetPlush.of(entity);
+		if (plush != null) {
+			changed |= !pet.variant.equals(plush.variant()) || pet.collar != plush.collar();
+			pet.variant = plush.variant();
+			pet.collar = plush.collar();
+		}
 		if (entity instanceof AbstractHorse horse) {
 			pet.speed = EntityInfoProvider.horseSpeed(horse);
 			pet.jump = EntityInfoProvider.horseJump(horse);

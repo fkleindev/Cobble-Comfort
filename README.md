@@ -168,8 +168,54 @@ There is also a key for the HUD editor.
 - **Totem plush:** totems of undying look like a soft 3D chibi plush of the player holding them, with their skin,
   whatever your resource pack shows: in your hands and other players' hands, in the inventory, when a totem saves you,
   and in item frames, on the ground and in mobs' hands (there as a plush of you). Its head, arms and legs jiggle softly
-  as you walk and look around, and it squishes when you take it and when it saves you. Works with Punchy's
-  first-person arms.
+  as you walk and look around, and it squishes when you take it, when it saves you and when its holder is hit
+  (harder the more damage). Works with Punchy's first-person arms.
+- **Name charm:** renamed weapons and tools get a little tag with their name, hanging from the handle on a string. The
+  tag is cut from the tool's material (planks, cobblestone, copper, iron, gold, diamond or netherite, using your
+  resource pack's block textures). It swings with real pendulum physics as you swing, look around, walk and jump, also
+  on other players, mobs, in item frames and on the ground. It hangs on top of whatever model your resource pack gives
+  the item and follows Punchy's first-person arms.
+- **Pet plush:** wear your wolf or cat as a plush. As a **charm** it hangs on your back on a string, back to you,
+  looking out with its legs dangling, and swings with pendulum physics as you walk, jump and turn. As a **backpack**
+  it is worn bigger with straps over your shoulders, its face peeking out behind you; a charm then hangs from the
+  backpack. Head, legs and tail jiggle, the plush is squeezed when you are hit, and each plush comes in your pet's
+  variant and collar colour (baby model and textures, so resource packs apply). In the pets tab of the storage
+  screen, ♥ picks the charm and ☗ the backpack (one pet each); without a choice the pet you saw last hangs as the
+  charm. Other players with the mod see your plushes through the server plugin, and without it while your pet is
+  near you.
+- **Wardrobe (J):** one screen to dress your character, with the figure on a turntable: up to three badges pinned to
+  your chest as little voxel pins, the symbol a vanilla item where there is one (ten to wear right away, twelve more
+  earned with advancements such as Diamonds!, Free the End or Hero of the Village), a hat worn instead of your
+  helmet, which pet hangs as plush charm or backpack, the belt and name charms, and named outfits to switch between.
+  Also opened with the hanger on your figure in the inventory or from the map. Other players with the mod see your
+  badges and hat through the server plugin.
+- **Hats:** voxel models that take the place of your helmet or turtle shell: crowns, flower wreaths, an aviator cap
+  with goggles, a miner's helmet with a lamp, a pirate tricorne, a halo, a straw hat, a fisherman's hat and a chef's
+  hat. In October and November there are also autumn and Halloween hats (a leaf wreath, an acorn cap, a mushroom cap,
+  a witch hat with a dangling spider, a jack o' lantern, devil horns, a bat on a spring), which can only be worn then.
+  A band, ring or brim shows which helmet is under it (leather in its dye, chainmail links, iron, gold, diamond,
+  netherite, copper, turtle scutes) and glints when the helmet is enchanted; an armour trim colours a gem, flower,
+  buckle, lens or lamp. Strands, ribbons, ear flaps, feathers and tips swing as you move. Each kind comes in several
+  colours, earned with an advancement, by finding an item or by entering a biome; the wardrobe shows one tile per kind
+  and opens its colours on a click.
+- **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
+  Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
+  hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace
+  or axe), a bow or crossbow on the right with a quiver behind it, more arrows sticking out the more you carry. What
+  is in your hand stays in your hand. Other players with the mod see it through the server plugin.
+- **Swaying plants:** grass, ferns, flowers, saplings and crops bend softly away when players or mobs walk through
+  them and swing back; potted plants wobble when someone brushes past. Lily pads dip under whoever stands on them and
+  rock in the wake of boats; leaves shake and drop a few falling leaves when someone runs or jumps into them or a
+  projectile flies through. Works with Sodium and Iris shaders; only the few plants around someone are animated, so it
+  costs next to nothing elsewhere.
+- **Swinging hangings:** free-hanging vines, weeping vines, glow berries, hanging roots, pale moss, spore blossoms,
+  lanterns on chains and bells swing when players, mobs, boats or projectiles push them. Long vines and chains bend
+  like a rope, and a light, adjustable breeze keeps the ones near you swaying.
+- **Wobbly arrows:** arrows and bee stingers stuck in a player wobble as they walk, jump and land, and twang when they
+  are hit; on you and on other players, no plugin needed.
+- **Soft doors:** doors, trapdoors and fence gates (wood, iron and copper) swing open and shut with a little overshoot
+  instead of snapping; gates swing as two halves around their posts. Only the look is animated, so you can still walk
+  through at once. Speed and bounce are adjustable; works with Sodium and Iris shaders.
 - **Light overlay (F7):** red crosses on blocks where monsters can spawn at any time, yellow ones where they can only
   spawn at night, following the real spawn rules (no crosses on glass, slabs, carpets or in mushroom fields) and the
   light limits of each dimension. Optionally the block light as a number. Crosses fade out as you light up an area. The
@@ -187,6 +233,9 @@ other dimensions.
   layer sidebar or the settings), and only those who share see the others.
 - Players without the mod are never sent anything and never show up.
 - Shared are the name, world, position, facing and, unless switched off, health and armour.
+- It also shares the **pet plushes** each player with the mod wears on their back (charm and backpack: pet type,
+  variant and collar colour) and **what hangs on their belt** (bundle colours and fullness, weapons and arrow count),
+  so everyone with the mod sees them.
 
 ### For server admins
 
@@ -200,6 +249,7 @@ into the server's `plugins` folder and restart. Settings are in `plugins/CobbleC
 | `hide-spectators` | `true` | Do not share players in spectator mode. |
 | `hide-invisible` | `true` | Do not share players with the invisibility effect. |
 | `share-health` | `true` | Send health and armour too. |
+| `share-plushes` | `true` | Share the pet plushes and belts players wear with everyone who has the mod. |
 
 Players hidden by vanish plugins are not sent to those who cannot see them.
 

@@ -6,6 +6,7 @@ public class RarityConfig extends FeatureConfig {
 	// Where
 	public boolean inInventories = true;
 	public boolean inHotbar = true;
+	public boolean inArmorHud = true;
 	public boolean inCreative = true;
 	public boolean tooltipFrame = true;
 	public RarityLevel minRarity = RarityLevel.UNCOMMON;

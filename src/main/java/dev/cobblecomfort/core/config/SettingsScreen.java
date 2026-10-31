@@ -499,7 +499,8 @@ public final class SettingsScreen extends Screen {
 	// ---------------------------------------------------------------- editing
 
 	private boolean canReset(Option<?> option) {
-		return option.available() && option.canResetToDefault() && !option.isPendingValueDefault() && !(option instanceof ButtonOption);
+		// Buttons first: YACL throws when asked whether a button holds its default.
+		return !(option instanceof ButtonOption) && option.available() && option.canResetToDefault() && !option.isPendingValueDefault();
 	}
 
 	/** Applies an option right away; a list entry applies its whole list. */

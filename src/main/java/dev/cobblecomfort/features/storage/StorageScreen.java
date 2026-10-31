@@ -1,5 +1,6 @@
 package dev.cobblecomfort.features.storage;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.cobblecomfort.features.furnace.FurnaceEntry;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
 import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
@@ -13,6 +14,7 @@ import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.pets.PetEntry;
 import dev.cobblecomfort.features.pets.PetFeature;
 import dev.cobblecomfort.features.pets.PetTab;
+import dev.cobblecomfort.features.petplush.PetPlushFeature;
 import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.trade.TradeTab;
@@ -617,6 +619,12 @@ public class StorageScreen extends Screen {
 				PetEntry pet = petTab.results().get(index);
 				if (PetTab.overForget(left + panelWidth - 8, mouseX)) {
 					PetFeature.INSTANCE.forget(pet);
+				} else if (PetPlushFeature.INSTANCE.isEnabled() && PetPlushFeature.canWear(pet)
+						&& PetTab.overCharm(left + panelWidth - 8, mouseX)) {
+					PetPlushFeature.INSTANCE.toggleCharm(pet);
+				} else if (PetPlushFeature.INSTANCE.isEnabled() && PetPlushFeature.canWear(pet)
+						&& PetTab.overPack(left + panelWidth - 8, mouseX)) {
+					PetPlushFeature.INSTANCE.togglePack(pet);
 				} else {
 					showOnMap(pet);
 				}
@@ -626,7 +634,7 @@ public class StorageScreen extends Screen {
 		}
 		if (index >= 0 && index < results.size() && mouseX >= left + 6 && mouseX < left + panelWidth - 6) {
 			StoredContainer container = results.get(index).container();
-			if (event.button() == 1) {
+			if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
 				showOnMap(container);
 			} else {
 				mark(container);

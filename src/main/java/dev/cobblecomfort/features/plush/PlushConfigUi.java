@@ -27,6 +27,7 @@ public final class PlushConfigUi {
 						.option(Opts.bool("plush.equip_squish", d.equipSquish, () -> c(feature).equipSquish, v -> c(feature).equipSquish = v))
 						.option(Opts.bool("plush.activation_squish", d.activationSquish,
 								() -> c(feature).activationSquish, v -> c(feature).activationSquish = v))
+						.option(Opts.bool("plush.hurt_squish", d.hurtSquish, () -> c(feature).hurtSquish, v -> c(feature).hurtSquish = v))
 						.build())
 				.build();
 	}

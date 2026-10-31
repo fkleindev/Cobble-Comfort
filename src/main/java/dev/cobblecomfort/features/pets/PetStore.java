@@ -25,6 +25,10 @@ public final class PetStore {
 	/** Saved form. */
 	private static final class Data {
 		List<PetEntry> pets = new ArrayList<>();
+		/** The pet hanging as a plush charm on the back: its UUID, "" to pick one automatically, or "none". */
+		String charm = "";
+		/** The pet worn as a plush backpack: its UUID, or "" for none. */
+		String pack = "";
 	}
 
 	private Data data = new Data();
@@ -87,6 +91,24 @@ public final class PetStore {
 			}
 		}
 		return null;
+	}
+
+	public String charm() {
+		return data.charm == null ? "" : data.charm;
+	}
+
+	public void setCharm(String charm) {
+		data.charm = charm;
+		changed();
+	}
+
+	public String pack() {
+		return data.pack == null ? "" : data.pack;
+	}
+
+	public void setPack(String pack) {
+		data.pack = pack;
+		changed();
 	}
 
 	public void put(PetEntry pet) {

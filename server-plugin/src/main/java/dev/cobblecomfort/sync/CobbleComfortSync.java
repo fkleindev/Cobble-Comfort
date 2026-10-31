@@ -18,6 +18,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +33,10 @@ public final class CobbleComfortSync extends JavaPlugin implements Listener {
 
 	/** Players whose client said they share. Messages arrive on the main thread, but quits may race the task. */
 	private final Set<UUID> sharing = ConcurrentHashMap.newKeySet();
+	/** The plush look (passed on unread) of every player whose client sent one, and all clients that speak the plush channel. */
+	private final Map<UUID, byte[]> plushes = new ConcurrentHashMap<>();
+	private final Set<UUID> plushClients = ConcurrentHashMap.newKeySet();
+	private boolean sharePlushes;
 	private BukkitTask task;
 	private int intervalTicks;
 	private double maxDistance;
@@ -48,6 +53,8 @@ public final class CobbleComfortSync extends JavaPlugin implements Listener {
 		maxHealthAttribute = attribute("max_health");
 		getServer().getMessenger().registerIncomingPluginChannel(this, Protocol.SHARE, (channel, player, data) -> onShare(player, data));
 		getServer().getMessenger().registerOutgoingPluginChannel(this, Protocol.PLAYERS);
+		getServer().getMessenger().registerIncomingPluginChannel(this, Protocol.PLUSH, (channel, player, data) -> onPlush(player, data));
+		getServer().getMessenger().registerOutgoingPluginChannel(this, Protocol.PLUSHES);
 		getServer().getPluginManager().registerEvents(this, this);
 		loadSettings();
 	}
@@ -58,6 +65,8 @@ public final class CobbleComfortSync extends JavaPlugin implements Listener {
 			task.cancel();
 		}
 		sharing.clear();
+		plushes.clear();
+		plushClients.clear();
 	}
 
 	private void loadSettings() {
@@ -68,6 +77,7 @@ public final class CobbleComfortSync extends JavaPlugin implements Listener {
 		hideSpectators = config.getBoolean("hide-spectators", true);
 		hideInvisible = config.getBoolean("hide-invisible", true);
 		shareHealth = config.getBoolean("share-health", true);
+		sharePlushes = config.getBoolean("share-plushes", true);
 		if (task != null) {
 			task.cancel();
 		}
@@ -98,6 +108,38 @@ public final class CobbleComfortSync extends JavaPlugin implements Listener {
 	@EventHandler
 	public void onQuit(PlayerQuitEvent event) {
 		sharing.remove(event.getPlayer().getUniqueId());
+		plushClients.remove(event.getPlayer().getUniqueId());
+		if (plushes.remove(event.getPlayer().getUniqueId()) != null) {
+			sendPlushes();
+		}
+	}
+
+	/** A client tells us its plush look; everyone with the mod gets the new list. */
+	private void onPlush(Player player, byte[] data) {
+		byte[] look = Protocol.readPlush(data);
+		if (look == null) {
+			return;
+		}
+		UUID uuid = player.getUniqueId();
+		plushClients.add(uuid);
+		if (sharePlushes) {
+			plushes.put(uuid, look);
+		} else {
+			plushes.remove(uuid);
+		}
+		sendPlushes();
+	}
+
+	private void sendPlushes() {
+		byte[] data = Protocol.writePlushes(Map.copyOf(plushes));
+		for (UUID uuid : plushClients) {
+			Player player = getServer().getPlayer(uuid);
+			if (player == null) {
+				plushClients.remove(uuid);
+			} else {
+				player.sendPluginMessage(this, Protocol.PLUSHES, data);
+			}
+		}
 	}
 
 	/** Every interval: each sharing player gets the other sharing players. */

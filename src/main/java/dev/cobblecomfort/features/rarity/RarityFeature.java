@@ -23,7 +23,7 @@ public final class RarityFeature extends Feature<RarityConfig> {
 
 	/** Where a slot is drawn; each place can be switched off separately. */
 	public enum Place {
-		INVENTORY, CREATIVE, HOTBAR
+		INVENTORY, CREATIVE, HOTBAR, ARMOR_HUD
 	}
 
 	private RarityFeature() {
@@ -47,6 +47,7 @@ public final class RarityFeature extends Feature<RarityConfig> {
 			case INVENTORY -> config.inInventories;
 			case CREATIVE -> config.inCreative;
 			case HOTBAR -> config.inHotbar;
+			case ARMOR_HUD -> config.inArmorHud;
 		};
 	}
 

@@ -6,6 +6,7 @@ import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.anim.Easing;
 import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.rarity.RarityFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -193,6 +194,7 @@ public final class ArmorHudFeature extends Feature<ArmorHudConfig> {
 		if (empty) {
 			g.outline(ix, iy, ICON, ICON, RenderUtil.withAlpha(0x60FFFFFF, eased));
 		} else if (eased >= 0.5f) {
+			RarityFeature.INSTANCE.drawSlot(g, stack, ix, iy, false, RarityFeature.Place.ARMOR_HUD);
 			g.item(stack, ix, iy);
 		}
 		pose.popMatrix();

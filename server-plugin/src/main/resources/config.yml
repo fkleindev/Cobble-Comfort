@@ -7,3 +7,5 @@ hide-spectators: true
 hide-invisible: true
 # Send health and armour along with the position.
 share-health: true
+# Share the pet plush each player wears on their back with everyone else who has the mod.
+share-plushes: true

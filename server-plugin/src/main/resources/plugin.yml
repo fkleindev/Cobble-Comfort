@@ -2,7 +2,7 @@ name: CobbleComfortSync
 version: '${version}'
 main: dev.cobblecomfort.sync.CobbleComfortSync
 api-version: '1.21'
-description: Shares player positions with clients that have the Cobble Comfort mod (opt-in per player).
+description: Shares player positions (opt-in per player) and the looks of players with the Cobble Comfort mod (pet plushes, belts, badges, hats).
 commands:
   cobblecomfort:
     description: Shows who shares their position, or reloads the config.

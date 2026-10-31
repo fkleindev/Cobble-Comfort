@@ -2,7 +2,9 @@ package dev.cobblecomfort.features.plush;
 
 import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
+import dev.cobblecomfort.core.IrisCompat;
 import dev.isxander.yacl3.api.ConfigCategory;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -54,6 +56,7 @@ public final class PlushFeature extends Feature<PlushConfig> {
 	@Override
 	public void init() {
 		SpecialModelRenderers.ID_MAPPER.put(CobbleComfortClient.id("plush"), PlushRenderer.Unbaked.MAP_CODEC);
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> PlushHits.clear());
 	}
 
 	@Override
@@ -61,12 +64,15 @@ public final class PlushFeature extends Feature<PlushConfig> {
 		return PlushConfigUi.buildCategory(this);
 	}
 
+	/** While true, totems keep their vanilla look (a symbol on a pin). */
+	public boolean plain;
+
 	/**
 	 * Whether this stack is drawn as a plush here; if so, prepares the arguments {@link PlushRenderer} picks up while
 	 * the model updates.
 	 */
 	public boolean begin(ItemStack stack, ItemDisplayContext context, ItemOwner owner) {
-		if (!isEnabled() || !stack.is(Items.TOTEM_OF_UNDYING)) {
+		if (!isEnabled() || !stack.is(Items.TOTEM_OF_UNDYING) || plain) {
 			return false;
 		}
 		LivingEntity holder = owner == null ? null : owner.asLivingEntity();
@@ -101,6 +107,9 @@ public final class PlushFeature extends Feature<PlushConfig> {
 			if (config.equipSquish) {
 				squish = equipSquish((now - state.equipped) / 1e9f);
 			}
+			if (config.hurtSquish) {
+				squish *= PlushHits.squish(holder, now);
+			}
 			if (config.wobble) {
 				// A plush seen in first person faces its holder, so its sway is mirrored.
 				boolean mirrored = context.firstPerson() || inPunchyArm;
@@ -125,6 +134,11 @@ public final class PlushFeature extends Feature<PlushConfig> {
 
 	public PlushRenderer.Args pendingArgs() {
 		return pending;
+	}
+
+	/** Whether Punchy is drawing an item in its first-person arm right now. */
+	public boolean inPunchyArm() {
+		return inPunchyArm;
 	}
 
 	/** Set while Punchy draws an item in its first-person arm ({@code PunchyArmRendererMixin}). */
@@ -161,6 +175,10 @@ public final class PlushFeature extends Feature<PlushConfig> {
 			if (hands.size() > 64) {
 				hands.long2ObjectEntrySet().removeIf(e -> now - e.getValue().lastSeen > EQUIP_GAP_NANOS);
 			}
+		}
+		if (IrisCompat.inShadowPass()) {
+			// Drawn again for the shadow map: the plush already moved this frame.
+			return state;
 		}
 		// The same hand can be resolved several times a frame (first person, Punchy's arm); only the first moves it.
 		float dt = (now - state.lastSeen) / 1e9f;

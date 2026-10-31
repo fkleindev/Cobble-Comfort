@@ -15,4 +15,6 @@ public class PlushConfig extends FeatureConfig {
 	public boolean wobble = true;
 	public boolean equipSquish = true;
 	public boolean activationSquish = true;
+	/** Squeezed when whoever holds it is hit, harder the more damage it was. */
+	public boolean hurtSquish = true;
 }

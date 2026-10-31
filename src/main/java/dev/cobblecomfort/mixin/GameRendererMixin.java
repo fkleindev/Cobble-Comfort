@@ -2,6 +2,7 @@ package dev.cobblecomfort.mixin;
 
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import dev.cobblecomfort.features.fullbright.FullbrightFeature;
+import dev.cobblecomfort.features.namecharm.NameCharmFeature;
 import dev.cobblecomfort.features.zoom.ZoomFeature;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -23,6 +24,19 @@ public abstract class GameRendererMixin {
 		if (ZoomFeature.INSTANCE.hideHand()) {
 			ci.cancel();
 		}
+	}
+
+	/** After the zoom check: if that cancels, the hands aren't drawn and the flag isn't set. */
+	@Inject(method = "renderItemInHand", at = @At("HEAD"))
+	private void cobblecomfort$enterHands(CameraRenderState camera, PlayerRenderState player, GpuTextureView target,
+			CallbackInfo ci) {
+		NameCharmFeature.INSTANCE.setFirstPersonPass(true);
+	}
+
+	@Inject(method = "renderItemInHand", at = @At("RETURN"))
+	private void cobblecomfort$leaveHands(CameraRenderState camera, PlayerRenderState player, GpuTextureView target,
+			CallbackInfo ci) {
+		NameCharmFeature.INSTANCE.setFirstPersonPass(false);
 	}
 
 	/** Strength and fade of the faked night vision (the fake effect itself never runs out). */

@@ -7,6 +7,9 @@ other players show up on the minimap and map even beyond render distance and in 
   and only sharing players receive the others.
 - Players without the mod are never sent anything and never show up.
 - Shared: name, world, position, facing, and (unless disabled) health and armour.
+- Also passes on the pet plushes each player with the mod wears on their back (charm and backpack) and what
+  hangs on their belt (bundles, weapons, arrow count), the badges pinned to their chest and the hat on their
+  head, to everyone who has the mod; this needs no opt-in, it is only a cosmetic. The plugin passes the looks on unread.
 
 ## Install
 
@@ -22,6 +25,7 @@ into the server's `plugins/` folder.
 | `hide-spectators` | `true` | Do not share players in spectator mode. |
 | `hide-invisible` | `true` | Do not share players with the invisibility effect. |
 | `share-health` | `true` | Send health and armour too. |
+| `share-plushes` | `true` | Share the pet plushes, belts, badges and hats. |
 
 Vanished players (hidden with `Player#hidePlayer`, as vanish plugins do) are not sent to those who cannot see them.
 
@@ -32,5 +36,6 @@ Vanished players (hidden with `Player#hidePlayer`, as vanish plugins do) are not
 
 ## Protocol
 
-Plugin channels `cobblecomfort:share` (client → server) and `cobblecomfort:players` (server → client); the format is
-documented in `Protocol.java` and matches `PositionSync` in the mod.
+Plugin channels `cobblecomfort:share` and `cobblecomfort:plush` (client → server), `cobblecomfort:players` and
+`cobblecomfort:plushes` (server → client); the format is documented in `Protocol.java` and matches `PositionSync`
+and `PetPlushSync` in the mod.

@@ -2,6 +2,7 @@ package dev.cobblecomfort.features.smoothgui;
 
 import dev.cobblecomfort.features.hud.anim.Easing;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.Minecraft;
 import org.joml.Vector2i;
 import org.joml.Vector2ic;
 
@@ -27,6 +28,11 @@ public final class TooltipAnimation {
 	private static boolean fresh;
 	private static float savedAlpha = 1f;
 	private static boolean clipping;
+	/** The frame the last tooltip was drawn in, and whether the current one is a further tooltip in that frame. */
+	private static long frame;
+	private static boolean secondary;
+	/** How far the animation moved the frame's first tooltip from where vanilla put it. */
+	private static int offsetX, offsetY;
 
 	private TooltipAnimation() {
 	}
@@ -47,6 +53,17 @@ public final class TooltipAnimation {
 			return;
 		}
 		long nanos = System.nanoTime();
+		// A second tooltip in the same frame (the name over a bundle's selected item) is placed relative to the first:
+		// it moves along with it, but must not take over its glide or size.
+		long now = Minecraft.getInstance().getFrameTimeNs();
+		secondary = now == frame;
+		frame = now;
+		if (secondary) {
+			if (config().tooltipFade) {
+				ScreenFade.set(savedAlpha * Easing.EASE_OUT_CUBIC.apply(appear(nanos)));
+			}
+			return;
+		}
 		fresh = lastNanos == 0 || nanos - lastNanos > GAP_NANOS;
 		step = fresh ? 0f : Math.min((nanos - lastNanos) / 1e9f, 0.05f);
 		if (fresh) {
@@ -66,6 +83,9 @@ public final class TooltipAnimation {
 	public static Vector2ic position(Vector2ic target, int w, int h) {
 		if (!active()) {
 			return target;
+		}
+		if (secondary) {
+			return new Vector2i(target.x() + offsetX, target.y() + offsetY);
 		}
 		SmoothGuiConfig c = config();
 		boolean morphing = c.tooltipMorph && !fresh && (Math.abs(width - w) > 0.5f || Math.abs(height - h) > 0.5f
@@ -104,16 +124,19 @@ public final class TooltipAnimation {
 		targetWidth = w;
 		targetHeight = h;
 		float slide = c.tooltipFade ? SLIDE * (1f - Easing.EASE_OUT_CUBIC.apply(appear(System.nanoTime()))) : 0f;
-		return new Vector2i(Math.round(x), Math.round(y + slide));
+		Vector2i placed = new Vector2i(Math.round(x), Math.round(y + slide));
+		offsetX = placed.x - target.x();
+		offsetY = placed.y - target.y();
+		return placed;
 	}
 
 	/** The background's size while it glides to the new tooltip's. */
 	public static int width(int w) {
-		return active() ? Math.round(width) : w;
+		return active() && !secondary ? Math.round(width) : w;
 	}
 
 	public static int height(int h) {
-		return active() ? Math.round(height) : h;
+		return active() && !secondary ? Math.round(height) : h;
 	}
 
 	/** After the background: while it is still smaller than the content, the content is cut off at its edge. */

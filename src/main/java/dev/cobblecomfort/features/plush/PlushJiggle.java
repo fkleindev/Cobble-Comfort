@@ -1,5 +1,6 @@
 package dev.cobblecomfort.features.plush;
 
+import dev.cobblecomfort.core.IrisCompat;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -10,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
  * plush lags behind, overshoots and settles. Everything runs on interpolated positions, every frame, in small fixed
  * steps, so it stays smooth at any frame rate.
  */
-final class PlushJiggle {
+public final class PlushJiggle {
 	private static final float STEP = 1f / 240f;
 	private static final float MAX_FRAME = 0.1f;
 	/** Smoothing of the measured turn rate and velocity, in seconds. */
@@ -58,6 +59,9 @@ final class PlushJiggle {
 	private final Spring leftArmPitch = new Spring(3.4f, 0.13f, 30);
 	private final Spring rightLegPitch = new Spring(3.8f, 0.2f, 25);
 	private final Spring leftLegPitch = new Spring(3.8f, 0.2f, 25);
+	// A tail (pet plushes) is the floppiest of all: it swings sideways and up and down.
+	private final Spring tailSwing = new Spring(2.4f, 0.1f, 40);
+	private final Spring tailLift = new Spring(2.4f, 0.1f, 35);
 
 	private boolean primed;
 	private float lastYaw;
@@ -71,7 +75,7 @@ final class PlushJiggle {
 	private float accSide;
 	private float pending;
 
-	void reset() {
+	public void reset() {
 		primed = false;
 		for (Spring spring : springs()) {
 			spring.reset();
@@ -79,7 +83,11 @@ final class PlushJiggle {
 	}
 
 	/** Measures how the holder moved since the last frame and advances the springs. */
-	void update(LivingEntity holder, float partialTick, float dt) {
+	public void update(LivingEntity holder, float partialTick, float dt) {
+		if (IrisCompat.inShadowPass()) {
+			// Drawn again for the shadow map in the same frame: the plush already moved.
+			return;
+		}
 		float yaw = holder.getViewYRot(partialTick);
 		float pitch = holder.getViewXRot(partialTick);
 		Vec3 pos = holder.getPosition(partialTick);
@@ -138,6 +146,8 @@ final class PlushJiggle {
 			leftArmPitch.step(longitudinal * 2f - stride * 16f, STEP);
 			rightLegPitch.step(longitudinal - stride * 15f, STEP);
 			leftLegPitch.step(longitudinal + stride * 15f, STEP);
+			tailSwing.step(-lateral * 2.2f + stride * 12f, STEP);
+			tailLift.step(-longitudinal * 1.8f + bounce * 9f, STEP);
 		}
 	}
 
@@ -153,7 +163,7 @@ final class PlushJiggle {
 		return sign(mirrored) * bodyPitch.angle;
 	}
 
-	PlushPose pose(boolean mirrored) {
+	public PlushPose pose(boolean mirrored) {
 		float s = sign(mirrored) * Mth.DEG_TO_RAD;
 		// The flap looks the same from both sides; only the lean flips.
 		float flap = armFlap.angle * Mth.DEG_TO_RAD;
@@ -162,6 +172,15 @@ final class PlushJiggle {
 				s * rightArmPitch.angle, s * armLean.angle + flap,
 				s * leftArmPitch.angle, s * armLean.angle - flap,
 				s * rightLegPitch.angle, s * leftLegPitch.angle);
+	}
+
+	/** The tail's sideways swing and lift right now, in radians (sideways mirrored like the rest). */
+	public float tailSwing(boolean mirrored) {
+		return sign(mirrored) * tailSwing.angle * Mth.DEG_TO_RAD;
+	}
+
+	public float tailLift() {
+		return tailLift.angle * Mth.DEG_TO_RAD;
 	}
 
 	private static float sign(boolean mirrored) {
@@ -174,6 +193,6 @@ final class PlushJiggle {
 
 	private Spring[] springs() {
 		return new Spring[]{bodyRoll, bodyPitch, headRoll, headPitch, armLean, armFlap, rightArmPitch,
-				leftArmPitch, rightLegPitch, leftLegPitch};
+				leftArmPitch, rightLegPitch, leftLegPitch, tailSwing, tailLift};
 	}
 }

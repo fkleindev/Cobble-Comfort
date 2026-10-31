@@ -2,6 +2,7 @@ package dev.cobblecomfort.features.pets;
 
 import dev.cobblecomfort.features.hud.render.RenderUtil;
 import dev.cobblecomfort.features.map.MapFeature;
+import dev.cobblecomfort.features.petplush.PetPlushFeature;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -22,9 +23,12 @@ import java.util.Locale;
 public final class PetTab {
 	private static final int ROW_HOVER = 0x22FFFFFF;
 	private static final int FORGET = 12;
+	private static final int WORN = 0xFFFF7FB0;
+	private static final int WORN_HOVER = 0xFFFFB0CC;
+	private static final int IDLE = 0xFF9AA0AE;
 
-	/** What the mouse is over: a row, and whether it is the forget button. */
-	public record Hovered(PetEntry pet, boolean forget) {
+	/** What the mouse is over: a row, and whether it is the forget, plush charm or plush backpack button. */
+	public record Hovered(PetEntry pet, boolean forget, boolean charm, boolean pack) {
 	}
 
 	private int builtVersion = -1;
@@ -64,6 +68,16 @@ public final class PetTab {
 				: Component.translatable("cobblecomfort.storage.no_results");
 	}
 
+	/** Whether a click at {@code mouseX} in a row hits its plush charm button (left of the forget button). */
+	public static boolean overCharm(int x1, double mouseX) {
+		return mouseX >= x1 - 2 * FORGET && mouseX < x1 - FORGET;
+	}
+
+	/** Whether a click at {@code mouseX} in a row hits its plush backpack button (left of the charm button). */
+	public static boolean overPack(int x1, double mouseX) {
+		return mouseX >= x1 - 3 * FORGET && mouseX < x1 - 2 * FORGET;
+	}
+
 	/** Whether a click at {@code mouseX} in a row hits its forget button. */
 	public static boolean overForget(int x1, double mouseX) {
 		return mouseX >= x1 - FORGET && mouseX < x1;
@@ -95,9 +109,19 @@ public final class PetTab {
 				}
 				g.text(font, location, textX, y + 12, 0xFF9AA0AE, false);
 				boolean forget = hover && overForget(x1, mouseX);
+				PetPlushFeature plush = PetPlushFeature.INSTANCE;
+				boolean wearable = plush.isEnabled() && PetPlushFeature.canWear(pet);
+				boolean charm = hover && wearable && overCharm(x1, mouseX);
+				boolean pack = hover && wearable && overPack(x1, mouseX);
+				if (wearable && (hover || plush.isCharm(pet))) {
+					g.centeredText(font, "♥", x1 - FORGET - FORGET / 2, y + 6, plush.isCharm(pet) ? WORN : charm ? WORN_HOVER : IDLE);
+				}
+				if (wearable && (hover || plush.isPack(pet))) {
+					g.centeredText(font, "☗", x1 - 2 * FORGET - FORGET / 2, y + 6, plush.isPack(pet) ? WORN : pack ? WORN_HOVER : IDLE);
+				}
 				if (hover) {
-					g.centeredText(font, "✕", x1 - FORGET / 2, y + 6, forget ? 0xFFFF6060 : 0xFF9AA0AE);
-					hovered = new Hovered(pet, forget);
+					g.centeredText(font, "✕", x1 - FORGET / 2, y + 6, forget ? 0xFFFF6060 : IDLE);
+					hovered = new Hovered(pet, forget, charm, pack);
 				}
 			}
 			y += row;
@@ -107,6 +131,14 @@ public final class PetTab {
 
 	/** The map tooltip for a row, or a hint for the forget button. */
 	public static List<Component> tooltip(Hovered hovered) {
+		if (hovered.charm()) {
+			return List.of(Component.translatable(PetPlushFeature.INSTANCE.isCharm(hovered.pet())
+					? "cobblecomfort.pets.charm_off" : "cobblecomfort.pets.charm_on"));
+		}
+		if (hovered.pack()) {
+			return List.of(Component.translatable(PetPlushFeature.INSTANCE.isPack(hovered.pet())
+					? "cobblecomfort.pets.pack_off" : "cobblecomfort.pets.pack_on"));
+		}
 		if (hovered.forget()) {
 			return List.of(Component.translatable(hovered.pet().dead() ? "cobblecomfort.pets.remove_grave" : "cobblecomfort.pets.forget")
 					.withStyle(ChatFormatting.RED));

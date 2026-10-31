@@ -29,6 +29,7 @@ import dev.cobblecomfort.features.trade.TradeFeature;
 import dev.cobblecomfort.features.trade.TradeMerchant;
 import dev.cobblecomfort.features.storage.StorageFeature;
 import dev.cobblecomfort.features.storage.StorageScreen;
+import dev.cobblecomfort.features.wardrobe.WardrobeFeature;
 import dev.cobblecomfort.features.tracker.TrackerFeature;
 import dev.cobblecomfort.features.tracker.TrackerScreen;
 import dev.cobblecomfort.features.hud.HudCustomizerFeature;
@@ -320,6 +321,11 @@ public class MapScreen extends Screen {
 		if (config().waypoints) {
 			nav.add(new Nav(ItemStack.EMPTY, Component.translatable("cobblecomfort.map.button.waypoints"), "key.cobblecomfort.waypoints",
 					() -> minecraft.gui.setScreen(new WaypointListScreen(null))));
+		}
+		WardrobeFeature wardrobe = WardrobeFeature.INSTANCE;
+		if (wardrobe.isEnabled() && wardrobe.config().mapButton) {
+			nav.add(new Nav(new ItemStack(Items.LEATHER_CHESTPLATE), Component.translatable("cobblecomfort.map.nav.wardrobe"), "key.cobblecomfort.wardrobe",
+					() -> wardrobe.open(null)));
 		}
 		TrackerFeature tracker = TrackerFeature.INSTANCE;
 		if (tracker.isEnabled() && tracker.hasWorld()) {

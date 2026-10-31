@@ -180,6 +180,19 @@ public final class FoodHudFeature extends Feature<FoodHudConfig> {
 		return 0.35f + 0.45f * (0.5f + 0.5f * (float) Math.sin(System.currentTimeMillis() / 1000.0 * Math.PI * 2.5));
 	}
 
+	/** Fainter than {@link #pulse()}, so previewed icons stay distinguishable from the real ones. */
+	private static int previewColor() {
+		float wave = 0.5f + 0.5f * (float) Math.sin(System.currentTimeMillis() / 1000.0 * Math.PI * 2.5);
+		return RenderUtil.withAlpha(0xFFFFFFFF, 0.12f + 0.33f * wave);
+	}
+
+	/** Draws only the columns {@code from} to {@code to} (sprite pixels) of an icon, e.g. the half a half icon lacks. */
+	private static void blitColumns(GuiGraphicsExtractor g, Identifier sprite, int x, int y, int from, int to, int color) {
+		g.enableScissor(x + from, y, x + to, y + ICON_SIZE);
+		g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, ICON_SIZE, ICON_SIZE, color);
+		g.disableScissor();
+	}
+
 	// ---------------------------------------------------------------- food bar
 
 	/** Before vanilla's food icons: exhaustion bar and hunger warning glow (underneath the icons). */
@@ -216,14 +229,20 @@ public final class FoodHudFeature extends Feature<FoodHudConfig> {
 		ItemStack held = heldFood(player);
 		FoodProperties props = FoodMath.food(held);
 		if (config.eatPreview && props != null) {
-			int alpha = RenderUtil.withAlpha(0xFFFFFFFF, pulse());
+			int alpha = previewColor();
 			int after = FoodMath.foodAfter(food, props);
 			for (int i = 0; i < ICONS; i++) {
-				int now = food - i * 2;
-				int then = after - i * 2;
-				if (then > now && then > 0 && now < 2) {
-					g.blitSprite(RenderPipelines.GUI_TEXTURED, then >= 2 ? FOOD_FULL : FOOD_HALF,
-							right - i * ICON_STEP - ICON_SIZE, top, ICON_SIZE, ICON_SIZE, alpha);
+				int now = Math.clamp(food - i * 2, 0, 2);
+				int then = Math.clamp(after - i * 2, 0, 2);
+				if (then <= now) {
+					continue;
+				}
+				int x = right - i * ICON_STEP - ICON_SIZE;
+				if (now == 1) {
+					// The real half shank lacks the meat on the left.
+					blitColumns(g, FOOD_FULL, x, top, 0, 3, alpha);
+				} else {
+					g.blitSprite(RenderPipelines.GUI_TEXTURED, then == 2 ? FOOD_FULL : FOOD_HALF, x, top, ICON_SIZE, ICON_SIZE, alpha);
 				}
 			}
 			if (config.saturationOverlay) {
@@ -289,13 +308,21 @@ public final class FoodHudFeature extends Feature<FoodHudConfig> {
 		if (to <= from) {
 			return;
 		}
-		int color = RenderUtil.withAlpha(0xFFFFFFFF, pulse());
-		for (int point = from; point < to; point += 2) {
-			int heart = point / 2;
+		int color = previewColor();
+		for (int heart = from / 2; heart * 2 < to; heart++) {
+			int now = Math.clamp(from - heart * 2, 0, 2);
+			int then = Math.clamp(to - heart * 2, 0, 2);
+			if (then <= now) {
+				continue;
+			}
 			int hx = heartX + heart % 10 * ICON_STEP;
 			int hy = heartY - heart / 10 * heartRowHeight;
-			boolean half = point % 2 == 1 || to - point < 2;
-			g.blitSprite(RenderPipelines.GUI_TEXTURED, half ? HEART_HALF : HEART_FULL, hx, hy, ICON_SIZE, ICON_SIZE, color);
+			if (now == 1) {
+				// Only the right half the real half heart lacks.
+				blitColumns(g, HEART_FULL, hx, hy, 5, ICON_SIZE, color);
+			} else {
+				g.blitSprite(RenderPipelines.GUI_TEXTURED, then == 2 ? HEART_FULL : HEART_HALF, hx, hy, ICON_SIZE, ICON_SIZE, color);
+			}
 		}
 	}
 

@@ -19,6 +19,7 @@ public final class RarityConfigUi {
 						.option(Opts.bool("rarity.in_inventories", d.inInventories,
 								() -> c(feature).inInventories, v -> c(feature).inInventories = v))
 						.option(Opts.bool("rarity.in_hotbar", d.inHotbar, () -> c(feature).inHotbar, v -> c(feature).inHotbar = v))
+						.option(Opts.bool("rarity.in_armor_hud", d.inArmorHud, () -> c(feature).inArmorHud, v -> c(feature).inArmorHud = v))
 						.option(Opts.bool("rarity.in_creative", d.inCreative, () -> c(feature).inCreative, v -> c(feature).inCreative = v))
 						.option(Opts.bool("rarity.tooltip_frame", d.tooltipFrame,
 								() -> c(feature).tooltipFrame, v -> c(feature).tooltipFrame = v))

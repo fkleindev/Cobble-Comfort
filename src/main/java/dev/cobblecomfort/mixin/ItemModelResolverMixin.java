@@ -1,5 +1,6 @@
 package dev.cobblecomfort.mixin;
 
+import dev.cobblecomfort.features.namecharm.NameCharmFeature;
 import dev.cobblecomfort.features.plush.PlushFeature;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.item.ItemModel;
@@ -45,5 +46,12 @@ public abstract class ItemModelResolverMixin {
 			plush.end();
 		}
 		ci.cancel();
+	}
+
+	/** Renamed weapons and tools get the name charm as an extra layer on top of their own model. */
+	@Inject(method = "appendItemLayers", at = @At("RETURN"))
+	private void cobblecomfort$nameCharm(ItemStackRenderState output, ItemStack item, ItemDisplayContext displayContext,
+			Level level, ItemOwner owner, int seed, CallbackInfo ci) {
+		NameCharmFeature.INSTANCE.appendLayer(output, item, displayContext, owner);
 	}
 }
