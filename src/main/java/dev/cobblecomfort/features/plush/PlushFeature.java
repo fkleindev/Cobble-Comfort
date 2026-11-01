@@ -3,6 +3,8 @@ package dev.cobblecomfort.features.plush;
 import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.core.IrisCompat;
+import dev.cobblecomfort.features.wardrobe.TotemSkin;
+import dev.cobblecomfort.features.wardrobe.WardrobeFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -66,6 +68,8 @@ public final class PlushFeature extends Feature<PlushConfig> {
 
 	/** While true, totems keep their vanilla look (a symbol on a pin). */
 	public boolean plain;
+	/** While set, totems are drawn in this skin (a wardrobe tile showing it), whoever holds them. */
+	public TotemSkin preview;
 
 	/**
 	 * Whether this stack is drawn as a plush here; if so, prepares the arguments {@link PlushRenderer} picks up while
@@ -77,6 +81,12 @@ public final class PlushFeature extends Feature<PlushConfig> {
 		}
 		LivingEntity holder = owner == null ? null : owner.asLivingEntity();
 		AbstractClientPlayer player = holder instanceof AbstractClientPlayer p ? p : null;
+		// How totems look is chosen in the wardrobe; the game's own totem is one of the choices.
+		TotemSkin totem = preview != null ? preview : WardrobeFeature.INSTANCE.totemFor(player);
+		if (totem == TotemSkin.CLASSIC) {
+			return false;
+		}
+		boolean mini = totem == TotemSkin.MINI_ME;
 		boolean hand = context.firstPerson() || context == ItemDisplayContext.THIRD_PERSON_LEFT_HAND
 				|| context == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
 		boolean activation = context == ItemDisplayContext.FIXED && owner == null && activationShowing();
@@ -122,14 +132,15 @@ public final class PlushFeature extends Feature<PlushConfig> {
 		// the plush on its back; turn it upright there.
 		float upright = inPunchyArm ? PUNCHY_UPRIGHT : 0f;
 		pending = new PlushRenderer.Args(skin.body().texturePath(), skin.model() == PlayerModelType.SLIM, squish, tiltZ, tiltX,
-				upright, limbs);
+				upright, limbs, totem, mini ? WardrobeFeature.INSTANCE.miniMeHat(player) : null,
+				mini ? WardrobeFeature.INSTANCE.miniMeNeck(player) : null);
 		return true;
 	}
 
 	/** Whether the plush is moving right now, so its render state must not be cached between frames. */
 	public boolean animating() {
 		return pending != null && (pending.squish() != 1f || pending.tiltZ() != 0f || pending.tiltX() != 0f
-				|| !pending.limbs().equals(PlushPose.REST));
+				|| !pending.limbs().equals(PlushPose.REST) || pending.skin().animated());
 	}
 
 	public PlushRenderer.Args pendingArgs() {

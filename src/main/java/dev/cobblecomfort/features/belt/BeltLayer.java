@@ -8,6 +8,7 @@ import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.namecharm.NameCharmRenderer;
 import dev.cobblecomfort.features.petplush.Torso;
 import dev.cobblecomfort.features.plush.PlushHits;
+import dev.cobblecomfort.features.wardrobe.WardrobeScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.player.PlayerModel;
@@ -111,7 +112,8 @@ final class BeltLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	@Override
 	public void submit(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot) {
 		Minecraft mc = Minecraft.getInstance();
-		if (state.isInvisible || state.isSpectator || mc.level == null) {
+		// A wardrobe tile shows only the piece it offers.
+		if (state.isInvisible || state.isSpectator || mc.level == null || WardrobeScreen.isTile(state)) {
 			return;
 		}
 		Entity entity = mc.level.getEntity(state.id);

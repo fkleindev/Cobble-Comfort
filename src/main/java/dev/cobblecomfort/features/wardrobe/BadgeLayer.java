@@ -60,7 +60,7 @@ final class BadgeLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	@Override
 	public void submit(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot) {
 		Minecraft mc = Minecraft.getInstance();
-		if (state.isInvisible || state.isSpectator || mc.level == null) {
+		if (state.isInvisible || state.isSpectator || mc.level == null || WardrobeScreen.isTile(state)) {
 			return;
 		}
 		Entity entity = mc.level.getEntity(state.id);

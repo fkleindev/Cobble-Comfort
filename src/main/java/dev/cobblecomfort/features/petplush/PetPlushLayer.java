@@ -7,6 +7,7 @@ import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.namecharm.NameCharmRenderer;
 import dev.cobblecomfort.features.plush.PlushHits;
 import dev.cobblecomfort.features.wardrobe.BackLayer;
+import dev.cobblecomfort.features.wardrobe.WardrobeScreen;
 import dev.cobblecomfort.features.wardrobe.BackPiece;
 import dev.cobblecomfort.features.wardrobe.Trinket;
 import dev.cobblecomfort.features.wardrobe.TrinketModel;
@@ -139,13 +140,14 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			return;
 		}
 		PetPlushFeature feature = PetPlushFeature.INSTANCE;
-		PlushLook look = feature.lookFor(player);
-		// What is on the back comes from the wardrobe (a wardrobe tile shows the one it offers): a plush backpack or
+		// What is on the back comes from the wardrobe (a wardrobe tile shows only the one it offers): a plush backpack or
 		// something else carried, and a plush charm or another charm. Players on older versions may still share pets.
+		boolean tile = WardrobeScreen.isTile(state);
+		PlushLook look = tile ? null : feature.lookFor(player);
 		BackPiece backPreview = state.getData(BackLayer.PREVIEW);
 		Trinket trinketPreview = state.getData(TrinketModel.PREVIEW);
-		BackPiece back = backPreview != null ? backPreview : WardrobeFeature.INSTANCE.backFor(player);
-		Trinket trinket = trinketPreview != null ? trinketPreview : WardrobeFeature.INSTANCE.trinketFor(player);
+		BackPiece back = backPreview != null || tile ? backPreview : WardrobeFeature.INSTANCE.backFor(player);
+		Trinket trinket = trinketPreview != null || tile ? trinketPreview : WardrobeFeature.INSTANCE.trinketFor(player);
 		PetPlush pack = back != null ? back.plush() : look == null ? null : look.pack();
 		BackPiece carried = back != null && back.plush() == null ? back : null;
 		PetPlush charm = trinket != null ? trinket.plush() : look == null ? null : look.charm();

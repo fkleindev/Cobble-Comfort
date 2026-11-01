@@ -41,6 +41,56 @@ fabricApi {
 	}
 }
 
+// Cosmetic sheets: one image per wardrobe category in cosmetics/, every piece drawn on the figure (skin FLRN_tv).
+// `./gradlew runCosmeticSheets` opens the game for it, but only when the cosmetics changed since the last sheets;
+// every build runs it afterwards.
+sourceSets {
+	sheets {
+		compileClasspath += main.compileClasspath + main.output
+		runtimeClasspath += main.runtimeClasspath + main.output
+	}
+}
+
+loom {
+	mods {
+		"cobblecomfort" {
+			sourceSet sourceSets.main
+		}
+		"cobblecomfort-sheets" {
+			sourceSet sourceSets.sheets
+		}
+	}
+	runs {
+		cosmeticSheets {
+			client()
+			source sourceSets.sheets
+			runDir "build/run/cosmeticSheets"
+			ideConfigGenerated false
+			property "fabric.client.gametest"
+			property "fabric.client.gametest.modid", "cobblecomfort-sheets"
+			property "cobblecomfort.sheets.out", file("cosmetics").absolutePath
+		}
+	}
+}
+
+/** A fingerprint of the files the cosmetic sheets are drawn from. */
+class CosmeticSheetInputs {
+	static String hash(FileCollection files) {
+		def digest = java.security.MessageDigest.getInstance("SHA-256")
+		files.files.findAll { it.isFile() }.sort { it.absolutePath }.each { digest.update(it.bytes) }
+		return digest.digest().encodeHex().toString()
+	}
+}
+
+def sheetInputs = fileTree("src/main/java/dev/cobblecomfort/features/wardrobe") + fileTree("src/main/java/dev/cobblecomfort/features/plush") + fileTree("src/sheets") +
+		files("src/main/resources/assets/cobblecomfort/textures/misc/badges.png", "src/main/resources/assets/cobblecomfort/textures/misc/hat.png")
+def sheetStamp = file("cosmetics/.inputs")
+tasks.named("runCosmeticSheets") {
+	onlyIf("the cosmetics changed") { !sheetStamp.exists() || sheetStamp.text != CosmeticSheetInputs.hash(sheetInputs) }
+	doLast { sheetStamp.text = CosmeticSheetInputs.hash(sheetInputs) }
+}
+tasks.named("build") { finalizedBy "runCosmeticSheets" }
+
 processResources {
 	def props = [
 		version: project.version,

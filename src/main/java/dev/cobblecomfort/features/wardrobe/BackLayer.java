@@ -75,7 +75,7 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			return;
 		}
 		BackPiece preview = state.getData(PREVIEW);
-		BackPiece piece = preview != null ? preview : WardrobeFeature.INSTANCE.backFor(player);
+		BackPiece piece = preview != null || WardrobeScreen.isTile(state) ? preview : WardrobeFeature.INSTANCE.backFor(player);
 		if (piece == null || piece.plush() != null) {
 			// None, or a plush backpack: the plush layer draws that.
 			return;

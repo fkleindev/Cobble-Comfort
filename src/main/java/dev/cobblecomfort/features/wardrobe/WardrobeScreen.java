@@ -12,6 +12,7 @@ import dev.cobblecomfort.features.plush.PlushFeature;
 import dev.cobblecomfort.features.smoothgui.SmoothScroll;
 import net.minecraft.ChatFormatting;
 import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
@@ -20,6 +21,8 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -57,9 +60,16 @@ public final class WardrobeScreen extends Screen {
 	private static final int LINE = 0x20FFFFFF;
 	private static final int WORN = 0xFFFF7FB0;
 	private static final int LOCKED_TINT = 0xFF5C5C66;
+	private static final ItemStack TOTEM = new ItemStack(Items.TOTEM_OF_UNDYING);
+
+	/**
+	 * On a figure drawn as a tile: it wears nothing but the piece the tile offers, so the other layers (belt, plushes,
+	 * badges, armour, what is held) skip it. Tiles are many, and each is drawn every frame.
+	 */
+	public static final RenderStateDataKey<Boolean> TILE = RenderStateDataKey.create(() -> "cobblecomfort:wardrobe_tile");
 
 	enum Tab {
-		BADGES, HATS, NECK, BACK, BELT, OUTFITS
+		BADGES, HATS, NECK, BACK, TOTEM, BELT, OUTFITS
 	}
 
 	/** Something clickable drawn this frame: its box, what a click does, and its tooltip (may be empty). */
@@ -163,6 +173,7 @@ public final class WardrobeScreen extends Screen {
 			case HATS -> Items.GOLDEN_HELMET;
 			case NECK -> Items.STRING;
 			case BACK -> Items.ELYTRA;
+			case TOTEM -> Items.TOTEM_OF_UNDYING;
 			case BELT -> Items.BUNDLE;
 			case OUTFITS -> Items.ARMOR_STAND;
 		});
@@ -227,6 +238,7 @@ public final class WardrobeScreen extends Screen {
 				case HATS -> drawHats(g);
 				case NECK -> drawNecks(g);
 				case BACK -> drawBack(g);
+				case TOTEM -> drawTotems(g);
 				case BELT -> drawBelt(g);
 				case OUTFITS -> drawOutfits(g);
 			}
@@ -261,7 +273,8 @@ public final class WardrobeScreen extends Screen {
 	}
 
 	/** The player as they look now, turned {@code turn} degrees from facing us, at full size; null without a player. */
-	private EntityRenderState figure(float turn) {
+	static EntityRenderState figure(float turn) {
+		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.player == null) {
 			return null;
 		}
@@ -279,8 +292,35 @@ public final class WardrobeScreen extends Screen {
 		return state;
 	}
 
+	/** The figure for a tile, turned {@code turn} degrees: only the helmet left on, for the hat to show it. */
+	static EntityRenderState tile(float turn) {
+		EntityRenderState state = figure(turn);
+		if (state instanceof AvatarRenderState avatar) {
+			avatar.setData(TILE, true);
+			avatar.chestEquipment = ItemStack.EMPTY;
+			avatar.legsEquipment = ItemStack.EMPTY;
+			avatar.feetEquipment = ItemStack.EMPTY;
+			avatar.rightHandItemStack = ItemStack.EMPTY;
+			avatar.leftHandItemStack = ItemStack.EMPTY;
+			avatar.rightHandItemState.clear();
+			avatar.leftHandItemState.clear();
+			avatar.heldOnHead.clear();
+			avatar.showCape = false;
+			avatar.parrotOnLeftShoulder = null;
+			avatar.parrotOnRightShoulder = null;
+			avatar.arrowCount = 0;
+			avatar.stingerCount = 0;
+		}
+		return state;
+	}
+
+	/** Whether a figure is drawn as a tile, wearing only what the tile offers. */
+	public static boolean isTile(EntityRenderState state) {
+		return state.getData(TILE) != null;
+	}
+
 	/** Draws a figure {@code size} pixels a block, with the height {@code centre} in the middle of the box. */
-	private void figure(GuiGraphicsExtractor g, EntityRenderState state, float size, float centre, float pitch, int x0, int y0, int x1, int y1) {
+	static void figure(GuiGraphicsExtractor g, EntityRenderState state, float size, float centre, float pitch, int x0, int y0, int x1, int y1) {
 		Quaternionf camera = new Quaternionf().rotateX(pitch * Mth.DEG_TO_RAD);
 		Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI).mul(camera);
 		g.entity(state, size, new Vector3f(0f, centre, 0f), rotation, camera, x0, y0, x1, y1);
@@ -288,7 +328,10 @@ public final class WardrobeScreen extends Screen {
 
 	/** A close-up of your head wearing {@code hat}. */
 	private void hatPreview(GuiGraphicsExtractor g, Hat hat, int x0, int y0, int x1, int y1, float turn) {
-		EntityRenderState state = figure(turn);
+		hatPreview(g, hat, x0, y0, x1, y1, tile(turn));
+	}
+
+	static void hatPreview(GuiGraphicsExtractor g, Hat hat, int x0, int y0, int x1, int y1, EntityRenderState state) {
 		if (state != null) {
 			state.setData(HatLayer.PREVIEW, hat);
 			// The head's top is about at the height of the bounding box: the head below it, the hat (up to a crown's cross)
@@ -357,7 +400,7 @@ public final class WardrobeScreen extends Screen {
 	 * A pin {@code scale} times its texture size: the disc, then its symbol. A locked one is dimmed and shows its own art
 	 * even where it has a vanilla item, which can't be dimmed.
 	 */
-	private void drawBadge(GuiGraphicsExtractor g, Badge badge, int x, int y, int scale, boolean earned) {
+	static void drawBadge(GuiGraphicsExtractor g, Badge badge, int x, int y, int scale, boolean earned) {
 		int tint = earned ? -1 : LOCKED_TINT;
 		int size = Badge.CELL * scale;
 		g.blit(RenderPipelines.GUI_TEXTURED, Badge.TEXTURE, x, y, badge.u(), badge.v(), size, size, Badge.CELL, Badge.CELL,
@@ -533,6 +576,11 @@ public final class WardrobeScreen extends Screen {
 		}, tooltip));
 	}
 
+	/** Whether a tile from y0 to y1 shows in the list now: those scrolled out of it don't draw their figure. */
+	private boolean visible(int y0, int y1) {
+		return y1 > bodyTop() && y0 < visibleBottom();
+	}
+
 	private void tileBack(GuiGraphicsExtractor g, int cx, int cy, int cx1, int cy1, boolean worn) {
 		if (worn) {
 			RenderUtil.roundedFill(g, cx, cy, cx1, cy1, 4, RenderUtil.withAlpha(WORN, 0.3f));
@@ -544,6 +592,9 @@ public final class WardrobeScreen extends Screen {
 
 	/** The hat on your own head, three-quarter on; the one under the mouse turns. */
 	private void preview(GuiGraphicsExtractor g, Hat hat, int cx, int cy, int cx1, int cy1) {
+		if (!visible(cy, cy1)) {
+			return;
+		}
 		boolean hovered = hoverX >= cx && hoverX < cx1 && hoverY >= cy && hoverY < cy1;
 		float turn = hovered ? (System.nanoTime() / 1e9f * 90f + 35f) % 360f : 35f;
 		hatPreview(g, hat, cx + 1, cy + 1, cx1 - 1, cy1 - 1, turn);
@@ -677,7 +728,9 @@ public final class WardrobeScreen extends Screen {
 		if (open) {
 			RenderUtil.roundedOutline(g, cx, cy, cx1, cy1, 4, MapUi.TEXT, RenderUtil.withAlpha(MapUi.TEXT, 0.5f));
 		}
-		slot.preview().draw(g, worn != null ? worn : variants.getFirst(), cx, cy, cx1, cy1);
+		if (visible(cy, cy1)) {
+			slot.preview().draw(g, worn != null ? worn : variants.getFirst(), cx, cy, cx1, cy1);
+		}
 		if (!earned) {
 			veil(g, cx, cy, cx1, cy1, true);
 		}
@@ -719,7 +772,9 @@ public final class WardrobeScreen extends Screen {
 			boolean worn = slot.worn().get() == piece;
 			Hat.Group group = slot.group().apply(style);
 			tileBack(g, cx, cy, cx1, cy1, worn);
-			slot.preview().draw(g, piece, cx, cy, cx1, cy1);
+			if (visible(cy, cy1)) {
+				slot.preview().draw(g, piece, cx, cy, cx1, cy1);
+			}
 			if (!earned) {
 				veil(g, cx, cy, cx1, cy1, true);
 			}
@@ -761,7 +816,10 @@ public final class WardrobeScreen extends Screen {
 
 	/** Your neck and chest wearing {@code neck}, three-quarter on; the tile under the mouse turns. */
 	private void neckPreview(GuiGraphicsExtractor g, Neck neck, int cx, int cy, int cx1, int cy1) {
-		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, 35f);
+		neckPreview(g, neck, cx, cy, cx1, cy1, tileFigure(cx, cy, cx1, cy1, 35f));
+	}
+
+	static void neckPreview(GuiGraphicsExtractor g, Neck neck, int cx, int cy, int cx1, int cy1, EntityRenderState state) {
 		if (state != null) {
 			state.setData(NeckLayer.PREVIEW, neck);
 			// The shoulders are half a block below the top of the head: the chin above, the chest below.
@@ -771,7 +829,14 @@ public final class WardrobeScreen extends Screen {
 
 	/** Your back carrying {@code piece}, seen from behind and a little to the side. */
 	private void backPreview(GuiGraphicsExtractor g, BackPiece piece, int cx, int cy, int cx1, int cy1) {
-		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, BackLayer.winged(piece) ? 180f : 215f);
+		backPreview(g, piece, cx, cy, cx1, cy1, tileFigure(cx, cy, cx1, cy1, backTurn(piece)));
+	}
+
+	static float backTurn(BackPiece piece) {
+		return BackLayer.winged(piece) ? 180f : 215f;
+	}
+
+	static void backPreview(GuiGraphicsExtractor g, BackPiece piece, int cx, int cy, int cx1, int cy1, EntityRenderState state) {
 		if (state != null) {
 			state.setData(BackLayer.PREVIEW, piece);
 			// Wings spread far: further away for them.
@@ -782,7 +847,10 @@ public final class WardrobeScreen extends Screen {
 
 	/** Your back with {@code trinket} hanging from it, seen from behind and a little to the side. */
 	private void trinketPreview(GuiGraphicsExtractor g, Trinket trinket, int cx, int cy, int cx1, int cy1) {
-		EntityRenderState state = tileFigure(cx, cy, cx1, cy1, 215f);
+		trinketPreview(g, trinket, cx, cy, cx1, cy1, tileFigure(cx, cy, cx1, cy1, 215f));
+	}
+
+	static void trinketPreview(GuiGraphicsExtractor g, Trinket trinket, int cx, int cy, int cx1, int cy1, EntityRenderState state) {
 		if (state != null) {
 			state.setData(TrinketModel.PREVIEW, trinket);
 			figure(g, state, (cy1 - cy - 2) / 1.05f, state.boundingBoxHeight - 0.95f, 10f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
@@ -792,10 +860,42 @@ public final class WardrobeScreen extends Screen {
 	/** The figure for a tile, turned {@code turn} degrees; the one under the mouse turns round. */
 	private EntityRenderState tileFigure(int cx, int cy, int cx1, int cy1, float turn) {
 		boolean hovered = hoverX >= cx && hoverX < cx1 && hoverY >= cy && hoverY < cy1;
-		return figure(hovered ? (System.nanoTime() / 1e9f * 90f + turn) % 360f : turn);
+		return tile(hovered ? (System.nanoTime() / 1e9f * 90f + turn) % 360f : turn);
 	}
 
 	// ---- back
+
+	// ---- totem
+
+	private void drawTotems(GuiGraphicsExtractor g) {
+		int x0 = bodyLeft();
+		int y = hint(g, Component.translatable("cobblecomfort.wardrobe.totem_hint"), x0, bodyTop() + 2 - scroll);
+		y = kinds(g, totemSlot(), x0, y);
+		contentBottom = y + scroll - bodyTop();
+	}
+
+	private Slot<TotemSkin.Style, TotemSkin> totemSlot() {
+		WardrobeFeature f = feature();
+		return new Slot<>(TotemSkin.Style.values(), s -> s.group, TotemSkin.Style::title, TotemSkin::variants, t -> t.style,
+				TotemSkin::title, t -> t.unlock, f::earned, f::totem, f::wearTotem, TotemSkin::swatch,
+				(g, skin, cx, cy, cx1, cy1) -> totemPreview(g, skin, cx + 2, cy + 2, cx1 - 2, cy1 - 2),
+				"cobblecomfort.wardrobe.totem_on", "cobblecomfort.wardrobe.totem_off");
+	}
+
+	/** A totem in a skin, as an item filling the box: cheap to draw, and the game keeps its picture while it stands still. */
+	static void totemPreview(GuiGraphicsExtractor g, TotemSkin skin, int x0, int y0, int x1, int y1) {
+		int size = Math.min(x1 - x0, y1 - y0);
+		g.pose().pushMatrix();
+		g.pose().translate(x0 + (x1 - x0 - size) / 2f, y0 + (y1 - y0 - size) / 2f);
+		g.pose().scale(size / 16f);
+		PlushFeature.INSTANCE.preview = skin;
+		try {
+			g.item(TOTEM, 0, 0);
+		} finally {
+			PlushFeature.INSTANCE.preview = null;
+		}
+		g.pose().popMatrix();
+	}
 
 	private void drawBack(GuiGraphicsExtractor g) {
 		int x0 = bodyLeft();

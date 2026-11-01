@@ -57,7 +57,7 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			return;
 		}
 		Neck preview = state.getData(PREVIEW);
-		Neck neck = preview != null ? preview : WardrobeFeature.INSTANCE.neckFor(player);
+		Neck neck = preview != null || WardrobeScreen.isTile(state) ? preview : WardrobeFeature.INSTANCE.neckFor(player);
 		if (neck == null) {
 			return;
 		}
@@ -65,6 +65,19 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		pose.pushPose();
 		getParentModel().root().translateAndRotate(pose);
 		getParentModel().body.translateAndRotate(pose);
+		draw(pose, collector, neck, z, preview != null ? HatLayer.fresh() : pendulums(state.id, neck.style),
+				preview != null ? -1 : state.id, light);
+		pose.popPose();
+	}
+
+	/** Draws a neck piece over bare shoulders, in the body's space (y down from the top of the shoulders). */
+	static void draw(PoseStack pose, SubmitNodeCollector collector, Neck neck, int light) {
+		draw(pose, collector, neck, BARE, HatLayer.fresh(), -1, light);
+	}
+
+	/** Draws a neck piece {@code z} from the middle of the body, its moving parts on {@code pendulums}. */
+	private static void draw(PoseStack pose, SubmitNodeCollector collector, Neck neck, float z, CharmPendulum[] pendulums,
+			int entityId, int light) {
 		List<Box> boxes = new ArrayList<>();
 		switch (neck.style) {
 			case SCARF, NORDIC -> scarf(boxes, neck, z);
@@ -85,9 +98,8 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case BONES -> bones(boxes, neck, z);
 		}
 		HatLayer.submit(pose, collector, boxes, null, light);
-		CharmPendulum[] pendulums = preview != null ? HatLayer.fresh() : pendulums(state.id, neck.style);
 		HatLayer.Chains chains = new HatLayer.Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light,
-				preview != null ? -1 : state.id, 0f);
+				entityId, 0f);
 		double damping = WardrobeFeature.INSTANCE.damping();
 		switch (neck.style) {
 			case SCARF, LEAF_SCARF, NORDIC -> {
@@ -116,7 +128,6 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case VAMPIRE, LIGHTS -> {
 			}
 		}
-		pose.popPose();
 	}
 
 	/** A point in the body's space, in voxels (y down from the top of the shoulders). */

@@ -190,7 +190,7 @@ There is also a key for the HUD editor.
   earned with advancements such as Diamonds!, Free the End or Hero of the Village), a hat worn instead of your
   helmet, which pet hangs as plush charm or backpack, the belt and name charms, and named outfits to switch between.
   Also opened with the hanger on your figure in the inventory or from the map. Other players with the mod see your
-  badges and hat through the server plugin.
+  badges and hat through the server plugin. What you earn counts in the world or on the server you earned it in.
 - **Hats:** voxel models that take the place of your helmet or turtle shell: crowns, flower wreaths, an aviator cap
   with goggles, a miner's helmet with a lamp, a pirate tricorne, a halo, a straw hat, a fisherman's hat, a chef's hat,
   a beanie (one of them a bee beanie with a little bee buzzing round it), a baseball cap (one with a creeper face), a
@@ -227,6 +227,10 @@ There is also a key for the HUD editor.
   and a little snowman.
   Cosmetics that borrow the game's textures (pins, plushes, the belt's weapons, the sword, name charms) always use
   the vanilla ones, whatever resource pack is on, so they look the same for everyone.
+- **Totem:** a wardrobe tab for how your totems of undying look: the plush of you, a Mini-Me plush wearing your hat
+  and neck piece, or the game's own totem (all three from the start), or a plush allay, axolotl (in its five colours),
+  creeper, frog (three colours), bee, warden with a beating heart or a little Ender Dragon, earned with an advancement,
+  by finding an item or entering a biome. In December and January a snowman and a gingerbread man. Wings flap.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
   Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
   hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace
@@ -263,8 +267,9 @@ other dimensions.
 - Players without the mod are never sent anything and never show up.
 - Shared are the name, world, position, facing and, unless switched off, health and armour.
 - It also shares the **pet plushes** each player with the mod wears on their back (charm and backpack: pet type,
-  variant and collar colour) and **what hangs on their belt** (bundle colours and fullness, weapons and arrow count),
-  so everyone with the mod sees them.
+  variant and collar colour), **what hangs on their belt** (bundle colours and fullness, weapons and arrow count) and
+  **what they chose in the wardrobe** (badges, hat, neck and back pieces, and how their totems look), so everyone with
+  the mod sees them. The plugin only passes these on, so new cosmetics need no plugin update.
 
 ### For server admins
 

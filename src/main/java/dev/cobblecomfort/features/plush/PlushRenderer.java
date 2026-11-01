@@ -3,6 +3,10 @@ package dev.cobblecomfort.features.plush;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.mojang.serialization.MapCodec;
+import dev.cobblecomfort.features.wardrobe.Hat;
+import dev.cobblecomfort.features.wardrobe.Neck;
+import dev.cobblecomfort.features.wardrobe.TotemPlushes;
+import dev.cobblecomfort.features.wardrobe.TotemSkin;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
@@ -28,7 +32,7 @@ public final class PlushRenderer implements SpecialModelRenderer<PlushRenderer.A
 	 * identity, so plushes with different skins never share a cached GUI image.
 	 */
 	public record Args(Identifier texture, boolean slim, float squish, float tiltZ, float tiltX, float upright,
-			PlushPose limbs) {
+			PlushPose limbs, TotemSkin skin, Hat hat, Neck neck) {
 	}
 
 	private final PlushModel wide = PlushModel.create(false);
@@ -56,9 +60,22 @@ public final class PlushRenderer implements SpecialModelRenderer<PlushRenderer.A
 		// Squash and stretch keep the volume roughly the same.
 		float stretch = 1f / (float) Math.sqrt(Math.max(0.2f, args.squish()));
 		pose.scale(stretch, args.squish(), stretch);
+		if (args.skin() != TotemSkin.PLAYER && args.skin() != TotemSkin.MINI_ME) {
+			// Another plush chosen in the wardrobe.
+			TotemPlushes.submit(args.skin(), pose, collector, light, overlay);
+			pose.popPose();
+			return;
+		}
 		place(pose);
-		collector.submitModel(args.slim() ? slim : wide, args.limbs(), pose, RenderTypes.entityTranslucent(args.texture()),
-				light, overlay, -1, null, outlineColor);
+		PlushModel model = args.slim() ? slim : wide;
+		collector.submitModel(model, args.limbs(), pose, RenderTypes.entityTranslucent(args.texture()), light, overlay, -1, null,
+				outlineColor);
+		if (args.skin() == TotemSkin.MINI_ME) {
+			// Posed now, so the hat and neck piece follow the head and body as they jiggle.
+			model.setupAnim(args.limbs());
+			TotemPlushes.dress(pose, collector, model.root(), model.head(), model.body(), PlushModel.bodyTop(), args.hat(),
+					args.neck(), light);
+		}
 		pose.popPose();
 	}
 

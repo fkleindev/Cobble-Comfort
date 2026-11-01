@@ -65,11 +65,11 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
-		// One look carries everything worn (belt, badges, hat, neck, back), each shared if its feature allows.
+		// One look carries everything worn (belt, badges, hat, neck, back, totem), each shared if its feature allows.
 		sync.tick(new PlushLook(null, null, BeltFeature.INSTANCE.shared(), BeltFeature.INSTANCE.sharedGear(),
 				WardrobeFeature.INSTANCE.shared(), WardrobeFeature.INSTANCE.sharedHat(),
 				WardrobeFeature.INSTANCE.sharedNeck(), WardrobeFeature.INSTANCE.sharedBack(),
-				WardrobeFeature.INSTANCE.sharedTrinket()));
+				WardrobeFeature.INSTANCE.sharedTrinket(), WardrobeFeature.INSTANCE.sharedTotem()));
 	}
 
 	/** Speed lost per second: little with a long swing, a lot with a short one. */

@@ -60,6 +60,7 @@
 		"LocatorBarMixin",
 		"EffectsInInventoryMixin",
 		"ContainerScreenAccessor",
+		"ModelPartAccessor",
 		"EnchantmentScreenMixin",
 		"FoodDataAccessor",
 		"GameRendererMixin",

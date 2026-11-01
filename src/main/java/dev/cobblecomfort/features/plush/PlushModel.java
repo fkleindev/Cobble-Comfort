@@ -52,6 +52,19 @@ final class PlushModel extends Model<PlushPose> {
 		leftLeg = root.getChild("left_leg");
 	}
 
+	ModelPart head() {
+		return head;
+	}
+
+	ModelPart body() {
+		return root().getChild("body");
+	}
+
+	/** How far above its pivot the body's top is, in its own space (the body's box is centred on its pivot). */
+	static float bodyTop() {
+		return 6f;
+	}
+
 	@Override
 	public void setupAnim(PlushPose pose) {
 		resetPose();

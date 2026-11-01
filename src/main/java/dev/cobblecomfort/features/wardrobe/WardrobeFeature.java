@@ -9,6 +9,7 @@ import dev.cobblecomfort.features.petplush.PetPlushFeature;
 import dev.cobblecomfort.features.petplush.PlushLook;
 import dev.cobblecomfort.features.pets.PetFeature;
 import dev.cobblecomfort.features.pets.PetEntry;
+import dev.cobblecomfort.features.tracker.TrackerStorage;
 import dev.cobblecomfort.features.tracker.TrackerToast;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
@@ -52,7 +53,7 @@ import java.util.Map;
  * The wardrobe: one screen to dress your character, with badges pinned to the chest (free ones, and ones earned with
  * advancements), a hat in place of the helmet, the plush pets, the belt and the name charm, and outfits to switch
  * between. Opened with its key, a button on the player in the inventory, or from the map. Badges and hats are shared
- * with other players like the plushes.
+ * with other players like the plushes. What is earned counts in the world or server it was earned in.
  */
 public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	public static final WardrobeFeature INSTANCE = new WardrobeFeature();
@@ -64,6 +65,8 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	private KeyMapping key;
 	private int ticks;
+	/** The world or server played in, whose unlocks count; null outside one. */
+	private String worldKey;
 
 	private WardrobeFeature() {
 		super("wardrobe", WardrobeConfig.class, WardrobeConfig::new);
@@ -79,7 +82,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				addInventoryButton(inventory);
 			}
 		});
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> worldKey = TrackerStorage.currentWorldKey());
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+			worldKey = null;
 			HatLayer.forget();
 			NeckLayer.forget();
 			BackLayer.forget();
@@ -138,16 +143,23 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	// ---------------------------------------------------------------- badges
 
-	/** Earns the badges whose advancement is done in this world; they stay earned everywhere. */
+	/** What has been earned in this world or server; outside one, nothing (and not kept). */
+	private WardrobeConfig.Unlocks unlocks() {
+		return worldKey == null ? new WardrobeConfig.Unlocks()
+				: config.unlocks.computeIfAbsent(worldKey, k -> new WardrobeConfig.Unlocks());
+	}
+
+	/** Earns the badges whose advancement is done in this world; they stay earned in it. */
 	private void checkEarned(Minecraft mc) {
 		ClientPacketListener connection = mc.getConnection();
-		if (connection == null) {
+		if (connection == null || worldKey == null) {
 			return;
 		}
 		Map<AdvancementHolder, AdvancementProgress> progress = connection.getAdvancements().progress();
 		checkHats(mc, progress);
 		checkNecks(mc, progress);
 		checkBack(mc, progress);
+		checkTotems(mc, progress);
 		List<Badge> fresh = new ArrayList<>();
 		for (Map.Entry<AdvancementHolder, AdvancementProgress> entry : progress.entrySet()) {
 			if (!entry.getValue().isDone()) {
@@ -164,7 +176,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			return;
 		}
 		for (Badge badge : fresh) {
-			config.earned.add(badge.key());
+			unlocks().badges.add(badge.key());
 		}
 		save();
 		if (config.announce) {
@@ -187,7 +199,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	}
 
 	public boolean earned(Badge badge) {
-		return badge.free() || config.earned.contains(badge.key());
+		return badge.free() || unlocks().badges.contains(badge.key());
 	}
 
 	/** The badges you wear, left to right. */
@@ -245,7 +257,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	/**
 	 * Earns the hats whose condition is met: an advancement done in this world, an item in the inventory, or the biome
-	 * stood in. They stay earned everywhere. Seasonal hats can only be earned in their months.
+	 * stood in. They stay earned in this world. Seasonal hats can only be earned in their months.
 	 */
 	private void checkHats(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
 		List<Hat> fresh = new ArrayList<>();
@@ -263,7 +275,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			return;
 		}
 		for (Hat hat : fresh) {
-			config.earnedHats.add(hat.key());
+			unlocks().hats.add(hat.key());
 		}
 		save();
 		if (config.announce) {
@@ -329,12 +341,13 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	/** Whether a hat is yours: free, earned, or another colour of its kind earned (but crowns and wreaths each on their own). */
 	public boolean earned(Hat hat) {
-		if (hat.free() || config.earnedHats.contains(hat.key())) {
+		List<String> hats = unlocks().hats;
+		if (hat.free() || hats.contains(hat.key())) {
 			return true;
 		}
 		if (hat.style.together) {
 			for (Hat other : Hat.variants(hat.style)) {
-				if (config.earnedHats.contains(other.key())) {
+				if (hats.contains(other.key())) {
 					return true;
 				}
 			}
@@ -401,7 +414,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			return;
 		}
 		for (Neck neck : fresh) {
-			config.earnedNecks.add(neck.key());
+			unlocks().necks.add(neck.key());
 		}
 		save();
 		if (config.announce) {
@@ -422,8 +435,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		if (neck.free()) {
 			return true;
 		}
+		List<String> necks = unlocks().necks;
 		for (Neck other : Neck.variants(neck.style)) {
-			if (config.earnedNecks.contains(other.key())) {
+			if (necks.contains(other.key())) {
 				return true;
 			}
 		}
@@ -467,7 +481,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	// ---------------------------------------------------------------- back
 
-	/** Earns the back pieces and charms whose condition is met; all colours of a kind at once. They stay earned. */
+	/** Earns the back pieces and charms whose condition is met; all colours of a kind at once. They stay earned in this world. */
 	private void checkBack(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
 		List<BackPiece> pieces = new ArrayList<>();
 		for (BackPiece piece : BackPiece.values()) {
@@ -486,8 +500,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		if (pieces.isEmpty() && trinkets.isEmpty()) {
 			return;
 		}
-		pieces.forEach(piece -> config.earnedBacks.add(piece.key()));
-		trinkets.forEach(trinket -> config.earnedTrinkets.add(trinket.key()));
+		WardrobeConfig.Unlocks unlocks = unlocks();
+		pieces.forEach(piece -> unlocks.backs.add(piece.key()));
+		trinkets.forEach(trinket -> unlocks.trinkets.add(trinket.key()));
 		save();
 		if (config.announce) {
 			Component names = Component.empty();
@@ -505,12 +520,14 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	/** Whether a back piece is yours: free, or a colour of its kind earned. */
 	public boolean earned(BackPiece piece) {
-		return piece.free() || BackPiece.variants(piece.style).stream().anyMatch(other -> config.earnedBacks.contains(other.key()));
+		List<String> backs = unlocks().backs;
+		return piece.free() || BackPiece.variants(piece.style).stream().anyMatch(other -> backs.contains(other.key()));
 	}
 
 	/** Whether a back charm is yours: free, or a variant of its kind earned. */
 	public boolean earned(Trinket trinket) {
-		return trinket.free() || Trinket.variants(trinket.style).stream().anyMatch(other -> config.earnedTrinkets.contains(other.key()));
+		List<String> trinkets = unlocks().trinkets;
+		return trinket.free() || Trinket.variants(trinket.style).stream().anyMatch(other -> trinkets.contains(other.key()));
 	}
 
 	/** What you carry on your back, or null. */
@@ -577,6 +594,94 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return look == null ? null : look.trinket();
 	}
 
+	// ---------------------------------------------------------------- totem
+
+	/** Earns the totem skins whose condition is met; all colours of a kind at once, seasonal ones only in season. */
+	private void checkTotems(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
+		List<TotemSkin> fresh = new ArrayList<>();
+		for (TotemSkin skin : TotemSkin.values()) {
+			if (!earned(skin) && skin.inSeason() && met(mc, progress, skin.unlock)
+					&& fresh.stream().noneMatch(other -> other.style == skin.style)) {
+				fresh.add(skin);
+			}
+		}
+		if (fresh.isEmpty()) {
+			return;
+		}
+		for (TotemSkin skin : fresh) {
+			unlocks().totems.add(skin.key());
+		}
+		save();
+		if (config.announce) {
+			Component names = Component.empty();
+			for (int i = 0; i < fresh.size(); i++) {
+				names = names.copy().append(i > 0 ? Component.literal(", ") : Component.empty()).append(fresh.get(i).style.title());
+			}
+			mc.gui.toastManager().addToast(new TrackerToast(fresh.getFirst().icon(),
+					Component.translatable("cobblecomfort.wardrobe.earned_totem", names), earnedHint("earned_totem")));
+		}
+	}
+
+	/** Whether a totem skin is yours: free, or a colour of its kind earned. */
+	public boolean earned(TotemSkin skin) {
+		List<String> totems = unlocks().totems;
+		return skin.free() || TotemSkin.variants(skin.style).stream().anyMatch(other -> totems.contains(other.key()));
+	}
+
+	/** How your totems look: the plush of you unless another skin is chosen. */
+	public TotemSkin totem() {
+		TotemSkin skin = TotemSkin.byKey(config.totem);
+		return skin != null && earned(skin) ? skin : TotemSkin.PLAYER;
+	}
+
+	/** Chooses how totems look (null: the plush of you). */
+	public void wearTotem(TotemSkin skin) {
+		if (skin != null && !earned(skin)) {
+			return;
+		}
+		config.totem = skin == null || skin == TotemSkin.PLAYER ? "" : skin.key();
+		save();
+	}
+
+	/** What you tell other players your totems look like (null: the plush of you). */
+	public TotemSkin sharedTotem() {
+		TotemSkin skin = isEnabled() && config.share ? totem() : null;
+		return skin == TotemSkin.PLAYER ? null : skin;
+	}
+
+	/**
+	 * How a totem held by this player looks: your choice for yours (and for one lying about, with no holder), theirs
+	 * as they share it for another player's, else the plush of them.
+	 */
+	public TotemSkin totemFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return TotemSkin.PLAYER;
+		}
+		if (player == null || player == Minecraft.getInstance().player) {
+			return totem();
+		}
+		PlushLook look = config.showOthers ? PetPlushFeature.INSTANCE.shared(player.getUUID()) : null;
+		return look == null || look.totem() == null ? TotemSkin.PLAYER : look.totem();
+	}
+
+	/** The hat a Mini-Me totem of this player wears: the one they wear (yours for one with no holder), or null. */
+	public Hat miniMeHat(AbstractClientPlayer player) {
+		if (player == null || player == Minecraft.getInstance().player) {
+			return hat();
+		}
+		PlushLook look = PetPlushFeature.INSTANCE.shared(player.getUUID());
+		return look == null ? null : look.hat();
+	}
+
+	/** The neck piece a Mini-Me totem of this player wears, like {@link #miniMeHat}. */
+	public Neck miniMeNeck(AbstractClientPlayer player) {
+		if (player == null || player == Minecraft.getInstance().player) {
+			return neck();
+		}
+		PlushLook look = PetPlushFeature.INSTANCE.shared(player.getUUID());
+		return look == null ? null : look.neck();
+	}
+
 	/** How quickly the swinging parts of hats and neck pieces stop. */
 	double damping() {
 		return Mth.lerp(Mth.clamp(config.hatSwing, 0f, 1f), 7.0, 0.6);
@@ -595,6 +700,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		outfit.neck = neck == null ? "" : neck.key();
 		outfit.back = config.back;
 		outfit.trinket = config.trinket;
+		outfit.totem = config.totem;
 		outfit.bundles = BeltFeature.INSTANCE.config().bundles;
 		outfit.melee = BeltFeature.INSTANCE.config().melee;
 		outfit.ranged = BeltFeature.INSTANCE.config().ranged;
@@ -619,6 +725,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		config.neck = outfit.neck;
 		config.back = outfit.back;
 		config.trinket = outfit.trinket;
+		config.totem = outfit.totem;
 		save();
 		BeltFeature.INSTANCE.config().bundles = outfit.bundles;
 		BeltFeature.INSTANCE.config().melee = outfit.melee;
@@ -632,7 +739,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	public boolean wearing(WardrobeConfig.Outfit outfit) {
 		WardrobeConfig.Outfit now = capture(outfit.name);
 		return now.badges.equals(outfit.badges) && now.hat.equals(outfit.hat) && now.neck.equals(outfit.neck)
-				&& now.back.equals(outfit.back) && now.trinket.equals(outfit.trinket)
+				&& now.back.equals(outfit.back) && now.trinket.equals(outfit.trinket) && now.totem.equals(outfit.totem)
 				&& now.bundles == outfit.bundles && now.melee == outfit.melee
 				&& now.ranged == outfit.ranged && now.nameCharm == outfit.nameCharm;
 	}

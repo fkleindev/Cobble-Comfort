@@ -43,3 +43,7 @@ replay_*.log
 
 logs/
 .github/modernize/
+
+# cosmetic sheets (./gradlew runCosmeticSheets)
+
+cosmetics/
