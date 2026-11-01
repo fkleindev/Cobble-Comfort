@@ -221,7 +221,8 @@ public final class HangingFeature extends Feature<HangingConfig> {
 
 	/** The swinging rope through this block, taking it out of the mesh if it isn't swinging yet; null if it can't. */
 	private Rope rope(ClientLevel level, BlockPos pos, long now) {
-		BlockPos top = pos;
+		// Callers scan with a mutable position; the rope must keep its own.
+		BlockPos top = pos.immutable();
 		for (int i = 0; i < 64; i++) {
 			BlockPos above = top.above();
 			if (part(level, above, level.getBlockState(above)) == null) {
