@@ -42,6 +42,11 @@ import dev.cobblecomfort.features.map.death.DeathInventory;
 import dev.cobblecomfort.features.map.death.DeathTooltip;
 import dev.cobblecomfort.features.tracker.TrackerStorage;
 import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+import dev.cobblecomfort.features.map.render3d.MapCamera;
+import dev.cobblecomfort.features.map.render3d.MapScene;
+import dev.cobblecomfort.features.map.render3d.MapSceneRenderer;
+import dev.cobblecomfort.mixin.GuiGraphicsExtractorAccessor;
 import dev.cobblecomfort.features.furnace.FurnaceEntry;
 import dev.cobblecomfort.features.furnace.FurnaceFeature;
 import dev.cobblecomfort.features.storage.StorageFeature;
@@ -92,6 +97,9 @@ public final class MapFeature extends Feature<MapConfig> {
 	private static final float LABEL_TEXT = 0.7f;
 	/** Waypoints outside the minimap, clamped to its edge, are drawn this much smaller and fainter. */
 	private static final float FAR_WAYPOINT_ALPHA = 0.75f;
+	/** 3D minimap (with the 3D map view on): its tilt and the colour of unexplored land around the terrain. */
+	private static final float MINIMAP_PITCH = 0.95f;
+	private static final int MINIMAP_3D_BACKGROUND = 0xFF0E0E12;
 	private static final float BEAM_HALF_WIDTH = 0.15f;
 	private static final float BEAM_HEIGHT = 256f;
 	/** Labels further than this are drawn at this distance in the waypoint's direction (gizmos fade far away). */
@@ -103,6 +111,7 @@ public final class MapFeature extends Feature<MapConfig> {
 	private final RespawnTracker respawn = new RespawnTracker(waypoints);
 	private final DeathInventory deaths = new DeathInventory(waypoints);
 	private final MinimapRenderer minimap = new MinimapRenderer();
+	private final MapCamera minimapCamera = new MapCamera();
 	private final MovementTrail trail = new MovementTrail();
 	private final PositionSync sync = new PositionSync();
 	/** Whether each waypoint was inside the minimap last frame, and when it last left it (for the edge arrow pulse). */
@@ -128,6 +137,7 @@ public final class MapFeature extends Feature<MapConfig> {
 		mapKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.cobblecomfort.map", InputConstants.KEY_M, CobbleComfortClient.keyCategory()));
 		waypointKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.cobblecomfort.new_waypoint", InputConstants.KEY_B, CobbleComfortClient.keyCategory()));
 		listKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.cobblecomfort.waypoints", InputConstants.KEY_U, CobbleComfortClient.keyCategory()));
+		PictureInPictureRendererRegistry.register(context -> new MapSceneRenderer());
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
 			world.join();
 			waypoints.load();
@@ -503,6 +513,12 @@ public final class MapFeature extends Feature<MapConfig> {
 		return isEnabled() && config.minimap ? config.minimapSize + MARGIN * 2 : 0;
 	}
 
+	/** Where a world position lands on the minimap: an offset in GUI pixels from its centre, or null if it can't be shown. */
+	@FunctionalInterface
+	private interface MinimapPoint {
+		float[] at(double wx, double wy, double wz);
+	}
+
 	private void drawMinimap(GuiGraphicsExtractor g) {
 		Minecraft mc = Minecraft.getInstance();
 		LocalPlayer player = mc.player;
@@ -517,10 +533,6 @@ public final class MapFeature extends Feature<MapConfig> {
 		int y0 = Math.round(bounds.y());
 		MapLayer layer = world.active(level);
 		float yaw = player.getYRot();
-		SeedTerrain current = terrain();
-		int version = (world.scanCount() * 31 + (current == null ? 0 : current.version())) * 31 + world.autoLayer();
-		minimap.update(config, layer, world.caveActive() ? null : this::unexploredColor, player.getX(), player.getZ(), yaw, size, version);
-		g.blit(minimap.texture(), x0, y0, x0 + size, y0 + size, 0f, 1f, 0f, 1f);
 		float cx = x0 + size / 2f;
 		float cy = y0 + size / 2f;
 		float zoom = config.minimapZoom;
@@ -529,10 +541,36 @@ public final class MapFeature extends Feature<MapConfig> {
 		double rx = -Math.cos(rad), rz = -Math.sin(rad);
 		float radius = size / 2f - FRAME;
 		Font font = mc.font;
+		// The 3D view moves every frame, so it follows the smoothed position; the flat image is built from the tick one.
+		boolean minimap3d = config.minimapView == MinimapView.ALWAYS_3D || config.minimapView == MinimapView.FOLLOW_MAP && config.map3d;
+		Vec3 position = minimap3d ? player.getPosition(mc.getDeltaTracker().getGameTimeDeltaPartialTick(true)) : player.position();
+		// Flat: offsets turned with the view and scaled by the zoom. Used for direction to things off the minimap in 3D too,
+		// as the 3D camera is turned the same way.
+		MinimapPoint flat = (wx, wy, wz) -> {
+			float[] s = toScreen(wx - position.x, wz - position.z, fx, fz, rx, rz);
+			return new float[]{s[0] * zoom, s[1] * zoom};
+		};
+		MinimapPoint point;
+		if (minimap3d) {
+			MapCamera camera = minimapCamera(layer, position, yaw, size);
+			((GuiGraphicsExtractorAccessor) g).cobblecomfort$guiRenderState().addPicturesInPictureState(MapScene.of(x0, y0, x0 + size,
+					y0 + size, g.pose(), null, camera, layer, MINIMAP_3D_BACKGROUND, config.roundMinimap ? 1f : MinimapRenderer.cornerShare(size)));
+			g.blit(minimap.frame(config, size), x0, y0, x0 + size, y0 + size, 0f, 1f, 0f, 1f);
+			point = (wx, wy, wz) -> {
+				float[] s = camera.project(wx, wy, wz, x0, y0, size, size);
+				return s == null ? null : new float[]{s[0] - cx, s[1] - cy};
+			};
+		} else {
+			SeedTerrain current = terrain();
+			int version = (world.scanCount() * 31 + (current == null ? 0 : current.version())) * 31 + world.autoLayer();
+			minimap.update(config, layer, world.caveActive() ? null : this::unexploredColor, player.getX(), player.getZ(), yaw, size, version);
+			g.blit(minimap.texture(), x0, y0, x0 + size, y0 + size, 0f, 1f, 0f, 1f);
+			point = flat;
+		}
 		if (config.movementTrail) {
 			MapMarkers.trail(g, trail.points(dimensionId(level)), player.getX(), player.getZ(), (wx, wz) -> {
-				float[] s = toScreen(wx - player.getX(), wz - player.getZ(), fx, fz, rx, rz);
-				return inside(s[0] * zoom, s[1] * zoom, radius - 1) ? new float[]{cx + s[0] * zoom, cy + s[1] * zoom} : null;
+				float[] s = point.at(wx, groundY(layer, wx, wz, position.y), wz);
+				return s != null && inside(s[0], s[1], radius - 1) ? new float[]{cx + s[0], cy + s[1]} : null;
 			}, 1.5f);
 		}
 		// Entities: animals first, then monsters, then players on top.
@@ -549,12 +587,10 @@ public final class MapFeature extends Feature<MapConfig> {
 			}
 			shown.sort(java.util.Comparator.comparingInt(MapFeature::entityLayer));
 			for (Entity entity : shown) {
-				float[] s = toScreen(entity.getX() - player.getX(), entity.getZ() - player.getZ(), fx, fz, rx, rz);
-				float sx = s[0] * zoom;
-				float sy = s[1] * zoom;
-				if (inside(sx, sy, radius - 3)) {
+				float[] s = point.at(entity.getX(), entity.getY(), entity.getZ());
+				if (s != null && inside(s[0], s[1], radius - 3)) {
 					int color = MapMarkers.entityColor(entity, config.showPlayers, config.showHostiles, config.showPassives);
-					MapMarkers.entity(g, entity, cx + sx, cy + sy, color, config.mobHeads, MINIMAP_HEAD, entityAlpha(entity, player));
+					MapMarkers.entity(g, entity, cx + s[0], cy + s[1], color, config.mobHeads, MINIMAP_HEAD, entityAlpha(entity, player));
 				}
 			}
 			// Players shared by the server plugin that are too far away to be loaded: outside the map at its edge.
@@ -563,9 +599,9 @@ public final class MapFeature extends Feature<MapConfig> {
 					if (level.getPlayerByUUID(remote.data().uuid()) != null) {
 						continue;
 					}
-					float[] offset = toScreen(remote.x() - player.getX(), remote.z() - player.getZ(), fx, fz, rx, rz);
-					boolean far = !inside(offset[0] * zoom, offset[1] * zoom, radius - 4);
-					float[] s = clampToEdge(offset, zoom, radius - 4);
+					float[] at = point.at(remote.x(), remote.y(), remote.z());
+					boolean far = at == null || !inside(at[0], at[1], radius - 4);
+					float[] s = far ? clampToEdge(flat.at(remote.x(), remote.y(), remote.z()), radius - 4) : at;
 					MapMarkers.remotePlayer(g, remote.data().uuid(), cx + s[0], cy + s[1], config.mobHeads, far ? MINIMAP_HEAD - 1 : MINIMAP_HEAD,
 							far ? FAR_WAYPOINT_ALPHA : 1f);
 				}
@@ -573,9 +609,9 @@ public final class MapFeature extends Feature<MapConfig> {
 		}
 		// Remembered furnaces within the minimap, ringed in their status colour.
 		for (FurnaceEntry entry : FurnaceFeature.INSTANCE.mapEntries(dimensionId(level), true)) {
-			float[] offset = toScreen(entry.x + 0.5 - player.getX(), entry.z + 0.5 - player.getZ(), fx, fz, rx, rz);
-			if (inside(offset[0] * zoom, offset[1] * zoom, radius - 6)) {
-				MapMarkers.badge(g, FurnaceFeature.blockIcon(entry), cx + offset[0] * zoom, cy + offset[1] * zoom, true, FurnaceFeature.color(entry));
+			float[] s = point.at(entry.x + 0.5, entry.y + 1, entry.z + 0.5);
+			if (s != null && inside(s[0], s[1], radius - 6)) {
+				MapMarkers.badge(g, FurnaceFeature.blockIcon(entry), cx + s[0], cy + s[1], true, FurnaceFeature.color(entry));
 			}
 		}
 		// Remembered containers that are being searched for: at their place, outside clamped to the edge.
@@ -585,7 +621,8 @@ public final class MapFeature extends Feature<MapConfig> {
 				continue;
 			}
 			Vec3 center = container.center();
-			float[] s = clampToEdge(toScreen(center.x - player.getX(), center.z - player.getZ(), fx, fz, rx, rz), zoom, radius - 7);
+			float[] at = point.at(center.x, center.y + 0.5, center.z);
+			float[] s = at != null && inside(at[0], at[1], radius - 7) ? at : clampToEdge(flat.at(center.x, center.y, center.z), radius - 7);
 			MapMarkers.badge(g, container.icon(), cx + s[0], cy + s[1], true, highlight);
 		}
 		// Waypoints: markers at their place; outside only a small arrow in their colour on the edge pointing their way,
@@ -593,23 +630,26 @@ public final class MapFeature extends Feature<MapConfig> {
 		if (config.waypoints && waypoints.loaded()) {
 			long now = System.currentTimeMillis();
 			for (Waypoint waypoint : waypoints.visible(dimensionId(level))) {
-				float[] offset = toScreen(waypoint.x + 0.5 - player.getX(), waypoint.z + 0.5 - player.getZ(), fx, fz, rx, rz);
-				boolean inView = inside(offset[0] * zoom, offset[1] * zoom, radius - 4);
+				double wx = waypoint.x + 0.5;
+				double wz = waypoint.z + 0.5;
+				double wy = waypoint.y != null ? waypoint.y : groundY(layer, wx, wz, position.y);
+				float[] at = point.at(wx, wy, wz);
+				boolean inView = at != null && inside(at[0], at[1], radius - 4);
 				// Leaving the view starts the edge arrow's pulse (not when it was never inside).
 				Boolean before = insideMinimap.put(waypoint, inView);
 				if (!inView && Boolean.TRUE.equals(before)) {
 					leftMinimap.put(waypoint, now);
 				}
 				if (inView) {
-					float x = cx + offset[0] * zoom;
-					float y = cy + offset[1] * zoom;
+					float x = cx + at[0];
+					float y = cy + at[1];
 					if (config.mapAnimations) {
 						WaypointAnim.impact(g, waypoint, x, y, now, 0.7f);
 						y += WaypointAnim.dropOffset(waypoint, now) * 0.7f;
 					}
 					MapMarkers.waypoint(g, font, waypoint, x, y, 1f, true, 1f);
 				} else if (config.minimapEdgeWaypoints) {
-					float[] s = clampToEdge(offset, zoom, radius - 5);
+					float[] s = clampToEdge(flat.at(wx, wy, wz), radius - 5);
 					int color = waypoint.rgb() | 0xFF000000;
 					long left = config.mapAnimations ? leftMinimap.getOrDefault(waypoint, 0L) : 0L;
 					WaypointAnim.pulseRing(g, cx + s[0], cy + s[1], left, now, color);
@@ -634,6 +674,28 @@ public final class MapFeature extends Feature<MapConfig> {
 					Component.translatable("biome." + key.identifier().getNamespace() + "." + key.identifier().getPath()),
 					Math.round(cx), biomeY, MapUi.TEXT_DIM));
 		}
+	}
+
+	/**
+	 * The 3D minimap's camera: over the player, looking down at a slant, turned with the view if the minimap turns, as
+	 * far away as needed to show about as much as the flat minimap at the same zoom.
+	 */
+	private MapCamera minimapCamera(MapLayer layer, Vec3 position, float yaw, int size) {
+		MapCamera camera = minimapCamera;
+		camera.targetX = position.x;
+		camera.targetY = position.y;
+		camera.targetZ = position.z;
+		camera.yaw = config.rotateMinimap ? (float) (Math.toRadians(yaw) + Math.PI) : 0f;
+		camera.pitch = MINIMAP_PITCH;
+		camera.distance = (float) (size / Math.max(0.05f, config.minimapZoom) / (2 * Math.tan(Math.toRadians(MapCamera.FOV_DEGREES / 2))));
+		camera.keepAbove(layer::heightAt, 2f);
+		return camera;
+	}
+
+	/** Height of the ground at a place on the map, or {@code fallback} where nothing is known. */
+	private static double groundY(MapLayer layer, double wx, double wz, double fallback) {
+		int height = layer.heightAt((int) Math.floor(wx), (int) Math.floor(wz));
+		return height == Integer.MIN_VALUE ? fallback : height + 1;
 	}
 
 	/**
@@ -689,10 +751,10 @@ public final class MapFeature extends Feature<MapConfig> {
 		MapUi.label(g, font, text, cx, y, color, LABEL_TEXT, 0xC0101318);
 	}
 
-	/** Scales a minimap offset by the zoom and pulls it to the edge if it is outside. */
-	private float[] clampToEdge(float[] offset, float zoom, float edge) {
-		float sx = offset[0] * zoom;
-		float sy = offset[1] * zoom;
+	/** Pulls a minimap offset (GUI pixels) to the edge if it is outside. */
+	private float[] clampToEdge(float[] offset, float edge) {
+		float sx = offset[0];
+		float sy = offset[1];
 		if (!inside(sx, sy, edge)) {
 			float scale = edgeScale(sx, sy, edge);
 			sx *= scale;

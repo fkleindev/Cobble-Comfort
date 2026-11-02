@@ -70,6 +70,25 @@ public final class BlockColorCache {
 		return tint == null ? entry.color() : multiply(entry.color(), tint.colorInWorld(state, level, pos));
 	}
 
+	/**
+	 * Whether the map draws a block (or a fluid) at all, without working out its tint: cheap enough to ask for long
+	 * runs of blocks.
+	 */
+	public static boolean drawn(BlockState state) {
+		if (!state.getFluidState().isEmpty()) {
+			return true;
+		}
+		if (state.isAir()) {
+			return false;
+		}
+		Entry entry = CACHE.get(state);
+		if (entry == null) {
+			entry = compute(state);
+			CACHE.put(state, entry);
+		}
+		return entry.color() != 0;
+	}
+
 	public static boolean isWater(BlockState state) {
 		return state.getFluidState().is(FluidTags.WATER);
 	}

@@ -96,6 +96,8 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case VAMPIRE -> vampire(boxes, neck, z);
 			case LIGHTS -> lights(boxes, neck, z);
 			case BONES -> bones(boxes, neck, z);
+			case AVIATOR -> aviator(boxes, neck, z);
+			case HEADPHONES -> headphones(boxes, neck, z);
 		}
 		HatLayer.submit(pose, collector, boxes, null, light);
 		HatLayer.Chains chains = new HatLayer.Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light,
@@ -125,6 +127,12 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			}
 			case PUMPKIN_CHAIN -> chains.hang(0, at(0f, 6.2f, -z - 0.5f), 1f, 1, k -> jack(neck));
 			case BONES -> chains.hang(0, at(0f, 6.2f, -z - 0.5f), 1f, 1, k -> skull(neck));
+			// A short end from the knot in front, a long one down the back that streams out behind when running.
+			case AVIATOR -> {
+				chains.hang(0, at(3.5f, 4f, -z - 2.25f), 3.5f, 2, damping + 2.0, 0.55f, k -> silkEnd(neck, k, 2, 3f, 3.5f));
+				chains.hang(2, at(-3.5f, 2f, z + 1.25f), 4f, 4, damping + 1.0, 0.7f, k -> silkEnd(neck, k, 4, 3.5f, 4f));
+			}
+			case HEADPHONES -> chains.hang(0, at(-5.5f, 4.25f, -z - 1.5f), 4.5f, 2, damping + 1.0, 0.7f, k -> phoneCable(neck, k));
 			case VAMPIRE, LIGHTS -> {
 			}
 		}
@@ -518,6 +526,132 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				raw(-1.7f, 1f, -0.8f, 1.7f, 3f, 0.8f, neck.main[2]), raw(-0.8f, 1f, -1.7f, 0.8f, 3f, 1.7f, neck.main[(k + 1) % 2])));
 		if (neck.style == Neck.Style.TINSEL && glint(k + 20)) {
 			out.add(raw(-0.3f, 1.6f, -1.8f, 0.3f, 2.2f, -1.7f, neck.accent).glowing());
+		}
+		return out;
+	}
+
+	// ---------------------------------------------------------------- aviator scarf
+
+	/** Silk at a spot of it: soft diagonal folds, each a shaded crease with a sheen beside it. */
+	private static int silk(Neck neck, float x, float y) {
+		return switch (Math.floorMod((int) Math.floor(x + y * 0.8f), 4)) {
+			case 0 -> neck.main[1];
+			case 1 -> neck.main[2];
+			default -> neck.main[0];
+		};
+	}
+
+	/**
+	 * A silk aviator scarf wound loosely round the neck: a snug roll with a sheen along its top, a looser loop dipping
+	 * over the chest, and a knot on the left; its ends hang from {@link #silkEnd}.
+	 */
+	private static void aviator(List<Box> out, Neck neck, float z) {
+		for (float x = -6.5f; x < 6.5f; x += 1f) {
+			for (float y = 0f; y < 2.5f; y += 1.25f) {
+				out.add(raw(x, y, -z - 1.5f, x + 1f, y + 1.25f, -z, silk(neck, x, y)));
+				out.add(raw(x, y, z, x + 1f, y + 1.25f, z + 1.5f, silk(neck, -x, y)));
+			}
+		}
+		out.add(raw(-6.5f, -0.4f, -z - 1.4f, 6.5f, 0f, -z - 0.1f, neck.main[2]));
+		out.add(raw(-6.5f, -0.4f, z + 0.1f, 6.5f, 0f, z + 1.4f, neck.main[2]));
+		// The looser loop, deepest in the middle.
+		for (float x = -5f; x < 5f; x += 1f) {
+			float mid = (x + 0.5f) / 5f;
+			float dip = 1.75f * (1f - mid * mid);
+			out.add(raw(x, 2.5f, -z - 1.25f, x + 1f, 3.25f + dip, -z, silk(neck, x, 2.5f + dip)));
+			out.add(raw(x, 3f + dip, -z - 1.3f, x + 1f, 3.25f + dip, -z - 1.25f, neck.main[1]));
+		}
+		// The knot: a twist of silk with a band of it wrapped round, creased and catching the light.
+		out.add(raw(2f, 1f, -z - 3f, 5f, 4.25f, -z - 1.25f, neck.main[0]));
+		out.add(raw(2.5f, 0.5f, -z - 2.75f, 4.5f, 4.75f, -z - 1.5f, neck.main[0]));
+		out.add(raw(2f, 2.25f, -z - 3.15f, 5f, 2.85f, -z - 1.1f, neck.main[1]));
+		out.add(raw(2.25f, 1.25f, -z - 3.1f, 2.75f, 2.25f, -z - 3f, neck.main[2]));
+		out.add(raw(3.75f, 2.85f, -z - 3.1f, 4.25f, 4f, -z - 3f, neck.main[1]));
+		out.add(raw(4.25f, 1.25f, -z - 3.05f, 4.75f, 2f, -z - 3f, neck.main[2]));
+	}
+
+	/**
+	 * One piece of a hanging silk end, {@code width} across and {@code length} long: folds running down it, rippling as
+	 * it flutters; the last of {@code pieces} has a border stripe and a fringe.
+	 */
+	private static List<Box> silkEnd(Neck neck, int k, int pieces, float width, float length) {
+		double seconds = System.nanoTime() % 1_000_000_000_000L / 1e9;
+		List<Box> out = new ArrayList<>();
+		float half = width / 2f;
+		float strip = width / 3f;
+		for (float y = 0f; y < length - 0.01f; y += 1f) {
+			float ripple = (float) Math.sin(seconds * 7.0 + k * 1.3 + y * 0.9) * 0.3f * (k + y / length) / pieces;
+			for (int s = 0; s < 3; s++) {
+				float x = -half + s * strip;
+				int color = switch (Math.floorMod(s + (int) Math.floor(y + k * length) / 2, 3)) {
+					case 0 -> neck.main[1];
+					case 1 -> neck.main[2];
+					default -> neck.main[0];
+				};
+				out.add(raw(x, y, -0.35f + ripple, x + strip, Math.min(y + 1f, length), 0.35f + ripple, color));
+			}
+		}
+		if (k == pieces - 1) {
+			float ripple = (float) Math.sin(seconds * 7.0 + k * 1.3 + length * 0.9) * 0.3f;
+			out.add(raw(-half - 0.05f, length - 1.5f, -0.4f + ripple, half + 0.05f, length - 1f, 0.4f + ripple, neck.second));
+			int i = 0;
+			for (float x = -half + 0.2f; x < half - 0.2f; x += 0.55f) {
+				float hang = i % 3 == 1 ? 1.75f : i % 2 == 0 ? 1.4f : 1.2f;
+				out.add(raw(x, length, -0.15f + ripple, x + 0.3f, length + hang, 0.15f + ripple,
+						i % 2 == 0 ? neck.accent : ARGB.scaleRGB(neck.accent, 0.85f)));
+				i++;
+			}
+		}
+		return out;
+	}
+
+	// ---------------------------------------------------------------- headphones
+
+	/**
+	 * Headphones worn round the neck: the band behind it, the cups resting on the chest either side of the collar
+	 * (shell, cushion against the chest, a cap with a logo, the yoke holding it, the slider going up to the band), a
+	 * little light on one cup and a microphone on the other; the cable dangles from {@link #phoneCable}.
+	 */
+	private static void headphones(List<Box> out, Neck neck, float z) {
+		int shell = neck.main[0];
+		int cushion = neck.main[1];
+		int band = neck.main[2];
+		int metal = 0xFFA0A4AC;
+		out.add(raw(-6.5f, 0f, z, 6.5f, 1.25f, z + 1.25f, band));
+		out.add(raw(-5f, 1.25f, z, 5f, 1.75f, z + 0.75f, cushion));
+		for (int s = -1; s <= 1; s += 2) {
+			float x0 = s < 0 ? -6.75f : 3.25f;
+			float x1 = x0 + 3.5f;
+			float mid = (x0 + x1) / 2f;
+			out.add(raw(x0 + 0.25f, 0.5f, -z - 0.75f, x1 - 0.25f, 4f, -z, cushion));
+			out.add(raw(x0, 0.25f, -z - 2.25f, x1, 4.25f, -z - 0.75f, shell));
+			out.add(raw(x0 + 0.5f, 0f, -z - 2f, x1 - 0.5f, 4.5f, -z - 1f, shell));
+			out.add(raw(x0 + 0.75f, 1f, -z - 2.4f, x1 - 0.75f, 3.5f, -z - 2.25f, neck.accent));
+			out.add(raw(mid - 0.4f, 1.85f, -z - 2.5f, mid + 0.4f, 2.65f, -z - 2.4f, shell));
+			// The yoke round the cup and the slider rising from it to the band.
+			out.add(raw(x0 - 0.2f, 0.75f, -z - 1.75f, x0, 3.75f, -z - 1.25f, metal));
+			out.add(raw(x1, 0.75f, -z - 1.75f, x1 + 0.2f, 3.75f, -z - 1.25f, metal));
+			out.add(raw(x0 - 0.2f, -0.1f, -z - 1.75f, x1 + 0.2f, 0.25f, -z - 1.25f, metal));
+			out.add(raw(mid - 0.75f, -0.25f, -z - 1.5f, mid + 0.75f, 0.25f, -z, band));
+		}
+		out.add(raw(5.25f, 3.6f, -z - 2.35f, 5.65f, 4f, -z - 2.25f, 0xFF4AE86A).glowing());
+		// A microphone on a short boom from the right cup, bending in.
+		out.add(raw(3f, 3.5f, -z - 2f, 3.5f, 5f, -z - 1.5f, shell));
+		out.add(raw(2f, 4.75f, -z - 2f, 3f, 5.25f, -z - 1.5f, shell));
+		out.add(raw(1.25f, 4.5f, -z - 2.25f, 2.25f, 5.5f, -z - 1.25f, cushion));
+	}
+
+	/** The cable hanging from the left cup: a thin cord, and at its end a plug with a striped jack. */
+	private static List<Box> phoneCable(Neck neck, int k) {
+		List<Box> out = new ArrayList<>();
+		out.add(raw(-0.15f, 0f, -0.15f, 0.15f, 4.5f, 0.15f, neck.second));
+		if (k == 1) {
+			out.add(raw(-0.35f, 4.5f, -0.35f, 0.35f, 5.75f, 0.35f, neck.main[0]));
+			out.add(raw(-0.15f, 5.75f, -0.15f, 0.15f, 6.75f, 0.15f, 0xFFC8CCD4));
+			out.add(raw(-0.16f, 6.1f, -0.16f, 0.16f, 6.25f, 0.16f, 0xFF2A2A30));
+		} else {
+			// A strain relief where it leaves the cup.
+			out.add(raw(-0.3f, 0f, -0.3f, 0.3f, 0.75f, 0.3f, neck.main[0]));
 		}
 		return out;
 	}

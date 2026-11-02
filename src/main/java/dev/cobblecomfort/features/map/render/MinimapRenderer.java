@@ -139,6 +139,76 @@ public final class MinimapRenderer {
 		texture.upload();
 	}
 
+	// ---------------------------------------------------------------- frame alone (3D minimap)
+
+	private static final Identifier FRAME_ID = CobbleComfortClient.id("map/minimap_frame");
+	private DynamicTexture frame;
+	private int frameRes;
+	private long frameKey;
+
+	/**
+	 * The frame and inner shadow alone, see-through inside, to lay over the 3D minimap (which is drawn elsewhere).
+	 * Rebuilt only when size, shape or colour change.
+	 */
+	public Identifier frame(MapConfig config, int size) {
+		int wanted = Math.clamp(size * (int) Math.ceil(Minecraft.getInstance().getWindow().getGuiScale()), MIN_RES, MAX_RES);
+		long key = ((long) wanted * 31 + size) * 31 + config.borderColor + (config.roundMinimap ? 1L << 40 : 0);
+		if (frame != null && wanted == frameRes && key == frameKey) {
+			return FRAME_ID;
+		}
+		if (frame != null) {
+			Minecraft.getInstance().getTextureManager().release(FRAME_ID);
+		}
+		frameRes = wanted;
+		frameKey = key;
+		frame = new DynamicTexture(() -> "Cobble Comfort minimap frame", wanted, wanted, false);
+		Minecraft.getInstance().getTextureManager().register(FRAME_ID, frame);
+		NativeImage image = frame.getPixels();
+		if (image == null) {
+			return FRAME_ID;
+		}
+		double pixelsPerGui = wanted / (double) size;
+		double half = wanted / 2.0;
+		double border = BORDER * pixelsPerGui;
+		double shadow = INNER_SHADOW * pixelsPerGui;
+		int borderLight = RenderUtil.lerpColor(config.borderColor, 0xFFFFFFFF, 0.3f);
+		for (int y = 0; y < wanted; y++) {
+			for (int x = 0; x < wanted; x++) {
+				double edge = edge(config, x + 0.5 - half, y + 0.5 - half, half, CORNER * pixelsPerGui);
+				if (edge > 0.5) {
+					image.setPixel(x, y, 0);
+					continue;
+				}
+				if (edge > -border) {
+					float coverage = (float) Math.min(1.0, 0.5 - edge);
+					float t = (float) Math.min(1.0, (edge + border) / Math.max(1.0, pixelsPerGui));
+					image.setPixel(x, y, withAlpha(RenderUtil.lerpColor(borderLight, config.borderColor, t), coverage));
+					continue;
+				}
+				double fromFrame = -edge - border;
+				float alpha = fromFrame < shadow ? (float) (0.4 * (1 - fromFrame / shadow)) : 0f;
+				image.setPixel(x, y, withAlpha(0xFF000000, alpha));
+			}
+		}
+		frame.upload();
+		return FRAME_ID;
+	}
+
+	/** Signed distance to the minimap's outer edge in pixels: negative inside. */
+	private static double edge(MapConfig config, double dx, double dy, double half, double corner) {
+		if (config.roundMinimap) {
+			return Math.sqrt(dx * dx + dy * dy) - half;
+		}
+		double qx = Math.abs(dx) - (half - corner);
+		double qy = Math.abs(dy) - (half - corner);
+		return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - corner;
+	}
+
+	/** The corner radius of the square minimap as a share of half its width (for cutting the 3D view to shape). */
+	public static float cornerShare(int size) {
+		return CORNER / (size / 2f);
+	}
+
 	private static int withAlpha(int argb, float alpha) {
 		return Math.round(((argb >>> 24) & 0xFF) * alpha) << 24 | (argb & 0xFFFFFF);
 	}
@@ -147,6 +217,10 @@ public final class MinimapRenderer {
 		if (texture != null) {
 			Minecraft.getInstance().getTextureManager().release(TEXTURE_ID);
 			texture = null;
+		}
+		if (frame != null) {
+			Minecraft.getInstance().getTextureManager().release(FRAME_ID);
+			frame = null;
 		}
 	}
 }

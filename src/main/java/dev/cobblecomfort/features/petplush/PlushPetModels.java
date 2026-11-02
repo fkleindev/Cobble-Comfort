@@ -10,18 +10,18 @@ import net.minecraft.util.Mth;
 
 /**
  * The baby wolf and cat models posed as a plush on a back. As a charm the layer stands the body up (head up,
- * belly out): the head is bent to look out and the legs hang down and a little forward. As a backpack it lies with
- * its belly on the player: the head looks out behind and the legs hug. Head, legs and tail
- * jiggle on top of that.
+ * belly out): the head is bent to look out and the legs hang down and a little forward. As a backpack it is stood up
+ * the same way, its back against the player, riding piggyback: the head looks out behind and the legs dangle a little
+ * lower. Head, legs and tail jiggle on top of that.
  */
 final class PlushPetModels {
 	/** Bends the head from looking up (the body stands upright) to looking out at the viewer. */
 	private static final float HEAD_PITCH = 80f * Mth.DEG_TO_RAD;
 	/** Legs hang down, a little forward. */
 	private static final float LEG_PITCH = 65f * Mth.DEG_TO_RAD;
-	/** As a backpack the body lies on its belly against the player: the head is raised to look out behind, the legs hug. */
-	private static final float PACK_HEAD_PITCH = -75f * Mth.DEG_TO_RAD;
-	private static final float PACK_LEG_PITCH = 25f * Mth.DEG_TO_RAD;
+	/** As a backpack: the head looks out behind as a charm's does, the legs dangle a little lower. */
+	private static final float PACK_HEAD_PITCH = HEAD_PITCH;
+	private static final float PACK_LEG_PITCH = 50f * Mth.DEG_TO_RAD;
 
 	private PlushPetModels() {
 	}

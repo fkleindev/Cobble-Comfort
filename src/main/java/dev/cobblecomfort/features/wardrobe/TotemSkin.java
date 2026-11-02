@@ -33,13 +33,16 @@ public enum TotemSkin {
 	DRAGON(Style.DRAGON, Hat.Unlock.advancement("end/kill_dragon"), "dragon_head", "enderdragon/dragon"),
 	WARDEN(Style.WARDEN, Hat.Unlock.biome("deep_dark"), "sculk", "warden/warden"),
 	SNOWMAN(Style.SNOWMAN, Hat.Unlock.free(), "snowball", "snow_golem/snow_golem"),
-	GINGERBREAD(Style.GINGERBREAD, Hat.Unlock.free(), "cookie", null);
+	GINGERBREAD(Style.GINGERBREAD, Hat.Unlock.free(), "cookie", null),
+	TURTLE(Style.TURTLE, Hat.Unlock.item("turtle_scute"), "turtle_scute", null),
+	MIMIC(Style.MIMIC, Hat.Unlock.item("chest"), "chest", null);
 
 	/** The kind of totem, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
 		PLAYER(Hat.Group.ALL_YEAR), MINI_ME(Hat.Group.ALL_YEAR), CLASSIC(Hat.Group.ALL_YEAR), ALLAY(Hat.Group.ALL_YEAR),
 		AXOLOTL(Hat.Group.ALL_YEAR), CREEPER(Hat.Group.ALL_YEAR), FROG(Hat.Group.ALL_YEAR), BEE(Hat.Group.ALL_YEAR),
-		DRAGON(Hat.Group.ALL_YEAR), WARDEN(Hat.Group.ALL_YEAR), SNOWMAN(Hat.Group.WINTER), GINGERBREAD(Hat.Group.WINTER);
+		DRAGON(Hat.Group.ALL_YEAR), WARDEN(Hat.Group.ALL_YEAR), TURTLE(Hat.Group.ALL_YEAR), MIMIC(Hat.Group.ALL_YEAR),
+		SNOWMAN(Hat.Group.WINTER), GINGERBREAD(Hat.Group.WINTER);
 
 		/** Seasonal kinds can only be earned in their months; once earned, they can be held all year. */
 		public final Hat.Group group;
@@ -67,9 +70,9 @@ public enum TotemSkin {
 		this.texture = texture == null ? null : Identifier.withDefaultNamespace("textures/entity/" + texture + ".png");
 	}
 
-	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
+	/** Yours from the start: everything but the seasonal ones (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
+		return !style.group.seasonal();
 	}
 
 	/** Whether it can be earned now: seasonal ones only in their months. Once earned, they can be held all year. */
@@ -79,7 +82,8 @@ public enum TotemSkin {
 
 	/** Whether it moves on its own (wings), so its picture can't be kept between frames. */
 	public boolean animated() {
-		return style == Style.ALLAY || style == Style.BEE || style == Style.DRAGON || style == Style.WARDEN;
+		return style == Style.ALLAY || style == Style.BEE || style == Style.DRAGON || style == Style.WARDEN
+				|| style == Style.TURTLE || style == Style.MIMIC;
 	}
 
 	/** Its colour, for the dot that stands for it under its kind's tile. */

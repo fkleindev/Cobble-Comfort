@@ -246,7 +246,21 @@ public enum Hat {
 	WINTER_SPARKLE_SILVER(Style.SPARKLE, Unlock.item("firework_star"), "firework_star",
 			new int[]{0xFFC8CCD4, 0xFF9AA0AA}, 0xFF3A6AB8, 0xFFFFFFFF, 0, false),
 	WINTER_SPARKLE_BLACK(Style.SPARKLE, Unlock.item("firework_star"), "firework_star",
-			new int[]{0xFF1E1E22, 0xFF141418}, 0xFFE8C040, 0xFFFFF4B0, 0, false);
+			new int[]{0xFF1E1E22, 0xFF141418}, 0xFFE8C040, 0xFFFFF4B0, 0, false),
+	AXOLOTL_LUCY(Style.AXOLOTL, Unlock.item("axolotl_bucket"), "axolotl_bucket",
+			new int[]{0xFFF6B2CE, 0xFFE494B6, 0xFFFDDCE8}, 0xFFD8467A, 0xFF2A1A22, 0xFFF27AA4, true),
+	AXOLOTL_WILD(Style.AXOLOTL, Unlock.item("axolotl_bucket"), "axolotl_bucket",
+			new int[]{0xFF8E6E4E, 0xFF72563C, 0xFFB89870}, 0xFF6A3A4E, 0xFF1E140E, 0xFFC08A7A, true),
+	AXOLOTL_GOLD(Style.AXOLOTL, Unlock.item("axolotl_bucket"), "axolotl_bucket",
+			new int[]{0xFFF4C840, 0xFFDCA42C, 0xFFFCE48E}, 0xFFE8802A, 0xFF2A1E10, 0xFFF4A05A, true),
+	AXOLOTL_CYAN(Style.AXOLOTL, Unlock.item("axolotl_bucket"), "axolotl_bucket",
+			new int[]{0xFFDCF2F6, 0xFFB4D8E2, 0xFFF6FDFF}, 0xFFE87AAA, 0xFF1E2A30, 0xFFF4A8C8, true),
+	AXOLOTL_BLUE(Style.AXOLOTL, Unlock.item("axolotl_bucket"), "axolotl_bucket",
+			new int[]{0xFF5E6EE8, 0xFF4652C4, 0xFF8E9CF6}, 0xFFF2D04A, 0xFF141838, 0xFF9AA8FF, true),
+	FOX_RED(Style.FOX, Unlock.item("sweet_berries"), "sweet_berries",
+			new int[]{0xFFE27A2C, 0xFFBA5A1C, 0xFFF6F0E6}, 0xFF2A1E1A, 0xFF1E140E, 0xFFF2C8B4, true),
+	FOX_SNOW(Style.FOX, Unlock.item("sweet_berries"), "snowball",
+			new int[]{0xFFF4F4F2, 0xFFD4D8E0, 0xFFFFFFFF}, 0xFF3A3A42, 0xFF1E2A30, 0xFFE8D4CC, true);
 
 	/** The kind of hat: the shape it is made in, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
@@ -258,6 +272,7 @@ public enum Hat {
 		HEADPHONES(Group.ALL_YEAR, true), PARTY(Group.ALL_YEAR, true), SOMBRERO(Group.ALL_YEAR, true),
 		BERET(Group.ALL_YEAR, true), TYROLEAN(Group.ALL_YEAR, true), CAPTAIN(Group.ALL_YEAR, true),
 		USHANKA(Group.ALL_YEAR, true), TIARA(Group.ALL_YEAR, true), NINJA(Group.ALL_YEAR, true),
+		AXOLOTL(Group.ALL_YEAR, true), FOX(Group.ALL_YEAR, true),
 		LEAVES(Group.SEASON, true), ACORN(Group.SEASON, true), MUSHROOM(Group.SEASON, true), WITCH(Group.SEASON, true),
 		PUMPKIN(Group.SEASON, true), HORNS(Group.SEASON, true), BAT(Group.SEASON, true),
 		SANTA(Group.WINTER, true), REINDEER(Group.WINTER, true), ELF(Group.WINTER, true), SPARKLE(Group.WINTER, true);
@@ -364,7 +379,8 @@ public enum Hat {
 	 * felt, brim, cord; feather, badge. Captain: top, band, visor; cord, anchor. Ushanka: cloth, fur, light fur; ties,
 	 * badge. Tiara: metal, setting; stone, small stones. Ninja: band, shade. Santa: cloth, shade, fur; pompom. Reindeer:
 	 * antlers, antler light, band; ears, bow, bell. Elf: cone, stripe or shade, cuff; bell. Sparkle (New Year's top
-	 * hat): felt, brim; band, sparkles.
+	 * hat): felt, brim; band, sparkles. Axolotl: plush, shade, belly; gills, eyes, cheeks. Fox: fur, shade,
+	 * white; ear tips and nose, eyes, inner ears.
 	 */
 	public final int[] main;
 	public final int accent;
@@ -390,9 +406,9 @@ public enum Hat {
 		return style.group.inSeason();
 	}
 
-	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
+	/** Yours from the start: everything but the seasonal ones (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Unlock.Kind.FREE && !style.group.seasonal();
+		return !style.group.seasonal();
 	}
 
 	public String key() {

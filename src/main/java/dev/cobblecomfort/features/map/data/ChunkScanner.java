@@ -16,6 +16,11 @@ public final class ChunkScanner {
 	private static final float WATER_DEPTH_DARKEN = 0.035f;
 	private static final float WATER_MIN_BRIGHTNESS = 0.55f;
 	private static final float WATER_FLOOR_BLEND = 0.25f;
+	/**
+	 * For the 3D map: how far below the top block air is looked for (a thicker top counts as solid down to the ground).
+	 * Every column of every scanned chunk pays for it, so it only asks whether blocks are drawn, never their tint.
+	 */
+	private static final int LAYER_SEARCH = 48;
 
 	private ChunkScanner() {
 	}
@@ -138,9 +143,52 @@ public final class ChunkScanner {
 				region.set(lx, lz, water, y, true);
 				return;
 			}
-			region.set(lx, lz, color, y, false);
+			layered(level, chunk, region, pos, bx, bz, lx, lz, color, y, bottom);
 			return;
 		}
+	}
+
+	/**
+	 * Stores a column topped by a block at {@code top}, looking for air under the top layer (a tree's crown, an
+	 * overhang) and the floor below it, so the 3D map can leave the space underneath open.
+	 */
+	private static void layered(ClientLevel level, LevelChunk chunk, MapRegion region, BlockPos.MutableBlockPos pos,
+			int bx, int bz, int lx, int lz, int color, int top, int bottom) {
+		int y = top - 1;
+		int limit = Math.max(bottom, top - LAYER_SEARCH);
+		while (y >= limit && !isOpenFast(chunk.getBlockState(pos.set(bx, y, bz)))) {
+			y--;
+		}
+		if (y < limit) {
+			region.set(lx, lz, color, top, false);
+			return;
+		}
+		int layerBottom = y + 1;
+		// The floor may be far below (a floating island): empty sections are skipped whole.
+		int f = y - 1;
+		while (f >= bottom) {
+			int section = chunk.getSectionIndex(f);
+			if (section >= 0 && section < chunk.getSectionsCount() && chunk.getSection(section).hasOnlyAir()) {
+				f = (f & ~15) - 1;
+				continue;
+			}
+			BlockState state = chunk.getBlockState(pos.set(bx, f, bz));
+			if (!isOpenFast(state) || !state.getFluidState().isEmpty()) {
+				int floorColor = BlockColorCache.color(level, state, pos);
+				if (floorColor != 0) {
+					region.set(lx, lz, color, top, false, layerBottom, f, floorColor);
+					return;
+				}
+			}
+			f--;
+		}
+		// Air all the way down: the top floats over the void.
+		region.set(lx, lz, color, top, false, layerBottom, 0, 0);
+	}
+
+	/** Like {@link #isOpen}, without working out tints: for long runs of blocks. */
+	private static boolean isOpenFast(BlockState state) {
+		return state.isAir() || !state.getFluidState().isEmpty() || !BlockColorCache.drawn(state);
 	}
 
 	private static int blend(int a, int b, float t) {

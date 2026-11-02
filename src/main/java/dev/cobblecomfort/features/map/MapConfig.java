@@ -27,6 +27,8 @@ public class MapConfig extends FeatureConfig {
 	/** Waypoints beyond the minimap's edge as small arrows on the edge; off hides them. */
 	public boolean minimapEdgeWaypoints = true;
 	public int borderColor = 0xFF1A1A1A;
+	/** Flat or 3D minimap: like the full map's 3D switch, or always one of them. */
+	public MinimapView minimapView = MinimapView.FOLLOW_MAP;
 
 	// Map
 	public boolean caveMode = true;
@@ -44,6 +46,8 @@ public class MapConfig extends FeatureConfig {
 	public int mapWindowW = 0;
 	public int mapWindowH = 0;
 	public float mapWindowOpacity = 0.8f;
+	/** Whether the full map was last left in its 3D view (beta), switched with a toolbar button. */
+	public boolean map3d = false;
 
 	// Waypoints
 	public boolean waypoints = true;

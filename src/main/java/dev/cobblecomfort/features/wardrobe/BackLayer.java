@@ -51,9 +51,15 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 	private static final float BIG = 1.25f;
 	private static final float GUITAR_SCALE = 1.3f;
 	private static final float WING_SCALE = 1.8f;
+	/** Feathered and fairy wings stand higher and spread wider than the others: less swept back, more raised, longer. */
+	private static final float WINGS_SWEEP = 20f;
+	private static final float WINGS_RISE = -12f;
+	private static final float WINGS_SPREAD = 1.3f;
 	/** The sword: its size in blocks, and how far its tip lies from its middle, down and to the side (voxels). */
 	private static final float SWORD_SIZE = 0.9f;
 	private static final float SWORD_TIP = 11f;
+	/** Where the fishing rod's tip is along it, from its middle (voxels, before scaling; up is negative). */
+	private static final float ROD_TIP = -27f;
 	/** The leather of the broom's and the scythe's straps. */
 	private static final int LEATHER = 0xFF5A3A22;
 	private static final long FORGET_NANOS = 2_000_000_000L;
@@ -91,6 +97,9 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			case HIKING -> {
 				hiking(boxes, piece, back);
 				shoulderStraps(straps, piece.main[2], back, front);
+				// A strap across the chest between them, clipped in the middle.
+				straps.add(raw(-3f, 4f, front - 0.75f, 3f, 4.75f, front - 0.5f, piece.main[2]));
+				straps.add(raw(-0.75f, 3.75f, front - 1f, 0.75f, 5f, front - 0.75f, 0xFF2A2A30));
 			}
 			case SHELL -> {
 				shell(boxes, piece, back);
@@ -112,7 +121,11 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 				rockets(boxes, piece, back);
 				shoulderStraps(straps, piece.second, back, front);
 			}
-			case WINGS, SWORD, GUITAR, PLUSH_WOLF, PLUSH_CAT, BAT_WINGS, BROOM, SCYTHE, ICE_WINGS -> {
+			case BEEHIVE -> {
+				beehive(boxes, piece, back);
+				shoulderStraps(straps, LEATHER, back, front);
+			}
+			case WINGS, SWORD, GUITAR, PLUSH_WOLF, PLUSH_CAT, BAT_WINGS, BROOM, SCYTHE, ICE_WINGS, ROD -> {
 			}
 		}
 		// Bigger than life, grown out from the middle of the back; the straps stay on the body.
@@ -134,6 +147,14 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			case GUITAR -> slanted(pose, collector, back, front, -SLANT, guitar(piece), strap(piece.main[2]), light);
 			case BROOM -> slanted(pose, collector, back, front, SLANT, broom(piece), strap(LEATHER), light);
 			case SCYTHE -> slanted(pose, collector, back, front, -SLANT, scythe(piece), strap(LEATHER), light);
+			case ROD -> {
+				slanted(pose, collector, back, front, SLANT, rod(piece), strap(LEATHER), light);
+				// The line hangs from the tip over the shoulder, a fish on its hook.
+				CharmPendulum[] pendulums = preview != null ? HatLayer.fresh() : pendulums(state.id);
+				new HatLayer.Chains(pose, collector, pendulums, WardrobeFeature.INSTANCE.damping(), light, state.id, 0f)
+						.hang(0, slantPoint(SLANT, 0f, ROD_TIP * GUITAR_SCALE, back + 0.25f + GUITAR_SCALE), 6f, 2, k -> line(piece, k));
+			}
+			case BEEHIVE -> bees(pose, collector, back, light);
 			case SHELL, PLUSH_WOLF, PLUSH_CAT, PUMPKIN_PACK, GIFT_SACK, TREE, ROCKETS -> {
 			}
 		}
@@ -159,12 +180,12 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		return switch (piece.style) {
 			case HIKING -> new Vector3f(-6.5f * BIG * V, 17f * BIG * V, (b + 3f * BIG) * V);
 			// From the lower edge of one wing, moving with it.
-			case WINGS -> wingPoint(b, beat(player, still), 8f, 8f, 1.2f);
+			case WINGS -> wingPoint(piece.style, b, beat(player, still), 8f, 8f, 1.2f);
 			case SWORD -> new Vector3f(-SWORD_TIP * V, (SLANT_MIDDLE + SWORD_TIP) * V, (b + 1f) * V);
 			case GUITAR -> slantPoint(-SLANT, 0f, 10f * GUITAR_SCALE, b + 2.5f * GUITAR_SCALE);
 			case SHELL -> new Vector3f(0f, 18f * BIG * V, (b + 3f * BIG) * V);
 			case PLUSH_WOLF, PLUSH_CAT -> new Vector3f(0f, 12f * V, (b + 2f) * V);
-			case BAT_WINGS -> wingPoint(b, beat(player, still), 6f, 4.5f, 1.2f);
+			case BAT_WINGS -> wingPoint(piece.style, b, beat(player, still), 6f, 4.5f, 1.2f);
 			// From the band round the bristles, and from the scythe's grip.
 			case BROOM -> slantPoint(SLANT, 0f, 7f * GUITAR_SCALE, b + 2.5f * GUITAR_SCALE);
 			case SCYTHE -> slantPoint(-SLANT, 3f * GUITAR_SCALE, -6f * GUITAR_SCALE, b + 1.5f * GUITAR_SCALE);
@@ -172,7 +193,10 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			case GIFT_SACK -> new Vector3f(-6.5f * BIG * V, 15f * BIG * V, (b + 3.5f * BIG) * V);
 			case TREE -> new Vector3f(-6.5f * BIG * V, 15f * BIG * V, (b + 3f * BIG) * V);
 			case ROCKETS -> new Vector3f(0f, 15f * BIG * V, (b + 2.5f * BIG) * V);
-			case ICE_WINGS -> wingPoint(b, beat(player, still), 6f, 2f, 1.2f);
+			case ICE_WINGS -> wingPoint(piece.style, b, beat(player, still), 6f, 2f, 1.2f);
+			// From the reel seat above the cork grip.
+			case ROD -> slantPoint(SLANT, 0f, 5f * GUITAR_SCALE, b + 2f * GUITAR_SCALE);
+			case BEEHIVE -> new Vector3f(-6f * BIG * V, 16f * BIG * V, (b + 3.5f * BIG) * V);
 		};
 	}
 
@@ -204,6 +228,44 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		out.add(raw(-7.6f, 0f, back + 1f, 7.6f, 2.5f, back + 4.5f, ARGB.scaleRGB(piece.accent, 0.85f)));
 		for (float x : new float[]{-4.5f, 3.5f}) {
 			out.add(raw(x, -0.75f, back + 0.25f, x + 1f, 3.25f, back + 5.25f, straps));
+		}
+		// The bedroll's rolled-up ends: a spiral of the outside and a darker inside.
+		for (int s = -1; s <= 1; s += 2) {
+			float x0 = s < 0 ? -7.7f : 7.6f;
+			out.add(raw(x0, 0.5f, back + 1.5f, x0 + 0.1f, 2f, back + 4f, ARGB.scaleRGB(piece.accent, 0.7f)));
+			out.add(raw(x0, 1f, back + 2.25f, x0 + 0.1f, 1.5f, back + 3.25f, piece.accent));
+		}
+		int seam = ARGB.scaleRGB(shade, 0.8f);
+		// The lid: a zip across it and a little patch with a mountain on it.
+		out.add(raw(-5.5f, 6.25f, back + 6.5f, 5.5f, 6.5f, back + 6.6f, seam));
+		out.add(raw(4.5f, 6.25f, back + 6.6f, 5f, 7.25f, back + 6.7f, piece.second));
+		out.add(raw(-1.5f, 3.75f, back + 6.5f, 1.5f, 5.75f, back + 6.6f, 0xFFE8E4D8));
+		out.add(raw(-1f, 5f, back + 6.6f, 1f, 5.5f, back + 6.65f, cloth));
+		out.add(raw(-0.5f, 4.5f, back + 6.6f, 0.5f, 5f, back + 6.65f, cloth));
+		out.add(raw(-0.15f, 4.25f, back + 6.6f, 0.15f, 4.5f, back + 6.65f, 0xFFFFFFFF));
+		// Seams down the front, loops along the pocket's sides, the pocket's zip and its pull.
+		for (int s = -1; s <= 1; s += 2) {
+			out.add(raw(s * 5.5f - 0.1f, 7f, back + 6f, s * 5.5f + 0.1f, 18f, back + 6.1f, seam));
+			for (float y = 10.5f; y < 16f; y += 1.75f) {
+				out.add(raw(s * 5f - 0.25f, y, back + 6f, s * 5f + 0.25f, y + 0.75f, back + 6.3f, straps));
+			}
+		}
+		out.add(raw(-4.25f, 11.25f, back + 7.5f, 4.25f, 11.5f, back + 7.6f, seam));
+		out.add(raw(3f, 11.25f, back + 7.6f, 3.4f, 12.25f, back + 7.7f, piece.second));
+		// A tougher bottom, and the loops a hip belt would go through.
+		out.add(raw(-6.1f, 16.75f, back - 0.1f, 6.1f, 18.1f, back + 6.1f, seam));
+		for (int s = -1; s <= 1; s += 2) {
+			out.add(raw(s < 0 ? -6.3f : 6f, 15f, back + 0.25f, s < 0 ? -6f : 6.3f, 17f, back + 1.5f, straps));
+		}
+		// Left: a side pocket holding a water bottle with its cap. Right: two compression straps with buckles.
+		out.add(raw(-7.5f, 11f, back + 1f, -6f, 16.75f, back + 5f, shade));
+		out.add(raw(-7.55f, 11f, back + 1f, -6f, 11.5f, back + 5f, seam));
+		out.add(raw(-7.25f, 7.75f, back + 1.75f, -6.25f, 11f, back + 4.25f, 0xFF5AA8D8));
+		out.add(raw(-7.3f, 8.75f, back + 1.7f, -6.2f, 9.25f, back + 4.3f, 0xFFA8D8F0));
+		out.add(raw(-7.1f, 7f, back + 2.25f, -6.4f, 7.75f, back + 3.75f, 0xFF2A2A30));
+		for (float y : new float[]{8.5f, 13.5f}) {
+			out.add(raw(6f, y, back + 0.5f, 6.25f, y + 1f, back + 5.5f, straps));
+			out.add(raw(6.25f, y - 0.15f, back + 2.5f, 6.4f, y + 1.15f, back + 3.5f, piece.second));
 		}
 	}
 
@@ -259,9 +321,9 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			pose.pushPose();
 			pose.translate(s * 1.5f * V, 4f * V, (back + 0.5f) * V);
 			// Out to the side and back, beating round the shoulder.
-			pose.rotateDegrees(Axis.YP, -s * (30f + beat));
-			pose.rotateDegrees(Axis.ZP, s * WING_RISE);
-			pose.scale(WING_SCALE, WING_SCALE, WING_SCALE);
+			pose.rotateDegrees(Axis.YP, -s * (sweep(piece.style) + beat));
+			pose.rotateDegrees(Axis.ZP, s * rise(piece.style));
+			pose.scale(WING_SCALE * spread(piece.style), WING_SCALE, WING_SCALE);
 			HatLayer.submit(pose, collector, s > 0 ? wing : mirrored(wing), null, light);
 			pose.popPose();
 		}
@@ -275,10 +337,22 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		return (float) Math.sin(seconds * rate) * (6f + Math.min(speed, 10f) * 2f);
 	}
 
+	private static float sweep(BackPiece.Style style) {
+		return style == BackPiece.Style.WINGS ? WINGS_SWEEP : 30f;
+	}
+
+	private static float rise(BackPiece.Style style) {
+		return style == BackPiece.Style.WINGS ? WINGS_RISE : WING_RISE;
+	}
+
+	private static float spread(BackPiece.Style style) {
+		return style == BackPiece.Style.WINGS ? WINGS_SPREAD : 1f;
+	}
+
 	/** A point on one wing (wing voxels, as drawn) where it is now, in the body's space (blocks). */
-	private static Vector3f wingPoint(float back, float beat, float x, float y, float z) {
-		Matrix4f wing = new Matrix4f().translate(1.5f, 4f, back + 0.5f).rotateY(Mth.DEG_TO_RAD * -(30f + beat))
-				.rotateZ(Mth.DEG_TO_RAD * WING_RISE).scale(WING_SCALE);
+	private static Vector3f wingPoint(BackPiece.Style style, float back, float beat, float x, float y, float z) {
+		Matrix4f wing = new Matrix4f().translate(1.5f, 4f, back + 0.5f).rotateY(Mth.DEG_TO_RAD * -(sweep(style) + beat))
+				.rotateZ(Mth.DEG_TO_RAD * rise(style)).scale(WING_SCALE * spread(style), WING_SCALE, WING_SCALE);
 		return wing.transformPosition(new Vector3f(x, y, z)).mul(V);
 	}
 
@@ -710,6 +784,264 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			out.add(piece == BackPiece.HALLOWEEN_SCYTHE_SOUL ? edge.glowing() : edge);
 		}
 		return out;
+	}
+
+	// ---------------------------------------------------------------- beehive
+
+	/** Honey dripping from under the roof: {x, length} of each drip. */
+	private static final float[][] DRIPS = {{-5f, 2.5f}, {-3f, 1.5f}, {-1.25f, 3.5f}, {1f, 2f}, {3f, 4f}, {4.75f, 1.75f}};
+
+	/**
+	 * A beehive on the back: a box of planks with dark corner posts, a roof overhanging it with a ridge, a base, honey
+	 * running down from under the roof in drips with glossy ends, the entrance slot with honey round it above a landing
+	 * board, and on each side a window showing the comb inside.
+	 */
+	private static void beehive(List<Box> out, BackPiece piece, float back) {
+		int wood = piece.main[0];
+		int frame = piece.main[1];
+		int lines = piece.main[2];
+		int honey = piece.accent;
+		float face = back + 7f;
+		out.add(raw(-6f, 4f, back, 6f, 17.5f, face, wood));
+		for (float y = 7.25f; y < 17f; y += 3.25f) {
+			out.add(raw(-6f, y, face, 6f, y + 0.25f, face + 0.05f, lines));
+			out.add(raw(-6.05f, y, back + 0.5f, 6.05f, y + 0.25f, face - 0.5f, lines));
+		}
+		for (int s = -1; s <= 1; s += 2) {
+			out.add(raw(s < 0 ? -6.3f : 5.5f, 4f, face - 0.75f, s < 0 ? -5.5f : 6.3f, 17.5f, face + 0.3f, frame));
+		}
+		out.add(raw(-7f, 2.25f, back - 0.25f, 7f, 4f, face + 1f, piece.second));
+		out.add(raw(-6.5f, 1.5f, back + 0.5f, 6.5f, 2.25f, face + 0.25f, ARGB.scaleRGB(piece.second, 0.85f)));
+		out.add(raw(-7.05f, 3.5f, face + 0.5f, 7.05f, 4.05f, face + 1.05f, ARGB.scaleRGB(piece.second, 0.75f)));
+		out.add(raw(-6.5f, 17.5f, back - 0.1f, 6.5f, 18.5f, face + 0.5f, frame));
+		// Honey running down from under the roof.
+		out.add(raw(-5.5f, 4f, face, 5.5f, 5f, face + 0.15f, honey));
+		for (float[] d : DRIPS) {
+			out.add(raw(d[0], 5f, face, d[0] + 0.75f, 5f + d[1], face + 0.15f, honey));
+			out.add(raw(d[0] + 0.1f, 5f + d[1], face + 0.02f, d[0] + 0.65f, 5.5f + d[1], face + 0.2f, lighter(honey)));
+		}
+		// The entrance, honey round it, and the board the bees land on.
+		out.add(raw(-2.75f, 12.75f, face + 0.05f, 2.75f, 13f, face + 0.15f, honey));
+		out.add(raw(-2.5f, 13f, face, 2.5f, 14.25f, face + 0.1f, 0xFF2A1A0E));
+		out.add(raw(-3f, 14.25f, face, 3f, 14.75f, face + 0.75f, piece.second));
+		// A window on each side onto the comb: cells in rows, every other row shifted half a cell.
+		int cell = ARGB.scaleRGB(honey, 0.85f);
+		for (int s = -1; s <= 1; s += 2) {
+			float x = s * 6f;
+			out.add(raw(Math.min(x, x + s * 0.15f), 6.5f, back + 1f, Math.max(x, x + s * 0.15f), 13f, back + 6f, frame));
+			int row = 0;
+			for (float y = 7f; y < 12.5f; y += 1.25f) {
+				for (float z = back + 1.5f + (row % 2) * 0.6f; z < back + 5.4f; z += 1.25f) {
+					float out0 = x + s * 0.15f;
+					float out1 = x + s * 0.25f;
+					out.add(raw(Math.min(out0, out1), y, z, Math.max(out0, out1), y + 0.95f, z + 0.95f, (row + (int) z) % 3 == 0 ? cell : honey));
+				}
+				row++;
+			}
+		}
+	}
+
+	/**
+	 * Two bees flying figures of eight in front of the hive (never through it or the wearer), bobbing up and down, each
+	 * facing where it flies and beating its wings.
+	 */
+	private static void bees(PoseStack pose, SubmitNodeCollector collector, float back, int light) {
+		double seconds = System.nanoTime() % 1_000_000_000_000L / 1e9;
+		for (int i = 0; i < 2; i++) {
+			double a = seconds * (1.1 + i * 0.35) + i * Math.PI;
+			float x = (float) (10.0 * Math.sin(a));
+			float z = back + 7f * BIG + 2.25f + (float) (2.0 * Math.sin(2.0 * a));
+			float y = 8f + i * 4f + (float) Math.sin(seconds * 2.6 + i) * 1.5f;
+			float dx = (float) (10.0 * Math.cos(a));
+			float dz = (float) (4.0 * Math.cos(2.0 * a));
+			pose.pushPose();
+			pose.translate(x * V, y * V, z * V);
+			pose.mulPose(new Matrix4f().rotationY((float) Math.atan2(-dx, -dz)));
+			HatLayer.submit(pose, collector, bee(seconds + i * 0.13), null, light);
+			pose.popPose();
+		}
+	}
+
+	/** A bee facing -z: a striped body, a stinger, eyes, and two wings beating fast. */
+	private static List<Box> bee(double seconds) {
+		int yellow = 0xFFF6CE3A;
+		int brown = 0xFF4A2A14;
+		float lift = (float) Math.sin(seconds * 40.0) * 0.5f;
+		return List.of(raw(-1.25f, -1f, -1.75f, 1.25f, 1f, 1.75f, yellow), raw(-1.3f, -1.05f, -0.5f, 1.3f, 1.05f, 0f, brown),
+				raw(-1.3f, -1.05f, 0.75f, 1.3f, 1.05f, 1.25f, brown), raw(-0.25f, -0.25f, 1.75f, 0.25f, 0.25f, 2.25f, brown),
+				raw(-1f, -0.5f, -1.85f, -0.4f, 0.1f, -1.75f, 0xFF1A1A1A), raw(0.4f, -0.5f, -1.85f, 1f, 0.1f, -1.75f, 0xFF1A1A1A),
+				raw(-0.6f, -1.6f, -1.6f, -0.4f, -1f, -1.4f, brown), raw(0.4f, -1.6f, -1.6f, 0.6f, -1f, -1.4f, brown),
+				raw(-2.75f, -1.5f + lift, -0.75f, -0.25f, -1f + lift, 0.75f, 0xFFE8F0FF),
+				raw(0.25f, -1.5f + lift, -0.75f, 2.75f, -1f + lift, 0.75f, 0xFFE8F0FF));
+	}
+
+	// ---------------------------------------------------------------- fishing rod
+
+	/**
+	 * A fishing rod, tip up: a cork grip with a rubber butt, a reel on its seat with line wound on and a crank, a
+	 * tapering blank with a maker's band, guides on thread wraps, and the line running up through them to the tip.
+	 */
+	private static List<Box> rod(BackPiece piece) {
+		int blank = piece.main[0];
+		int cork = piece.main[1];
+		int line = piece.main[2];
+		int metal = piece.accent;
+		List<Box> out = new ArrayList<>();
+		// The grip, with darker rings between its cork pieces, and the butt cap.
+		out.add(raw(-0.85f, 6f, 0.15f, 0.85f, 14f, 1.85f, cork));
+		for (float y = 7.5f; y < 14f; y += 2f) {
+			out.add(raw(-0.9f, y, 0.1f, 0.9f, y + 0.3f, 1.9f, ARGB.scaleRGB(cork, 0.8f)));
+		}
+		out.add(raw(-0.95f, 14f, 0.05f, 0.95f, 15f, 1.95f, 0xFF2A2A30));
+		// The reel seat with its hood rings, and the reel on it: line on the spool, a side plate, the crank and its knob.
+		out.add(raw(-0.7f, 3.5f, 0.3f, 0.7f, 6f, 1.7f, metal));
+		out.add(raw(-0.8f, 3.5f, 0.2f, 0.8f, 3.9f, 1.8f, ARGB.scaleRGB(metal, 0.75f)));
+		out.add(raw(-0.8f, 5.6f, 0.2f, 0.8f, 6f, 1.8f, ARGB.scaleRGB(metal, 0.75f)));
+		out.add(raw(-1.25f, 3.25f, 1.75f, 1.25f, 5.75f, 2.25f, line));
+		out.add(raw(-1.75f, 2.75f, 2.25f, 1.75f, 6.25f, 2.75f, metal));
+		out.add(raw(-1.25f, 3.25f, 2.75f, 1.25f, 5.75f, 2.8f, ARGB.scaleRGB(metal, 0.85f)));
+		out.add(raw(-0.4f, 4.1f, 2.75f, 0.4f, 4.9f, 3f, 0xFF2A2A30));
+		out.add(raw(0.4f, 4.3f, 2.75f, 1.6f, 4.7f, 3f, ARGB.scaleRGB(metal, 0.7f)));
+		out.add(raw(1.3f, 4.2f, 3f, 1.8f, 4.8f, 3.8f, 0xFF2A2A30));
+		// The blank, thinner towards the tip, a maker's band above the seat.
+		out.add(raw(-0.5f, -10f, 0.5f, 0.5f, 3.5f, 1.5f, blank));
+		out.add(raw(-0.4f, -20f, 0.6f, 0.4f, -10f, 1.4f, blank));
+		out.add(raw(-0.25f, -27f, 0.75f, 0.25f, -20f, 1.25f, blank));
+		out.add(raw(-0.6f, 2f, 0.4f, 0.6f, 3.5f, 1.6f, piece.second));
+		out.add(raw(-0.62f, 2.6f, 0.38f, 0.62f, 2.9f, 1.62f, metal));
+		if (piece == BackPiece.ROD_PUFFERFISH) {
+			// Bamboo: a node every few voxels.
+			for (float y = -24f; y < 2f; y += 4.5f) {
+				float w = y < -20f ? 0.3f : y < -10f ? 0.45f : 0.55f;
+				out.add(raw(-w, y, 1f - w, w, y + 0.4f, 1f + w, ARGB.scaleRGB(blank, 0.75f)));
+			}
+		}
+		// Guides on thread wraps, each a little ring standing out from the blank.
+		for (float g : new float[]{-2f, -9f, -15f, -20.5f, -25f}) {
+			float w = g < -20f ? 0.25f : g < -10f ? 0.4f : 0.5f;
+			float top = 1f + w;
+			out.add(raw(-w - 0.08f, g - 0.6f, 1f - w - 0.08f, w + 0.08f, g + 0.6f, top + 0.08f, piece.second));
+			out.add(raw(-0.12f, g - 0.15f, top, 0.12f, g + 0.15f, top + 0.6f, metal));
+			out.add(raw(-0.4f, g - 0.15f, top + 0.6f, -0.25f, g + 0.15f, top + 1.1f, metal));
+			out.add(raw(0.25f, g - 0.15f, top + 0.6f, 0.4f, g + 0.15f, top + 1.1f, metal));
+			out.add(raw(-0.4f, g - 0.15f, top + 1.1f, 0.4f, g + 0.15f, top + 1.25f, metal));
+		}
+		out.add(raw(-0.3f, ROD_TIP - 0.4f, 0.7f, 0.3f, ROD_TIP, 1.6f, metal));
+		out.add(raw(-0.06f, ROD_TIP, 1.85f, 0.06f, 3.25f, 1.95f, line));
+		return out;
+	}
+
+	/** The line hanging from the tip; on its second piece a swivel and hook, and the fish caught on it. */
+	private static List<Box> line(BackPiece piece, int k) {
+		List<Box> out = new ArrayList<>();
+		if (k == 0) {
+			out.add(raw(-0.06f, 0f, -0.06f, 0.06f, 6f, 0.06f, piece.main[2]));
+			return out;
+		}
+		out.add(raw(-0.06f, 0f, -0.06f, 0.06f, 3.5f, 0.06f, piece.main[2]));
+		out.add(raw(-0.2f, 3.5f, -0.2f, 0.2f, 4.1f, 0.2f, 0xFF8A8E96));
+		out.add(raw(-0.08f, 4.1f, -0.08f, 0.08f, 4.6f, 0.08f, 0xFFB0B4BC));
+		double seconds = System.nanoTime() % 1_000_000_000_000L / 1e9;
+		// Now and then it wriggles: the tail flicks to and fro for a moment.
+		float burst = (float) Math.max(0.0, Math.sin(seconds * 0.9) - 0.4) / 0.6f;
+		float wiggle = (float) Math.sin(seconds * 14.0) * burst;
+		if (piece == BackPiece.ROD_PUFFERFISH) {
+			pufferfish(out, 4.4f, wiggle, seconds);
+		} else if (piece == BackPiece.ROD_SALMON) {
+			fish(out, 4.4f, wiggle, 0xFFB8463A, 0xFF4A3A3A, 0xFFEAB494, 0xFF8A3A2E, 0xFF2E2224, 0xFFE0C8B8);
+			// A salmon's hooked jaw, and the little fin on its back before the tail.
+			out.add(raw(-1.2f, 4.4f, -0.5f, -0.6f, 5.6f, 0.5f, 0xFF8A3A2E));
+			out.add(raw(1.25f + wiggle * 0.3f, 12f, -0.15f, 1.8f + wiggle * 0.3f, 12.6f, 0.15f, 0xFF8A3A2E));
+		} else {
+			fish(out, 4.4f, wiggle, 0xFFC8A878, 0xFF8C6E4C, 0xFFECE2C8, 0xFFA88A60, 0xFF6E5236, 0xFFF0E8D8);
+			// The cod's barbel under its chin.
+			out.add(raw(-1.25f, 5.6f, -0.1f, -0.9f, 6.4f, 0.1f, 0xFFA88A60));
+		}
+		return out;
+	}
+
+	/**
+	 * A fish hanging head up by its mouth from {@code t}, its side to the front and back (back to +x): a darker back,
+	 * pale belly, speckles and the lateral line, eyes on both sides, three fins along the back and two under, pectoral
+	 * fins and a forked tail; the rear end swings {@code wiggle} to the side.
+	 */
+	private static void fish(List<Box> out, float t, float wiggle, int body, int back, int belly, int fin, int spot, int line) {
+		float w = wiggle * 0.5f;
+		out.add(raw(-0.9f, t, -0.7f, 0.9f, t + 1f, 0.7f, body));
+		out.add(raw(-1.4f, t + 1f, -1f, 1.4f, t + 3f, 1f, body));
+		out.add(raw(-1.75f, t + 3f, -1.15f, 1.75f, t + 7f, 1.15f, body));
+		out.add(raw(-1.25f + w * 0.5f, t + 7f, -0.9f, 1.25f + w * 0.5f, t + 8.5f, 0.9f, body));
+		out.add(raw(-0.6f + w, t + 8.5f, -0.5f, 0.6f + w, t + 9.25f, 0.5f, body));
+		// The tail, two lobes round a notch.
+		float tw = wiggle * 0.9f;
+		out.add(raw(-0.35f + tw, t + 9.25f, -0.25f, 0.35f + tw, t + 9.9f, 0.25f, fin));
+		out.add(raw(-1.9f + tw, t + 9.25f, -0.25f, -0.35f + tw, t + 10.75f, 0.25f, fin));
+		out.add(raw(0.35f + tw, t + 9.25f, -0.25f, 1.9f + tw, t + 10.75f, 0.25f, fin));
+		out.add(raw(-1.9f + tw, t + 10.4f, -0.27f, -1.2f + tw, t + 10.75f, 0.27f, ARGB.scaleRGB(fin, 0.8f)));
+		out.add(raw(1.2f + tw, t + 10.4f, -0.27f, 1.9f + tw, t + 10.75f, 0.27f, ARGB.scaleRGB(fin, 0.8f)));
+		// Back, belly and the line along the side.
+		out.add(raw(0.95f, t + 1f, -1.05f, 1.45f, t + 3f, 1.05f, back));
+		out.add(raw(1f, t + 3f, -1.2f, 1.8f, t + 7f, 1.2f, back));
+		out.add(raw(-1.8f, t + 3f, -1.2f, -0.9f, t + 7f, 1.2f, belly));
+		out.add(raw(-1.45f, t + 1.5f, -1.05f, -0.9f, t + 3f, 1.05f, belly));
+		out.add(raw(0.15f, t + 3f, -1.22f, 0.35f, t + 7f, 1.22f, line));
+		for (float[] s : new float[][]{{0.55f, 4f}, {-0.45f, 5.5f}, {0.6f, 6.2f}, {-0.3f, 3.6f}, {0.5f, 1.8f}}) {
+			float z = s[1] < 3f ? 1.05f : 1.22f;
+			out.add(raw(s[0], t + s[1], -z, s[0] + 0.35f, t + s[1] + 0.35f, z, spot));
+		}
+		// Eyes on both sides.
+		out.add(raw(0.15f, t + 1.4f, -1.08f, 0.85f, t + 2.1f, 1.08f, 0xFFF4F4F0));
+		out.add(raw(0.3f, t + 1.55f, -1.12f, 0.7f, t + 1.95f, 1.12f, 0xFF141414));
+		// Fins: three along the back, two underneath, a pectoral fin each side.
+		out.add(raw(1.75f, t + 3.25f, -0.2f, 2.5f, t + 4.5f, 0.2f, fin));
+		out.add(raw(1.75f, t + 5f, -0.2f, 2.4f, t + 6.25f, 0.2f, fin));
+		out.add(raw(1.25f + w * 0.5f, t + 7f, -0.2f, 1.9f + w * 0.5f, t + 8.25f, 0.2f, fin));
+		out.add(raw(-2.3f, t + 5.25f, -0.2f, -1.75f, t + 6.5f, 0.2f, fin));
+		out.add(raw(-1.8f + w * 0.5f, t + 7.1f, -0.2f, -1.25f + w * 0.5f, t + 8.2f, 0.2f, fin));
+		out.add(raw(-0.6f, t + 3.25f, -1.6f, 0.2f, t + 4.5f, -1.15f, fin));
+		out.add(raw(-0.6f, t + 3.25f, 1.15f, 0.2f, t + 4.5f, 1.6f, fin));
+	}
+
+	private static final int PUFFER = 0xFFF2CE3A;
+	private static final int PUFFER_TEAL = 0xFF3A9AA8;
+
+	/**
+	 * A pufferfish blown up round in fright: spines all over, teal patches on its back, a pale belly, big eyes, little
+	 * side fins beating fast and a stubby tail.
+	 */
+	private static void pufferfish(List<Box> out, float t, float wiggle, double seconds) {
+		float c = t + 3.75f;
+		out.add(raw(-0.5f, t, -0.5f, 0.5f, t + 0.75f, 0.5f, 0xFFE8862A));
+		out.add(raw(-2.5f, c - 2.5f, -2.5f, 2.5f, c + 2.5f, 2.5f, PUFFER));
+		out.add(raw(-2f, c - 3f, -2f, 2f, c + 3f, 2f, PUFFER));
+		out.add(raw(-2.9f, c - 1.75f, -1.75f, 2.9f, c + 1.75f, 1.75f, PUFFER));
+		out.add(raw(-1.75f, c - 1.75f, -2.9f, 1.75f, c + 1.75f, 2.9f, PUFFER));
+		// Teal patches over the back (+x), the pale belly opposite.
+		out.add(raw(2.5f, c - 1.5f, -1.5f, 2.95f, c + 1.5f, 1.5f, PUFFER_TEAL));
+		for (float y : new float[]{-2f, 0.25f}) {
+			out.add(raw(1.25f, c + y, -2.55f, 2.25f, c + y + 1f, 2.55f, PUFFER_TEAL));
+		}
+		out.add(raw(1f, c - 3.05f, -1f, 1.75f, c - 2.95f, 1f, PUFFER_TEAL));
+		out.add(raw(-2.95f, c - 1.25f, -1.5f, -2.5f, c + 1.5f, 1.5f, 0xFFF8EAB0));
+		out.add(raw(-2.55f, c - 1.25f, -1.25f, -1.75f, c + 1.5f, 1.25f, 0xFFF8EAB0));
+		// Spines standing out of every side.
+		int spine = 0xFFF4F0DC;
+		for (float[] p : new float[][]{{-1.5f, -1.5f}, {0.5f, -1.75f}, {-0.5f, 0f}, {1.5f, 0.5f}, {-1.75f, 1.25f}, {0.25f, 1.75f}}) {
+			out.add(raw(p[0] - 0.2f, c + p[1] - 0.2f, -3.4f, p[0] + 0.2f, c + p[1] + 0.2f, -2.9f, spine));
+			out.add(raw(p[0] - 0.2f, c + p[1] - 0.2f, 2.9f, p[0] + 0.2f, c + p[1] + 0.2f, 3.4f, spine));
+			out.add(raw(-3.4f, c + p[1] - 0.2f, p[0] - 0.2f, -2.95f, c + p[1] + 0.2f, p[0] + 0.2f, spine));
+			out.add(raw(2.95f, c + p[1] - 0.2f, p[0] - 0.2f, 3.4f, c + p[1] + 0.2f, p[0] + 0.2f, spine));
+		}
+		// Eyes, a shine in each.
+		out.add(raw(0.25f, c - 2.25f, -2.6f, 1.45f, c - 1f, 2.6f, 0xFF161616));
+		out.add(raw(0.45f, c - 2.1f, -2.65f, 0.85f, c - 1.7f, 2.65f, 0xFFFFFFFF));
+		// Side fins, beating fast; the stubby tail flicks.
+		float beat = 0.5f + 0.35f * (float) Math.sin(seconds * 22.0);
+		out.add(raw(-0.75f, c - 0.5f, -2.9f - beat, 0.25f, c + 0.75f, -2.9f, PUFFER_TEAL));
+		out.add(raw(-0.75f, c - 0.5f, 2.9f, 0.25f, c + 0.75f, 2.9f + beat, PUFFER_TEAL));
+		float tw = wiggle * 0.6f;
+		out.add(raw(-0.5f + tw, c + 3f, -0.3f, 0.5f + tw, c + 3.6f, 0.3f, PUFFER));
+		out.add(raw(-1.1f + tw, c + 3.6f, -0.2f, 1.1f + tw, c + 4.75f, 0.2f, PUFFER_TEAL));
 	}
 
 	// ---------------------------------------------------------------- pendulums

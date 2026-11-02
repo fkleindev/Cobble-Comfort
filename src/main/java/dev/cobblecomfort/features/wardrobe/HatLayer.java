@@ -191,6 +191,8 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			case USHANKA -> ushankaHat(boxes, hat, helmet);
 			case TIARA -> tiaraHat(boxes, hat, helmet);
 			case NINJA -> ninjaHat(boxes, hat, helmet);
+			case AXOLOTL -> axolotlHat(boxes, hat, helmet);
+			case FOX -> foxHat(boxes, hat, helmet);
 			case SANTA -> santaHat(boxes, hat, helmet);
 			case REINDEER -> reindeerHat(boxes, hat, helmet);
 			case ELF -> elfHat(boxes, hat, helmet);
@@ -211,7 +213,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static float sink(Hat.Style style) {
 		return switch (style) {
 			case CAP, PROPELLER, MINER, PIRATE, STRAW, TOPHAT, COWBOY, SOMBRERO, TYROLEAN, WITCH -> 4f;
-			case NIGHTCAP, AVIATOR, FISHER, CHEF, MORTARBOARD, CAPTAIN, USHANKA, SANTA, ELF -> 3f;
+			case NIGHTCAP, AVIATOR, FISHER, CHEF, MORTARBOARD, CAPTAIN, USHANKA, SANTA, ELF, AXOLOTL, FOX -> 3f;
 			case BEANIE, BERET, ACORN, MUSHROOM -> 2f;
 			default -> 0f;
 		};
@@ -305,6 +307,17 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				case NINJA -> {
 					hang(0, at(-1f, -4f, 10.75f), 4f, 3, damping, 0.6f, k -> bandTail(hat, k));
 					hang(3, at(1f, -4f, 10.75f), 4f, 3, damping, 0.6f, k -> bandTail(hat, k + 1));
+				}
+				// Long and soft: they flop about, a paw at the end of each.
+				case AXOLOTL -> {
+					hang(0, at(-10.25f, -4f, -1f), 5f, 3, damping + STRAND_DAMPING, 0.6f, k -> axolotlFlap(hat, k));
+					hang(3, at(10.25f, -4f, -1f), 5f, 3, damping + STRAND_DAMPING, 0.6f, k -> axolotlFlap(hat, k));
+				}
+				// The ears twitch; the bushy tail hangs down behind and swings heavily.
+				case FOX -> {
+					stand(0, at(-4.75f, 6.5f, -1f), FOX_EAR, 1, new Vector3f(-0.12f, 0f, 0.05f), k -> foxEar(hat));
+					stand(1, at(4.75f, 6.5f, -1f), FOX_EAR, 1, new Vector3f(0.12f, 0f, 0.05f), k -> foxEar(hat));
+					hang(2, at(0f, 0f, 9.5f), 4.5f, 3, damping + TAIL_DAMPING, 0.55f, k -> foxTail(hat, k));
 				}
 				case PARTY -> stand(0, at(PARTY_X - PARTY_LEAN * PARTY_LAYERS, 1.5f * PARTY_LAYERS, 0f), 1f, 1, new Vector3f(), POMPOM_STIFF,
 						damping, k -> partyPompom(hat));
@@ -1438,6 +1451,187 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
 	private static List<Box> bandTail(Hat hat, int k) {
 		return List.of(raw(-0.75f, 0f, -0.15f, 0.75f, 4f, 0.15f, k % 2 == 0 ? hat.main[0] : hat.main[1]));
+	}
+
+	// ---------------------------------------------------------------- axolotl
+
+	/** The gills on the right, three fronds of steps {x0, x1, y0, y1} out from the head: up, out and down. */
+	private static final float[][][] GILLS = {
+			{{8.5f, 10.5f, 5f, 6.5f}, {10f, 11.75f, 6.25f, 8f}, {11.25f, 12.75f, 7.75f, 9.5f}},
+			{{9.5f, 12f, 2.75f, 4.25f}, {11.5f, 14f, 3.25f, 4.75f}, {13.5f, 15.25f, 3.75f, 5.25f}},
+			{{9.75f, 12f, 0f, 1.5f}, {11.5f, 13.5f, -1f, 0.5f}, {13f, 14.75f, -2f, -0.5f}}};
+	/** Embroidered spots on the dome, {x, z}. */
+	private static final float[][] AXOLOTL_SPOTS = {{-4.5f, -3f}, {3f, -4.5f}, {5f, 1.5f}, {-2f, 3.5f}, {-5.5f, 2f}, {1f, 0f}};
+
+	/**
+	 * A plush axolotl hat: a soft dome with embroidered spots, a fin down the back, the face on the forehead (button
+	 * eyes far apart, a wide smile and rosy cheeks), three fluffy gill fronds a side, a knitted cuff in the belly colour
+	 * that shows the helmet, and long flaps hanging down past the cheeks, each ending in a little paw.
+	 */
+	private static void axolotlHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		int plush = hat.main[0];
+		int shade = hat.main[1];
+		int belly = hat.main[2];
+		ring(out, null, 4, 1f, 8.5f, 10f, (i, row) -> (i * 5 + row * 3) % 7 == 0 ? shade : plush);
+		ring(out, helmet, 1, -3f, 8.75f, 10.25f, (i, row) -> i % 2 == 0 ? belly : ARGB.scaleRGB(belly, 0.92f));
+		round(out, 0f, 1f, 4f, 9.5f, 1.5f, plush);
+		round(out, 0f, 4f, 5.75f, 8.25f, 2.25f, plush);
+		round(out, 0f, 5.75f, 6.75f, 6.25f, 2.5f, plush);
+		round(out, 0f, 6.75f, 7.25f, 4f, 1.5f, plush);
+		for (float[] s : AXOLOTL_SPOTS) {
+			float y = Math.max(Math.abs(s[0]), Math.abs(s[1])) > 4f ? 6.75f : 7.25f;
+			out.add(up(s[0] - 0.5f, y, s[1] - 0.5f, s[0] + 0.5f, y + 0.08f, s[1] + 0.5f, shade, false));
+		}
+		// A seam over the top, and the soft fin running down the back.
+		out.add(up(-0.2f, 7.25f, -4f, 0.2f, 7.3f, 1f, shade, false));
+		float[][] fin = {{7.25f, 8f, 1f, 4f}, {6f, 7.5f, 4f, 6.5f}, {3.5f, 6.25f, 6.5f, 8.5f}, {0.5f, 4f, 8.5f, 10.25f}};
+		for (float[] f : fin) {
+			out.add(up(-0.5f, f[0], f[2], 0.5f, f[1], f[3], shade, false));
+		}
+		// The face: a pale muzzle, button eyes with a shine, a wide smile turned up at the corners, rosy cheeks.
+		out.add(up(-4f, -3f, -10.1f, 4f, -1.25f, -10f, belly, false));
+		for (int s = -1; s <= 1; s += 2) {
+			float eye = s * 6.25f;
+			out.add(up(eye - 1f, -1.75f, -10.15f, eye + 1f, 0.75f, -10f, hat.second, false));
+			out.add(up(eye - 0.5f, -0.25f, -10.2f, eye, 0.25f, -10.15f, 0xFFFFFFFF, false));
+			out.add(up(s < 0 ? -3f : 2.5f, -2f, -10.2f, s < 0 ? -2.5f : 3f, -1.5f, -10.1f, hat.second, false));
+			out.add(up(s < 0 ? -5f : 3.75f, -2.75f, -10.15f, s < 0 ? -3.75f : 5f, -2.25f, -10.1f, hat.third, false));
+		}
+		out.add(up(-2.5f, -2.25f, -10.2f, 2.5f, -2f, -10.1f, hat.second, false));
+		gills(out, hat);
+	}
+
+	/** Three fronds a side: plush stalks with lighter tufts along the top and a darker edge underneath. */
+	private static void gills(List<Box> out, Hat hat) {
+		int tuft = lighter(hat.accent);
+		int under = ARGB.scaleRGB(hat.accent, 0.75f);
+		for (int s = -1; s <= 1; s += 2) {
+			for (float[][] frond : GILLS) {
+				for (float[] g : frond) {
+					float x0 = s > 0 ? g[0] : -g[1];
+					float x1 = s > 0 ? g[1] : -g[0];
+					out.add(up(x0, g[2], -3f, x1, g[3], -1.5f, hat.accent, false));
+					out.add(up(x0, g[2] - 0.05f, -3.05f, x1, g[2] + 0.4f, -1.45f, under, false));
+					float outer = s > 0 ? x1 - 0.75f : x0 + 0.25f;
+					out.add(up(outer, g[3], -2.75f, outer + 0.5f, g[3] + 0.5f, -1.75f, tuft, false));
+					float inner = s > 0 ? x0 + 0.25f : x1 - 0.75f;
+					out.add(up(inner, g[3], -2.6f, inner + 0.5f, g[3] + 0.35f, -1.9f, tuft, false));
+				}
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------- fox
+
+	/** How tall a fox ear stands (voxels). */
+	private static final float FOX_EAR = 7.5f;
+
+	/**
+	 * A fox hat: a furry dome with a darker stripe along the top, the fox's face on the forehead (a white muzzle with a
+	 * snout and nose standing out, white cheeks, narrow slanted eyes), fluffy white tufts at the sides and a fluffy white
+	 * cuff that shows the helmet; tall ears with dark tips and a bushy tail behind come from {@link #foxEar} and
+	 * {@link #foxTail}.
+	 */
+	private static void foxHat(List<Box> out, Hat hat, HelmetLook helmet) {
+		int fur = hat.main[0];
+		int shade = hat.main[1];
+		int white = hat.main[2];
+		ring(out, null, 4, 1f, 8.5f, 10f, (i, row) -> (i * 3 + row) % 5 == 0 ? shade : fur);
+		ring(out, helmet, 1, -3f, 8.75f, 10.25f, (i, row) -> i % 2 == 0 ? white : ARGB.scaleRGB(white, 0.92f));
+		round(out, 0f, 1f, 4f, 9.5f, 1.5f, fur);
+		round(out, 0f, 4f, 5.75f, 8.25f, 2.25f, fur);
+		round(out, 0f, 5.75f, 6.75f, 6.25f, 2.5f, fur);
+		round(out, 0f, 6.75f, 7.25f, 4f, 1.5f, fur);
+		out.add(up(-1.5f, 7.25f, -2f, 1.5f, 7.35f, 4f, shade, false));
+		out.add(up(-2f, 6.75f, 4f, 2f, 6.85f, 6f, shade, false));
+		// The face: white muzzle and cheeks, the snout with its nose, slanted eyes with a shine.
+		out.add(up(-2.5f, -3f, -10.1f, 2.5f, -1.5f, -10f, white, false));
+		for (int s = -1; s <= 1; s += 2) {
+			out.add(mirrored(s, 4f, -3f, -10.1f, 8.5f, -1.75f, -10f, white));
+			out.add(mirrored(s, 6.25f, -1.75f, -10.1f, 8.5f, -0.75f, -10f, white));
+			float eye = s * 4f;
+			out.add(up(eye - 1.25f, -0.75f, -10.15f, eye + 1.25f, 0.25f, -10f, hat.second, false));
+			out.add(mirrored(s, 2.75f, -1.25f, -10.15f, 3.75f, -0.75f, -10f, hat.second));
+			out.add(mirrored(s, 4.25f, -0.5f, -10.2f, 4.75f, 0f, -10.15f, 0xFFFFFFFF));
+			// Fluffy tufts sticking out at the sides.
+			out.add(mirrored(s, 9.75f, -3.5f, -7f, 11f, -1f, -3.5f, white));
+			out.add(mirrored(s, 10.75f, -3f, -6.25f, 11.5f, -1.75f, -4.25f, white));
+		}
+		out.add(up(-2f, -3f, -12f, 2f, -1.25f, -10f, white, false));
+		out.add(up(-1.5f, -1.5f, -11.75f, 1.5f, -0.75f, -10f, fur, false));
+		out.add(up(-0.75f, -2f, -12.2f, 0.75f, -1.25f, -11.9f, hat.accent, false));
+		out.add(up(-1f, -2.75f, -12.05f, 1f, -2.5f, -12f, hat.accent, false));
+	}
+
+	/** A box given on the right (x out from the middle, y up), mirrored to the left for {@code side} -1. */
+	private static Box mirrored(int side, float x0, float yUp0, float z0, float x1, float yUp1, float z1, int color) {
+		return side > 0 ? up(x0, yUp0, z0, x1, yUp1, z1, color, false) : up(-x1, yUp0, z0, -x0, yUp1, z1, color, false);
+	}
+
+	/** A fox's ear, narrowing to a dark tip, pale inside with a tuft of white fur at the base. */
+	private static List<Box> foxEar(Hat hat) {
+		int fur = hat.main[0];
+		return List.of(raw(-3f, -2.5f, -1f, 3f, 0f, 1f, fur), raw(-2.25f, -4.5f, -0.9f, 2.25f, -2.5f, 0.9f, fur),
+				raw(-1.5f, -6f, -0.8f, 1.5f, -4.5f, 0.8f, hat.accent), raw(-0.75f, -FOX_EAR, -0.7f, 0.75f, -6f, 0.7f, hat.accent),
+				raw(-2f, -2.5f, -1.1f, 2f, 0f, -1f, hat.third), raw(-1.25f, -4.25f, -1f, 1.25f, -2.5f, -0.9f, hat.third),
+				raw(-1f, -1.25f, -1.2f, 1f, 0f, -1.1f, hat.main[2]));
+	}
+
+	/** A piece of the bushy tail: slim at the hat, thick in the middle with tufts of fur, a white tip at the end. */
+	private static List<Box> foxTail(Hat hat, int k) {
+		int fur = hat.main[0];
+		int shade = hat.main[1];
+		int white = hat.main[2];
+		List<Box> out = new ArrayList<>();
+		switch (k) {
+			case 0 -> {
+				out.add(raw(-1.5f, 0f, -1.5f, 1.5f, 4.5f, 1.5f, fur));
+				out.add(raw(-1.75f, 2.5f, -1.25f, 1.75f, 4.5f, 1.25f, shade));
+			}
+			case 1 -> {
+				out.add(raw(-2.25f, 0f, -2.25f, 2.25f, 4.5f, 2.25f, fur));
+				out.add(raw(-2.6f, 1f, -1.5f, 2.6f, 3.5f, 1.5f, fur));
+				out.add(raw(-1.5f, 1f, -2.6f, 1.5f, 3.5f, 2.6f, fur));
+				out.add(raw(-2.65f, 1.5f, 0.5f, -2.5f, 2.75f, 1.25f, shade));
+				out.add(raw(2.5f, 2.25f, -1f, 2.65f, 3.25f, 0f, shade));
+				out.add(raw(-0.5f, 1.75f, 2.5f, 0.5f, 3f, 2.65f, shade));
+			}
+			default -> {
+				out.add(raw(-2f, 0f, -2f, 2f, 2f, 2f, fur));
+				out.add(raw(-2f, 2f, -2f, 2f, 4.5f, 2f, white));
+				out.add(raw(-2.35f, 2.5f, -1.25f, 2.35f, 4f, 1.25f, white));
+				out.add(raw(-1f, 4.5f, -1f, 1f, 5.5f, 1f, white));
+			}
+		}
+		return out;
+	}
+
+	/** One piece of a long side flap: ribbed plush with a belly-coloured stripe in front; the last one a paw with toes. */
+	private static List<Box> axolotlFlap(Hat hat, int k) {
+		int plush = hat.main[0];
+		int belly = hat.main[2];
+		List<Box> out = new ArrayList<>();
+		float end = k == 2 ? 3.5f : 5f;
+		for (float y = 0f; y < end - 0.01f; y += 1.25f) {
+			int rib = Math.round(y / 1.25f) % 2 == 0 ? plush : ARGB.scaleRGB(plush, 0.93f);
+			out.add(raw(-1.5f, y, -1.25f, 1.5f, Math.min(y + 1.25f, end), 1.25f, rib));
+		}
+		out.add(raw(-0.75f, 0f, -1.35f, 0.75f, end, -1.25f, belly));
+		if (k == 0) {
+			// Sewn on under the cuff.
+			out.add(raw(-1.6f, 0f, -1.35f, 1.6f, 0.35f, 1.35f, hat.main[1]));
+		} else if (k == 1) {
+			out.add(raw(-1.55f, 2f, 0.25f, -1.5f, 2.75f, 1f, hat.main[1]));
+			out.add(raw(-0.5f, 3f, 1.25f, 0.25f, 3.75f, 1.3f, hat.main[1]));
+		} else {
+			// The paw: a soft pad in front and four little toes.
+			out.add(raw(-2f, 3.5f, -1.5f, 2f, 5.25f, 1.5f, plush));
+			out.add(raw(-1f, 3.85f, -1.6f, 1f, 4.9f, -1.5f, belly));
+			for (float x : new float[]{-1.9f, -0.85f, 0.2f, 1.25f}) {
+				out.add(raw(x, 5.25f, -1.1f, x + 0.65f, 6f, 1.1f, hat.main[1]));
+			}
+		}
+		return out;
 	}
 
 	// ---------------------------------------------------------------- autumn and halloween

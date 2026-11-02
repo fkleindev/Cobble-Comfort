@@ -19,6 +19,8 @@ public final class MapConfigUi {
 						.option(Opts.bool("map.minimap", d.minimap, () -> c(feature).minimap, v -> c(feature).minimap = v))
 						.option(Opts.bool("map.round", d.roundMinimap, () -> c(feature).roundMinimap, v -> c(feature).roundMinimap = v))
 						.option(Opts.bool("map.rotate", d.rotateMinimap, () -> c(feature).rotateMinimap, v -> c(feature).rotateMinimap = v))
+						.option(Opts.enumOpt("map.minimap_view", MinimapView.class, d.minimapView,
+								() -> c(feature).minimapView, v -> c(feature).minimapView = v))
 						.option(Opts.intSlider("map.size", d.minimapSize, 60, 200, 5, () -> c(feature).minimapSize, v -> c(feature).minimapSize = v))
 						.option(Opts.slider("map.zoom", d.minimapZoom, 0.25f, 4f, 0.25f, () -> c(feature).minimapZoom, v -> c(feature).minimapZoom = v))
 						.option(Opts.bool("map.coords", d.minimapCoords, () -> c(feature).minimapCoords, v -> c(feature).minimapCoords = v))
@@ -48,8 +50,7 @@ public final class MapConfigUi {
 						.option(Opts.bool("map.grid", d.showGrid, () -> c(feature).showGrid, v -> c(feature).showGrid = v))
 						.option(Opts.bool("map.animations", d.mapAnimations, () -> c(feature).mapAnimations, v -> c(feature).mapAnimations = v))
 						.option(Opts.percent("map.window_opacity", d.mapWindowOpacity,
-								() -> c(feature).mapWindowOpacity, v -> c(feature).mapWindowOpacity = v))
-						.build())
+								() -> c(feature).mapWindowOpacity, v -> c(feature).mapWindowOpacity = v))						.build())
 				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.map.waypoints"))
 						.option(Opts.bool("map.waypoints", d.waypoints, () -> c(feature).waypoints, v -> c(feature).waypoints = v))

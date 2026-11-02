@@ -74,6 +74,7 @@
 		"LightmapMixin",
 		"MouseHandlerMixin",
 		"MouseHandlerAccessor",
+		"GuiGraphicsExtractorAccessor",
 		"MultiPlayerGameModeAccessor",
 		"MultiPlayerGameModeMixin",
 		"NightVisionMixin",

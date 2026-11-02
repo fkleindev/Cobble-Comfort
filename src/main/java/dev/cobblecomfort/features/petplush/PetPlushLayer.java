@@ -62,6 +62,8 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	private static final float CHARM_HEIGHT = 0.3f;
 	/** Height of the backpack (head to bottom), how far its head sticks up over the shoulders, and where its belly is. */
 	private static final float PACK_HEIGHT = 0.6f;
+	/** A cat is slimmer than a wolf: at the same height it would look much smaller. */
+	private static final float CAT_PACK_HEIGHT = 0.75f;
 	private static final float PACK_TOP = -0.12f;
 	private static final float PACK_BACK = 0.015f;
 	/** How far the chest straps run down from the top. */
@@ -124,9 +126,9 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		pose.rotateDegrees(Axis.XP, -90f);
 	}
 
-	/** Stands it up the other way round: belly on the player, back out (the model faces -z with its back up). */
+	/** Stands it up like a charm, its back against the player: it rides piggyback, looking out behind. */
 	private static void asPack(PoseStack pose) {
-		pose.rotateDegrees(Axis.XP, -90f);
+		asCharm(pose);
 	}
 
 	@Override
@@ -168,10 +170,11 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		Vector3f charmAnchor = new Vector3f(torso.centerX() + CHARM_ANCHOR.x, torso.top() + CHARM_ANCHOR.y, torso.back() + CHARM_ANCHOR.z);
 		if (pack != null) {
 			Bounds bounds = pack.wolf() ? wolfPack : catPack;
-			float scale = PACK_HEIGHT / bounds.height();
+			float height = pack.wolf() ? PACK_HEIGHT : CAT_PACK_HEIGHT;
+			float scale = height / bounds.height();
 			submitPack(pose, collector, light, pack, torso, bounds, scale, squish, jiggle(motion, true));
 			// The charm hangs from the backpack's lower right side.
-			charmAnchor = new Vector3f(torso.centerX() - bounds.width() * scale * 0.4f, torso.top() + PACK_TOP + PACK_HEIGHT * 0.8f,
+			charmAnchor = new Vector3f(torso.centerX() - bounds.width() * scale * 0.4f, torso.top() + PACK_TOP + height * 0.8f,
 					torso.back() + PACK_BACK + bounds.depth() * scale * 0.5f);
 		} else if (carried != null) {
 			charmAnchor = BackLayer.charmAnchor(carried, torso.back(), player, backPreview != null);
@@ -231,7 +234,7 @@ final class PetPlushLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 		pose.pushPose();
 		pose.translate(torso.centerX(), torso.top() + PACK_TOP, torso.back() + PACK_BACK);
 		// Squeezed towards its middle; straps and charm stay where they are.
-		squash(pose, squish, PACK_HEIGHT / 2f);
+		squash(pose, squish, bounds.height() * scale / 2f);
 		pose.scale(scale, scale, scale);
 		pose.translate(-bounds.centerX(), -bounds.top(), -bounds.back());
 		asPack(pose);

@@ -123,12 +123,21 @@ public enum Trinket {
 	WINTER_SNOWMAN_GREEN(Style.SNOWMAN, Hat.Unlock.item("snow_block"), "snow_block",
 			new int[]{0xFFF4F6FA, 0xFF2E7A3A, 0xFFDCE2EC}, 0xFF1E1E22),
 	WINTER_SNOWMAN_BLUE(Style.SNOWMAN, Hat.Unlock.item("snow_block"), "snow_block",
-			new int[]{0xFFF4F6FA, 0xFF3A6AB8, 0xFFDCE2EC}, 0xFF1E1E22);
+			new int[]{0xFFF4F6FA, 0xFF3A6AB8, 0xFFDCE2EC}, 0xFF1E1E22),
+	END_CRYSTAL_CLASSIC(Style.END_CRYSTAL, Hat.Unlock.item("end_crystal"), "end_crystal",
+			new int[]{0xFF35284A, 0xFFE8DCF0, 0xFFE04AD0}, 0xFFFFB8F4),
+	END_CRYSTAL_VOID(Style.END_CRYSTAL, Hat.Unlock.item("end_crystal"), "end_crystal",
+			new int[]{0xFF2A2C46, 0xFFB8E8F0, 0xFF3AC8D8}, 0xFFC8FFFF),
+	COMPASS_IRON(Style.COMPASS, Hat.Unlock.item("compass"), "compass",
+			new int[]{0xFFC8CCD4, 0xFF8A8E96, 0xFFF4F4F0}, 0xFFD82A2A),
+	COMPASS_BRASS(Style.COMPASS, Hat.Unlock.item("compass"), "compass",
+			new int[]{0xFFE0B04A, 0xFFA8802A, 0xFFF4EAD0}, 0xFFD82A2A);
 
 	/** The kind of charm, shown in the wardrobe as one tile that opens its variants. */
 	public enum Style {
 		MINI(Hat.Group.ALL_YEAR), LANTERN(Hat.Group.ALL_YEAR), LUCKY(Hat.Group.ALL_YEAR), BELL(Hat.Group.ALL_YEAR),
-		PLUSH_WOLF(Hat.Group.ALL_YEAR), PLUSH_CAT(Hat.Group.ALL_YEAR),
+		PLUSH_WOLF(Hat.Group.ALL_YEAR), PLUSH_CAT(Hat.Group.ALL_YEAR), END_CRYSTAL(Hat.Group.ALL_YEAR),
+		COMPASS(Hat.Group.ALL_YEAR),
 		GHOST(Hat.Group.SEASON), JACK(Hat.Group.SEASON), ACORN(Hat.Group.SEASON), CANDY(Hat.Group.SEASON),
 		BAUBLE(Hat.Group.WINTER), GINGERBREAD(Hat.Group.WINTER), CANDY_CANE(Hat.Group.WINTER), SNOWMAN(Hat.Group.WINTER);
 
@@ -160,9 +169,9 @@ public enum Trinket {
 		this.accent = accent;
 	}
 
-	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
+	/** Yours from the start: everything but the seasonal ones (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
+		return !style.group.seasonal();
 	}
 
 	/** Whether it can be earned now: seasonal charms only in their months. Once earned, they can be worn all year. */

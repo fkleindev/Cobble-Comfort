@@ -14,6 +14,9 @@ import dev.cobblecomfort.features.map.render.WaypointAnim;
 import dev.cobblecomfort.features.map.render.MapUi;
 import dev.cobblecomfort.features.map.render.MapUi.Dim;
 import dev.cobblecomfort.features.map.render.RegionTextures;
+import dev.cobblecomfort.features.map.render3d.MapCamera;
+import dev.cobblecomfort.features.map.render3d.MapMeshes;
+import dev.cobblecomfort.features.map.render3d.MapScene;
 import dev.cobblecomfort.features.map.structure.StructureIcons;
 import dev.cobblecomfort.features.map.structure.StructureMarker;
 import dev.cobblecomfort.features.map.sync.PositionSync;
@@ -37,6 +40,7 @@ import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
 import dev.cobblecomfort.core.config.CobbleConfigScreen;
 import dev.cobblecomfort.features.storage.StorageItems;
 import dev.cobblecomfort.features.storage.StoredContainer;
+import dev.cobblecomfort.mixin.GuiGraphicsExtractorAccessor;
 import dev.cobblecomfort.mixin.MouseHandlerAccessor;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.ChatFormatting;
@@ -45,6 +49,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -90,6 +95,8 @@ public class MapScreen extends Screen {
 	private static final float ZOOM_STEP = 1.25f;
 	private static final float PAN_SPEED = 400f;
 	private static final int BACKGROUND = 0xFF0B0B0F;
+	/** Behind the 3D terrain: a deep night blue, so the explored land floats like an island. */
+	private static final int BACKGROUND_3D = 0xFF141B2B;
 	private static final int VIGNETTE = 0x70000000;
 	private static final int MENU_WIDTH = 140;
 	private static final int MENU_ROW = 16;
@@ -168,6 +175,15 @@ public class MapScreen extends Screen {
 	/** Closing back into the minimap: when it started (0 = not closing) and where the view was then. */
 	private long closeStartNanos;
 	private double closeFromX, closeFromZ;
+	/**
+	 * 3D view (beta): the camera (kept between openings like the zoom), whether the right mouse turns it, where that
+	 * press began and whether it moved (a right click without moving opens the menu).
+	 */
+	private static MapCamera lastCamera;
+	private MapCamera camera;
+	private boolean turning;
+	private double turnFromX, turnFromY;
+	private boolean turned;
 
 	private enum WindowDrag {
 		NONE, MOVE, RESIZE
@@ -204,9 +220,11 @@ public class MapScreen extends Screen {
 		void draw(GuiGraphicsExtractor g, int cx, int cy);
 	}
 
-	/** Frees the region textures (on leaving a world). */
+	/** Frees the region textures and 3D tiles (on leaving a world). */
 	public static void releaseTextures() {
 		TEXTURES.clear();
+		MapMeshes.clear();
+		lastCamera = null;
 	}
 
 	public MapScreen(Screen parent) {
@@ -289,6 +307,111 @@ public class MapScreen extends Screen {
 		MapFeature.INSTANCE.save();
 		menu = null;
 		layout();
+	}
+
+	/** Whether the map is shown in 3D (beta). */
+	private boolean in3d() {
+		return config().map3d;
+	}
+
+	private void toggle3d() {
+		config().map3d = !config().map3d;
+		MapFeature.INSTANCE.save();
+		menu = null;
+		dragging = false;
+		turning = false;
+		if (in3d()) {
+			camera3d();
+		} else if (camera != null) {
+			centerX = camera.targetX;
+			centerZ = camera.targetZ;
+		}
+	}
+
+	/**
+	 * The 3D camera, set up on first use: over the map's centre, as far away as needed to show about what the flat map
+	 * showed, or as last left.
+	 */
+	private MapCamera camera3d() {
+		if (camera == null) {
+			camera = lastCamera;
+			if (camera == null) {
+				camera = lastCamera = new MapCamera();
+				double visible = mapH / zoom;
+				camera.distance = Math.clamp((float) (visible / (2 * Math.tan(Math.toRadians(MapCamera.FOV_DEGREES / 2)))),
+						MapCamera.MIN_DISTANCE, MapCamera.MAX_DISTANCE);
+			}
+		}
+		// The flat map's centre is where the camera looks; its height follows the ground in drawScene.
+		camera.targetX = centerX;
+		camera.targetZ = centerZ;
+		return camera;
+	}
+
+	/** The height the 3D camera settles at: the player's when following, else the ground under the target. */
+	private double targetHeight(Vec3 position) {
+		if (following && viewingPlayerDim()) {
+			return position.y;
+		}
+		int ground = groundAt(centerX, centerZ);
+		return ground != Integer.MIN_VALUE ? ground + 1 : camera3d().targetY;
+	}
+
+	/** The 3D view: eases the camera to the right height and hands the scene to the GUI, drawn behind the markers. */
+	private void drawScene(GuiGraphicsExtractor g, MapLayer layer, Vec3 position, float dt) {
+		MapCamera view = camera3d();
+		double height = targetHeight(position);
+		if (view.targetY == 0 || Math.abs(height - view.targetY) > 64) {
+			view.targetY = height;
+		} else {
+			view.targetY += (height - view.targetY) * Math.min(1f, dt * 6f);
+		}
+		view.keepAbove(layer::heightAt, 3f);
+		int background = RenderUtil.withAlpha(BACKGROUND_3D, mapAlpha());
+		ScreenRectangle area = new ScreenRectangle(mapX, mapY, mapW, mapH);
+		((GuiGraphicsExtractorAccessor) g).cobblecomfort$guiRenderState()
+				.addPicturesInPictureState(MapScene.of(mapX, mapY, mapX + mapW, mapY + mapH, area, view, layer, background));
+	}
+
+	private int groundAt(double x, double z) {
+		if (viewDim == null) {
+			return Integer.MIN_VALUE;
+		}
+		return MapFeature.INSTANCE.world().layer(key(viewDim), shownLayer()).heightAt((int) Math.floor(x), (int) Math.floor(z));
+	}
+
+	/** The block column under a screen point in 3D, or null where nothing explored is. */
+	private double[] pick(double mx, double my) {
+		MapLayer layer = MapFeature.INSTANCE.world().layer(key(viewDim), shownLayer());
+		return camera3d().pick(mx, my, mapX, mapY, mapW, mapH, layer::heightAt);
+	}
+
+	/** World column under the cursor, in 2D or 3D; null in 3D where nothing explored is. */
+	private int[] blockAt(double mx, double my) {
+		if (in3d()) {
+			double[] hit = pick(mx, my);
+			return hit == null ? null : new int[]{(int) Math.floor(hit[0]), (int) Math.floor(hit[2])};
+		}
+		return new int[]{(int) Math.floor(worldX(mx)), (int) Math.floor(worldZ(my))};
+	}
+
+	/**
+	 * Where a world position is drawn: on the flat map, or projected in 3D (at {@code y}, or on the ground if null).
+	 * Null in 3D when behind the camera.
+	 */
+	private float[] toScreen(double wx, Double wy, double wz) {
+		if (!in3d()) {
+			return new float[]{screenX(wx), screenY(wz)};
+		}
+		MapCamera view = camera3d();
+		double y;
+		if (wy != null) {
+			y = wy;
+		} else {
+			int ground = groundAt(wx, wz);
+			y = ground == Integer.MIN_VALUE ? view.targetY : ground + 1;
+		}
+		return view.project(wx, y, wz, mapX, mapY, mapW, mapH);
 	}
 
 	/** How opaque the map itself is: see-through in window mode. */
@@ -403,6 +526,8 @@ public class MapScreen extends Screen {
 				() -> following));
 		list.add(new Tool(0, new ItemStack(Items.GLASS_PANE), Component.translatable("cobblecomfort.map.button.window"), this::toggleWindowed,
 				() -> config().mapWindowed));
+		list.add(new Tool(0, new ItemStack(Items.GRASS_BLOCK), Component.translatable("cobblecomfort.map.button.map3d"), this::toggle3d,
+				this::in3d));
 		if (minecraft.getSingleplayerServer() == null) {
 			list.add(new Tool(0, new ItemStack(Items.WHEAT_SEEDS), Component.translatable("cobblecomfort.map.button.seed"),
 					() -> minecraft.gui.setScreen(new SeedScreen(this)), () -> false));
@@ -576,25 +701,35 @@ public class MapScreen extends Screen {
 			mapH += 2 * grow;
 		}
 		g.enableScissor(mapX, mapY, mapX + mapW, mapY + mapH);
-		drawRegions(g, layer);
-		if (config().showGrid && zoom >= 2f) {
-			drawGrid(g);
-		}
-		if (config().movementTrail) {
-			MapMarkers.trail(g, feature.trail().points(viewDim), here ? position.x : Double.NaN, position.z, (wx, wz) -> {
-				float x = screenX(wx);
-				float y = screenY(wz);
-				return onMap(x, y, 50) ? new float[]{x, y} : null;
-			}, 2f);
-		}
 		boolean overUi = overUi(mouseX, mouseY) || menu != null || !inMap(mouseX, mouseY) || windowDrag != WindowDrag.NONE
 				|| open < 1f;
-		StructureMarker structure = drawStructures(g, here, mouseX, mouseY);
-		StoredContainer storage = drawStorage(g, mouseX, mouseY);
-		FurnaceEntry furnace = drawFurnaces(g, mouseX, mouseY);
-		TradeMerchant trader = drawTraders(g, mouseX, mouseY);
-		PetEntry pet = drawPets(g, mouseX, mouseY);
-		HoveredPlayer hoveredPlayer = drawEntities(g, level, player, here, delta, mouseX, mouseY);
+		StructureMarker structure = null;
+		StoredContainer storage = null;
+		FurnaceEntry furnace = null;
+		TradeMerchant trader = null;
+		PetEntry pet = null;
+		HoveredPlayer hoveredPlayer = null;
+		if (in3d()) {
+			drawScene(g, layer, position, dt);
+		} else {
+			drawRegions(g, layer);
+			if (config().showGrid && zoom >= 2f) {
+				drawGrid(g);
+			}
+			if (config().movementTrail) {
+				MapMarkers.trail(g, feature.trail().points(viewDim), here ? position.x : Double.NaN, position.z, (wx, wz) -> {
+					float x = screenX(wx);
+					float y = screenY(wz);
+					return onMap(x, y, 50) ? new float[]{x, y} : null;
+				}, 2f);
+			}
+			structure = drawStructures(g, here, mouseX, mouseY);
+			storage = drawStorage(g, mouseX, mouseY);
+			furnace = drawFurnaces(g, mouseX, mouseY);
+			trader = drawTraders(g, mouseX, mouseY);
+			pet = drawPets(g, mouseX, mouseY);
+			hoveredPlayer = drawEntities(g, level, player, here, delta, mouseX, mouseY);
+		}
 		Waypoint hovered = drawWaypoints(g, player, mouseX, mouseY);
 		drawPlayer(g, player, position, here);
 		if (open < 1f) {
@@ -678,7 +813,8 @@ public class MapScreen extends Screen {
 		if (openFrom == null && !openChecked) {
 			openChecked = true;
 			Minecraft mc = Minecraft.getInstance();
-			if (!centerGiven && config().mapAnimations && mc.player != null) {
+			// The flat minimap can't turn into the 3D view: that one just opens.
+			if (!centerGiven && config().mapAnimations && mc.player != null && !in3d()) {
 				openFrom = MapFeature.INSTANCE.minimapRect(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
 				float rotation = MapFeature.INSTANCE.minimapRotation(mc.player.getYRot());
 				// Turn the short way round to north-up.
@@ -722,7 +858,7 @@ public class MapScreen extends Screen {
 	 * minimap is on screen. Closing during the opening turns it around from where it is.
 	 */
 	private boolean startClosing() {
-		if (parent != null || !config().mapAnimations || !viewingPlayerDim() || minecraft.player == null) {
+		if (parent != null || !config().mapAnimations || !viewingPlayerDim() || minecraft.player == null || in3d()) {
 			return false;
 		}
 		Rect to = MapFeature.INSTANCE.minimapRect(width, height);
@@ -943,9 +1079,17 @@ public class MapScreen extends Screen {
 	/** The own arrow; in another dimension a faint arrow where you would be. */
 	private void drawPlayer(GuiGraphicsExtractor g, LocalPlayer player, Vec3 position, boolean here) {
 		double factor = playerToView();
-		float px = screenX(position.x * factor);
-		float py = screenY(position.z * factor);
+		float[] at = toScreen(position.x * factor, here ? position.y : null, position.z * factor);
+		if (at == null) {
+			return;
+		}
+		float px = at[0];
+		float py = at[1];
 		float angle = (float) (Math.toRadians(player.getYRot()) + Math.PI);
+		if (in3d()) {
+			// The 3D view is turned by the camera.
+			angle -= camera3d().yaw;
+		}
 		if (here) {
 			MapMarkers.arrow(g, px, py, angle, 0xFFFFFFFF, config().viewCone, false);
 		} else {
@@ -1153,8 +1297,12 @@ public class MapScreen extends Screen {
 		Waypoint hovered = null;
 		long now = System.currentTimeMillis();
 		for (Waypoint waypoint : MapFeature.INSTANCE.waypoints().visible(viewDim)) {
-			float x = screenX(waypoint.x + 0.5);
-			float y = screenY(waypoint.z + 0.5);
+			float[] at = toScreen(waypoint.x + 0.5, waypoint.y == null ? null : (double) waypoint.y, waypoint.z + 0.5);
+			if (at == null) {
+				continue;
+			}
+			float x = at[0];
+			float y = at[1];
 			if (config().mapAnimations) {
 				// New waypoints drop in; the name stays at the place.
 				WaypointAnim.impact(g, waypoint, x, y, now, 1f);
@@ -1164,7 +1312,7 @@ public class MapScreen extends Screen {
 			}
 			boolean hit = menu == null && MapMarkers.waypointHit(font, waypoint, x, y, mouseX, mouseY, false);
 			// Name and distance below the tip; when zoomed out only for the hovered waypoint.
-			if (zoom >= 1f || hit) {
+			if ((in3d() ? camera3d().distance < 400 : zoom >= 1f) || hit) {
 				MutableComponent tag = Component.literal(waypoint.name);
 				if (viewingPlayerDim()) {
 					double distance = Math.sqrt(player.distanceToSqr(waypoint.x + 0.5, waypoint.yOr(player.getY()), waypoint.z + 0.5));
@@ -1213,8 +1361,10 @@ public class MapScreen extends Screen {
 
 	/** Cursor position, biome and the matching position in the other dimension, top left. */
 	private void drawInfo(GuiGraphicsExtractor g, MapLayer layer, ClientLevel level, int mouseX, int mouseY, boolean here) {
-		int bx = (int) Math.floor(worldX(mouseX));
-		int bz = (int) Math.floor(worldZ(mouseY));
+		int[] block = blockAt(mouseX, mouseY);
+		// In 3D the cursor may point past the explored land: then the info is for the view's centre.
+		int bx = block != null ? block[0] : (int) Math.floor(centerX);
+		int bz = block != null ? block[1] : (int) Math.floor(centerZ);
 		int y = layer.heightAt(bx, bz);
 		List<Component> lines = new ArrayList<>();
 		List<Integer> colors = new ArrayList<>();
@@ -1272,16 +1422,23 @@ public class MapScreen extends Screen {
 		}
 		int sx = toolbarLeft + 4 + tools.size() * (TOOL + 2) + 2;
 		g.fill(sx, toolbarTop + 6, sx + 1, toolbarTop + TOOLBAR_HEIGHT - 6, 0x30FFFFFF);
-		// Scale bar: a round number of blocks close to the target width.
-		double blocks = niceBlocks(SCALE_BAR_TARGET / zoom);
-		int bar = (int) Math.round(blocks * zoom);
-		int bx = sx + 8;
-		int by = toolbarTop + 16;
-		g.fill(bx, by, bx + bar, by + 2, 0xFFE8E8EE);
-		g.fill(bx, by - 3, bx + 1, by + 2, 0xFFE8E8EE);
-		g.fill(bx + bar - 1, by - 3, bx + bar, by + 2, 0xFFE8E8EE);
-		MapUi.smallText(g, font, Component.literal(MapFeature.formatDistance(blocks)), bx, toolbarTop + 6, MapUi.TEXT_DIM, 0.75f);
-		String zoomText = zoom >= 1 ? Math.round(zoom) + ":1" : "1:" + Math.round(1 / zoom);
+		String zoomText;
+		if (in3d()) {
+			// Seen at a slant there is no single scale: the camera's distance instead.
+			MapUi.smallText(g, font, Component.literal("3D · Beta"), sx + 8, toolbarTop + 6, MapUi.TEXT_DIM, 0.75f);
+			zoomText = MapFeature.formatDistance(camera3d().distance);
+		} else {
+			// Scale bar: a round number of blocks close to the target width.
+			double blocks = niceBlocks(SCALE_BAR_TARGET / zoom);
+			int bar = (int) Math.round(blocks * zoom);
+			int bx = sx + 8;
+			int by = toolbarTop + 16;
+			g.fill(bx, by, bx + bar, by + 2, 0xFFE8E8EE);
+			g.fill(bx, by - 3, bx + 1, by + 2, 0xFFE8E8EE);
+			g.fill(bx + bar - 1, by - 3, bx + bar, by + 2, 0xFFE8E8EE);
+			MapUi.smallText(g, font, Component.literal(MapFeature.formatDistance(blocks)), bx, toolbarTop + 6, MapUi.TEXT_DIM, 0.75f);
+			zoomText = zoom >= 1 ? Math.round(zoom) + ":1" : "1:" + Math.round(1 / zoom);
+		}
 		int help = toolbarRight - 4 - TOOL;
 		g.text(font, zoomText, help - 6 - font.width(zoomText), toolbarTop + 9, MapUi.TEXT, false);
 		boolean helpHovered = menu == null && mouseX >= help && mouseX < help + TOOL && mouseY >= ty && mouseY < ty + TOOL;
@@ -1291,7 +1448,7 @@ public class MapScreen extends Screen {
 			g.setTooltipForNextFrame(font, hoveredTool.tooltip(), mouseX, mouseY);
 		} else if (helpHovered) {
 			List<Component> lines = new ArrayList<>();
-			for (String part : Component.translatable("cobblecomfort.map.hint").getString().split(" · ")) {
+			for (String part : Component.translatable(in3d() ? "cobblecomfort.map.hint3d" : "cobblecomfort.map.hint").getString().split(" · ")) {
 				lines.add(Component.literal(part).withStyle(ChatFormatting.GRAY));
 			}
 			g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
@@ -1685,6 +1842,19 @@ public class MapScreen extends Screen {
 
 	/** The arrow keys pan the map; WASD stays with the player (see {@link #passMovementKeys()}). */
 	private void panWithKeys(float dt) {
+		if (in3d()) {
+			// Up the screen and across it, whichever way the camera is turned.
+			double step = camera3d().distance * dt;
+			double forward = (InputConstants.isKeyDown(InputConstants.KEY_UP) ? 1 : 0) - (InputConstants.isKeyDown(InputConstants.KEY_DOWN) ? 1 : 0);
+			double right = (InputConstants.isKeyDown(InputConstants.KEY_RIGHT) ? 1 : 0) - (InputConstants.isKeyDown(InputConstants.KEY_LEFT) ? 1 : 0);
+			if (forward != 0 || right != 0) {
+				camera.move(forward * step, right * step);
+				centerX = camera.targetX;
+				centerZ = camera.targetZ;
+				following = false;
+			}
+			return;
+		}
 		double step = PAN_SPEED * dt / zoom;
 		double startX = centerX, startZ = centerZ;
 		if (InputConstants.isKeyDown(InputConstants.KEY_UP)) {
@@ -1786,6 +1956,14 @@ public class MapScreen extends Screen {
 			return true;
 		}
 		if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
+			if (in3d()) {
+				// Dragging turns the camera; a click without moving opens the menu on release.
+				turning = true;
+				turned = false;
+				turnFromX = event.x();
+				turnFromY = event.y();
+				return true;
+			}
 			openMenu((int) event.x(), (int) event.y());
 			return true;
 		}
@@ -1796,7 +1974,10 @@ public class MapScreen extends Screen {
 				return true;
 			}
 			if (doubleClick) {
-				createWaypointAt((int) Math.floor(worldX(event.x())), (int) Math.floor(worldZ(event.y())));
+				int[] block = blockAt(event.x(), event.y());
+				if (block != null) {
+					createWaypointAt(block[0], block[1]);
+				}
 				return true;
 			}
 			dragging = true;
@@ -1842,9 +2023,8 @@ public class MapScreen extends Screen {
 			return null;
 		}
 		for (Waypoint waypoint : MapFeature.INSTANCE.waypoints().visible(viewDim)) {
-			double x = screenX(waypoint.x + 0.5);
-			double y = screenY(waypoint.z + 0.5);
-			if (MapMarkers.waypointHit(font, waypoint, (float) x, (float) y, mx, my, false)) {
+			float[] at = toScreen(waypoint.x + 0.5, waypoint.y == null ? null : (double) waypoint.y, waypoint.z + 0.5);
+			if (at != null && MapMarkers.waypointHit(font, waypoint, at[0], at[1], mx, my, false)) {
 				return waypoint;
 			}
 		}
@@ -1852,8 +2032,12 @@ public class MapScreen extends Screen {
 	}
 
 	private void openMenu(int x, int y) {
-		int wx = (int) Math.floor(worldX(x));
-		int wz = (int) Math.floor(worldZ(y));
+		int[] block = blockAt(x, y);
+		if (block == null) {
+			return;
+		}
+		int wx = block[0];
+		int wz = block[1];
 		List<Entry> entries = new ArrayList<>();
 		entries.add(new Entry(ItemStack.EMPTY, Component.translatable("cobblecomfort.map.menu.waypoint"), () -> createWaypointAt(wx, wz)));
 		entries.add(new Entry(new ItemStack(Items.PAPER), Component.translatable("cobblecomfort.map.menu.copy"), () -> {
@@ -1893,6 +2077,12 @@ public class MapScreen extends Screen {
 	public boolean mouseReleased(MouseButtonEvent event) {
 		dragging = false;
 		sliderDragging = false;
+		if (turning && event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
+			turning = false;
+			if (!turned) {
+				openMenu((int) event.x(), (int) event.y());
+			}
+		}
 		if (windowDrag != WindowDrag.NONE) {
 			windowDrag = WindowDrag.NONE;
 			MapFeature.INSTANCE.save();
@@ -1921,8 +2111,24 @@ public class MapScreen extends Screen {
 			pickLayer(event.y());
 			return true;
 		}
+		if (turning) {
+			if (!turned && Math.abs(event.x() - turnFromX) + Math.abs(event.y() - turnFromY) > 3) {
+				turned = true;
+			}
+			if (turned) {
+				camera3d().turn((float) (dx * 0.01), (float) (dy * 0.01));
+			}
+			return true;
+		}
 		if (dragging) {
 			following = false;
+			if (in3d()) {
+				MapCamera view = camera3d();
+				view.pan(dx, dy, mapH);
+				centerX = view.targetX;
+				centerZ = view.targetZ;
+				return true;
+			}
 			centerX -= dx / zoom;
 			centerZ -= dy / zoom;
 			return true;
@@ -1944,6 +2150,10 @@ public class MapScreen extends Screen {
 		}
 		if (overSlider(mouseX, mouseY)) {
 			stepLayer(scrollY > 0 ? -1 : 1);
+			return true;
+		}
+		if (in3d()) {
+			camera3d().zoom((float) Math.pow(ZOOM_STEP, -scrollY));
 			return true;
 		}
 		double beforeX = worldX(mouseX);
@@ -1982,6 +2192,10 @@ public class MapScreen extends Screen {
 		}
 		if (event.key() == InputConstants.KEY_HOME) {
 			manualLayer = null;
+			return true;
+		}
+		if (event.key() == InputConstants.KEY_3) {
+			toggle3d();
 			return true;
 		}
 		if (event.key() == InputConstants.KEY_TAB && !tabs.isEmpty()) {

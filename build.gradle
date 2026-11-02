@@ -82,7 +82,7 @@ class CosmeticSheetInputs {
 	}
 }
 
-def sheetInputs = fileTree("src/main/java/dev/cobblecomfort/features/wardrobe") + fileTree("src/main/java/dev/cobblecomfort/features/plush") + fileTree("src/sheets") +
+def sheetInputs = fileTree("src/main/java/dev/cobblecomfort/features/wardrobe") + fileTree("src/main/java/dev/cobblecomfort/features/plush") + fileTree("src/main/java/dev/cobblecomfort/features/petplush") + fileTree("src/sheets") +
 		files("src/main/resources/assets/cobblecomfort/textures/misc/badges.png", "src/main/resources/assets/cobblecomfort/textures/misc/hat.png")
 def sheetStamp = file("cosmetics/.inputs")
 tasks.named("runCosmeticSheets") {

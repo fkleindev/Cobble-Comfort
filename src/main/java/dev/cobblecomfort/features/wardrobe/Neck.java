@@ -108,12 +108,25 @@ public enum Neck {
 	WINTER_NORDIC_NAVY(Style.NORDIC, Hat.Unlock.item("snowball"), "snowball",
 			new int[]{0xFF22325E, 0xFFF4F4F0, 0xFF6AA8E0}, 0, 0),
 	WINTER_NORDIC_GREEN(Style.NORDIC, Hat.Unlock.item("snowball"), "snowball",
-			new int[]{0xFF2E6A3A, 0xFFF4F4F0, 0xFFB82A2E}, 0, 0);
+			new int[]{0xFF2E6A3A, 0xFFF4F4F0, 0xFFB82A2E}, 0, 0),
+	AVIATOR_WHITE(Style.AVIATOR, Hat.Unlock.item("elytra"), "white_wool",
+			new int[]{0xFFF6F4EE, 0xFFD6D0C4, 0xFFFFFFFF}, 0xFFE6DECE, 0xFFC8A860),
+	AVIATOR_RED(Style.AVIATOR, Hat.Unlock.item("elytra"), "red_wool",
+			new int[]{0xFFB8262C, 0xFF8A1A20, 0xFFD8484C}, 0xFFE8DCC4, 0xFFE8C040),
+	AVIATOR_NAVY(Style.AVIATOR, Hat.Unlock.item("elytra"), "blue_wool",
+			new int[]{0xFF26365E, 0xFF182444, 0xFF40548A}, 0xFFEEEAE0, 0xFFC8282A),
+	HEADPHONES_BLACK(Style.HEADPHONES, Hat.Unlock.item("jukebox"), "black_dye",
+			new int[]{0xFF26262C, 0xFF3A3A42, 0xFF18181C}, 0xFFD83A3A, 0xFF1E1E22),
+	HEADPHONES_WHITE(Style.HEADPHONES, Hat.Unlock.item("jukebox"), "white_dye",
+			new int[]{0xFFF2F2F4, 0xFFC8CCD4, 0xFFDCDEE4}, 0xFF3A7AD8, 0xFFE8E8EC),
+	HEADPHONES_PINK(Style.HEADPHONES, Hat.Unlock.item("jukebox"), "pink_dye",
+			new int[]{0xFFF4B0CC, 0xFFFAD8E6, 0xFFE48CB0}, 0xFFFFFFFF, 0xFFF4B0CC);
 
 	/** The kind of piece, shown in the wardrobe as one tile that opens its colours. */
 	public enum Style {
 		SCARF(Hat.Group.ALL_YEAR), NECKLACE(Hat.Group.ALL_YEAR), BOWTIE(Hat.Group.ALL_YEAR), TIE(Hat.Group.ALL_YEAR),
 		BANDANA(Hat.Group.ALL_YEAR), LEI(Hat.Group.ALL_YEAR), BELL(Hat.Group.ALL_YEAR), BOA(Hat.Group.ALL_YEAR),
+		AVIATOR(Hat.Group.ALL_YEAR), HEADPHONES(Hat.Group.ALL_YEAR),
 		LEAF_SCARF(Hat.Group.SEASON), PUMPKIN_CHAIN(Hat.Group.SEASON), VAMPIRE(Hat.Group.SEASON), BONES(Hat.Group.SEASON),
 		LIGHTS(Hat.Group.WINTER), TINSEL(Hat.Group.WINTER), NORDIC(Hat.Group.WINTER);
 
@@ -138,7 +151,8 @@ public enum Neck {
 	 * three flowers; centres. Bell: collar, shade; bell, buckle. Boa: fluff, shade, light. Leaf scarf: knit, shade,
 	 * leaf; two more leaves. Pumpkin chain: pumpkin, shade, cord; glow, stems. Vampire collar: outside, edge, lining;
 	 * brooch, gem. Bones: bone, shade, cord; skull, eyes. Fairy lights: three bulbs; fourth bulb, cable. Tinsel: tinsel,
-	 * shade, light; glints. Nordic scarf: ground, pattern, border.
+	 * shade, light; glints. Nordic scarf: ground, pattern, border. Aviator scarf: silk, folds,
+	 * sheen; fringe, border. Headphones: shells, cushions, band; caps, cable.
 	 */
 	public final int[] main;
 	public final int accent;
@@ -154,9 +168,9 @@ public enum Neck {
 		this.second = second;
 	}
 
-	/** Yours from the start: free and not seasonal (those are earned by playing in their months). */
+	/** Yours from the start: everything but the seasonal ones (those are earned by playing in their months). */
 	public boolean free() {
-		return unlock.kind() == Hat.Unlock.Kind.FREE && !style.group.seasonal();
+		return !style.group.seasonal();
 	}
 
 	/** Whether it can be earned now: seasonal pieces only in their months. Once earned, they can be worn all year. */
