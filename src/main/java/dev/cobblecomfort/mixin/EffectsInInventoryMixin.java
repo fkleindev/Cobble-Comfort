@@ -1,6 +1,7 @@
 package dev.cobblecomfort.mixin;
 
 import dev.cobblecomfort.features.effects.EffectHudFeature;
+import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.EffectsInInventory;
@@ -9,9 +10,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Effect HUD: the effect list next to inventories in the same look, with description tooltips. */
+/** Effect HUD: the effect list next to inventories in the same look, with description tooltips; room for bundle panels. */
 @Mixin(EffectsInInventory.class)
 public abstract class EffectsInInventoryMixin {
 	@Shadow
@@ -23,5 +25,11 @@ public abstract class EffectsInInventoryMixin {
 		if (EffectHudFeature.INSTANCE.drawInventory(screen, g, mouseX, mouseY)) {
 			ci.cancel();
 		}
+	}
+
+	/** Vanilla's effect list moves right past the bundle panels. */
+	@ModifyVariable(method = "extractRenderState", at = @At(value = "STORE", ordinal = 0), index = 4)
+	private int cobblecomfort$effectsX(int x) {
+		return x + InventoryToolsFeature.INSTANCE.bundlePanelsWidth(screen);
 	}
 }

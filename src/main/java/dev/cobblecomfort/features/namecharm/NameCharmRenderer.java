@@ -3,6 +3,9 @@ package dev.cobblecomfort.features.namecharm;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
+import dev.cobblecomfort.features.plush.PlushFeature;
+import dev.cobblecomfort.features.wardrobe.ToolCharm;
+import dev.cobblecomfort.features.wardrobe.ToolCharmModel;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -24,9 +27,10 @@ import org.joml.Vector3fc;
 import java.util.function.Consumer;
 
 /**
- * Draws the name charm: a short string from the item's handle and a little paper tag with the name on both sides. It
- * is an extra layer of the item, drawn in the item's own space (the unit cube), so it follows every transform the
- * item gets, from vanilla, from the resource pack or from mods like Punchy.
+ * Draws a weapon or tool charm: a short string from the item and on it a little tag with the name on both sides, or one
+ * of the wardrobe's charms ({@link ToolCharmModel}). It is an extra layer of the item, drawn in the item's own space
+ * (the unit cube), so it follows every transform the item gets, from vanilla, from the resource pack or from mods like
+ * Punchy.
  */
 public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRenderer.Args> {
 	/** Can be replaced by resource packs: paper (top left), paper edge (top right), string (bottom left), eyelet. */
@@ -43,15 +47,20 @@ public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRe
 	private static final float EYELET = 0.7f * PX;
 	/** Font pixels to item units: the text is about two item pixels tall. */
 	static final float TEXT_SCALE = 2.1f * PX / 8f;
+	/** In first person: how far the charm keeps to the item's own down rather than the world's (0 none, 1 stiff). */
+	private static final float FIRST_PERSON_STIFFNESS = 0.8f;
 
 	/**
 	 * What to draw. {@code material} is the texture the tag is cut from (a block texture of the item's material, so
 	 * it follows the resource pack), or null for plain paper; {@code ink} is the text colour that reads well on it.
-	 * {@code pendulum} is null where the charm just hangs down (item frames, the ground).
+	 * {@code pendulum} is null where the charm just hangs down (item frames, the ground). In {@code firstPerson} it keeps
+	 * partly to the item's own down, on a {@code tile} it hangs straight down the item's picture. {@code hang}, if not null,
+	 * is where it hangs instead (the charm editor), in the space the item is drawn in.
 	 */
-	public record Args(FormattedCharSequence text, int textWidth, Identifier material, int ink, Vector3fc anchor,
-			CharmPendulum pendulum) {
+	public record Args(ToolCharm charm, FormattedCharSequence text, int textWidth, Identifier material, int ink, Vector3fc anchor,
+			CharmPendulum pendulum, boolean firstPerson, boolean tile, Vector3fc hang) {
 	}
+
 
 	@Override
 	public void submit(Args args, PoseStack pose, SubmitNodeCollector collector, int light, int overlay,
@@ -62,6 +71,17 @@ public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRe
 		Matrix4f model = new Matrix4f(pose.last().pose());
 		Vector3f down = hangDirection(args, model);
 		if (down == null) {
+			return;
+		}
+		if (args.charm() != ToolCharm.NAME_TAG) {
+			Vector3f anchor = new Vector3f(args.anchor());
+			submitString(pose, collector, anchor, down, STRING, STRING_WIDTH, light);
+			pose.pushPose();
+			pose.translate(anchor.x, anchor.y, anchor.z);
+			pose.mulPose(new Matrix4f().rotation(new Quaternionf().rotationTo(0f, 1f, 0f, down.x, down.y, down.z)));
+			pose.translate(0f, STRING, 0f);
+			ToolCharmModel.submit(pose, collector, args.charm(), light);
+			pose.popPose();
 			return;
 		}
 		// The tag's frame in item space: hanging along `down`, facing the item's front (+z) as far as it can.
@@ -139,8 +159,16 @@ public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRe
 		if (Math.abs(linear.determinant()) < 1e-12f) {
 			return null;
 		}
-		// Items in the first-person hand are drawn relative to the camera; the world turns with it.
-		boolean inHand = NameCharmFeature.INSTANCE.inFirstPersonPass();
+		if (args.hang() != null) {
+			Vector3f local = linear.invert(new Matrix3f()).transform(new Vector3f(args.hang()));
+			return local.lengthSquared() < 1e-12f ? null : local.normalize();
+		}
+		if (args.tile()) {
+			return new Vector3f(0f, -1f, 0f);
+		}
+		// Items in the first-person hand are drawn relative to the camera; the world turns with it. Punchy draws its arm
+		// during the hands too, but like an entity: relative to the camera's position, not its turn.
+		boolean inHand = NameCharmFeature.INSTANCE.inFirstPersonPass() && !PlushFeature.INSTANCE.inPunchyArm();
 		Minecraft mc = Minecraft.getInstance();
 		Quaternionf view = inHand ? new Quaternionf(mc.gameRenderer.mainCamera().rotation()) : new Quaternionf();
 		Vector3d world;
@@ -152,7 +180,8 @@ public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRe
 			Vector3f a = model.transformPosition(new Vector3f(args.anchor()));
 			Vector3f anchorWorld = view.transform(a);
 			// The string's length as it is drawn here (items in hand, frames and on the ground differ in size).
-			float length = linear.transform(new Vector3f(0, STRING + TAG_HEIGHT / 2f, 0)).length();
+			float weight = args.charm() == ToolCharm.NAME_TAG ? TAG_HEIGHT / 2f : ToolCharmModel.HEIGHT / 2f;
+			float length = linear.transform(new Vector3f(0, STRING + weight, 0)).length();
 			double damping = NameCharmFeature.INSTANCE.damping();
 			Vector3dc dir = pendulum.update(new Vector3d(anchorWorld).add(camera.x, camera.y, camera.z), length, damping,
 					System.nanoTime());
@@ -163,6 +192,15 @@ public final class NameCharmRenderer implements SpecialModelRenderer<NameCharmRe
 		linear.invert().transform(local);
 		if (local.lengthSquared() < 1e-12f) {
 			return null;
+		}
+		local.normalize();
+		if (args.firstPerson()) {
+			// Held up in first person (Punchy holds tools almost upright), a charm hanging straight down would hide behind
+			// the handle: the string is a little stiff there and keeps it out to the side, still swinging.
+			local.lerp(new Vector3f(0f, -1f, 0f), FIRST_PERSON_STIFFNESS);
+			if (local.lengthSquared() < 1e-12f) {
+				return null;
+			}
 		}
 		return local.normalize();
 	}

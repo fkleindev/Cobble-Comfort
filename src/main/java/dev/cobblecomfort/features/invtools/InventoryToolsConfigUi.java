@@ -41,6 +41,20 @@ public final class InventoryToolsConfigUi {
 								() -> c(feature).sortAnimation, v -> c(feature).sortAnimation = v))
 						.build())
 				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.invtools.sections"))
+						.option(Opts.bool("invtools.section_view", d.sectionView,
+								() -> c(feature).sectionView, v -> c(feature).sectionView = v))
+						.option(Opts.bool("invtools.section_button", d.sectionButton,
+								() -> c(feature).sectionButton, v -> c(feature).sectionButton = v))
+						.build())
+				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.invtools.bundles"))
+						.option(Opts.bool("invtools.bundle_panels", d.bundlePanels,
+								() -> c(feature).bundlePanels, v -> c(feature).bundlePanels = v))
+						.option(Opts.bool("invtools.bundle_button", d.bundleButton,
+								() -> c(feature).bundleButton, v -> c(feature).bundleButton = v))
+						.build())
+				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.invtools.transfer"))
 						.option(Opts.bool("invtools.transfer_buttons", d.transferButtons,
 								() -> c(feature).transferButtons, v -> c(feature).transferButtons = v))

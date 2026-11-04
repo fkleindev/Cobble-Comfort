@@ -17,6 +17,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -37,7 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Inventory search, sorting (button and middle click) and lockable player inventory slots. */
+/** Inventory search, sorting (button and middle click), lockable player inventory slots, the section view and bundle panels. */
 public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 	public static final InventoryToolsFeature INSTANCE = new InventoryToolsFeature();
 
@@ -56,6 +57,8 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 
 	private final ItemSearch search = new ItemSearch();
 	private final SlotLocks locks = new SlotLocks();
+	private final SectionView sections = new SectionView();
+	private final BundlePanels bundles = new BundlePanels(this);
 	private String rememberedQuery = "";
 	private Sorter sorter;
 	/** Slots already shift-clicked during the current shift-drag, null while none is going on. */
@@ -129,8 +132,28 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			transfer.forEach(Screens.getWidgets(screen)::add);
 		}
 		int transferOffset = config.sortButtons ? 1 : 0;
+		// The survival inventory switches between the normal view and sections, left of its sort button.
+		ToolButton sectionButton = null;
+		if (screen instanceof InventoryScreen && config.sectionButton && !mainInventory.isEmpty()) {
+			boolean on = sections.active(screen);
+			sectionButton = new ToolButton(on ? ToolButton.Icon.GRID : ToolButton.Icon.SECTIONS,
+					Component.translatable(on ? "cobblecomfort.invtools.sections_off" : "cobblecomfort.invtools.sections_on"),
+					() -> toggleSections(screen));
+			Screens.getWidgets(screen).add(sectionButton);
+		}
+		ToolButton toggle = sectionButton;
+		// The bundle panels' switch comes last (leftmost), as it only shows while the menu holds a bundle.
+		ToolButton bundleButton = null;
+		if (config.bundleButton && !mainInventory.isEmpty()) {
+			bundleButton = new ToolButton(ToolButton.Icon.BUNDLE, Component.translatable("cobblecomfort.invtools.bundles"),
+					this::toggleBundlePanels);
+			Screens.getWidgets(screen).add(bundleButton);
+		}
+		ToolButton bundleToggle = bundleButton;
+		int bundleOffset = transferOffset + transfer.size() + (sectionButton != null ? 1 : 0);
 		// Keep the widgets next to the GUI even when it moves (e.g. when the recipe book opens).
 		ScreenEvents.beforeExtract(screen).register((s, g, mouseX, mouseY, delta) -> {
+			sections.frame(s, g, mouseX, mouseY, sorter != null);
 			if (box != null) {
 				box.setX(tabX0(gui) + TAB_INSET + 3);
 				box.setY(gui.cobblecomfort$topPos() - TAB_HEIGHT + TAB_INSET + 2);
@@ -143,10 +166,22 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 				placeButton(button, mainInventory, gui);
 				button.setX(button.getX() - (i + transferOffset) * (ToolButton.SIZE + 1));
 			}
+			if (toggle != null) {
+				placeButton(toggle, mainInventory, gui);
+				toggle.setX(toggle.getX() - transferOffset * (ToolButton.SIZE + 1));
+			}
+			if (bundleToggle != null) {
+				bundleToggle.visible = BundlePanels.hasBundles(screen.getMenu());
+				placeButton(bundleToggle, mainInventory, gui);
+				bundleToggle.setX(bundleToggle.getX() - bundleOffset * (ToolButton.SIZE + 1));
+			}
 		});
-		if (box != null) {
-			ScreenEvents.afterBackground(screen).register((s, g, mouseX, mouseY, delta) -> drawSearchTab(g, gui));
-		}
+		ScreenEvents.afterBackground(screen).register((s, g, mouseX, mouseY, delta) -> {
+			if (box != null) {
+				drawSearchTab(g, gui);
+			}
+			bundles.draw(screen, g, mouseX, mouseY);
+		});
 		ScreenKeyboardEvents.allowKeyPress(screen).register((s, key) -> {
 			if (box == null) {
 				return true;
@@ -162,7 +197,9 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			}
 			return true;
 		});
-		ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> onClick(screen, event.button(), event.hasAltDown()));
+		ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> !bundles.click(screen, event)
+				&& onClick(screen, event.button(), event.hasAltDown()));
+		ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> !bundles.release());
 		ScreenMouseEvents.afterMouseClick(screen).register((s, event, consumed) -> {
 			startShiftDrag(screen, event.button(), event.hasShiftDown());
 			return consumed;
@@ -176,6 +213,7 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 			return consumed;
 		});
 		ScreenEvents.remove(screen).register(s -> {
+			sections.close(s);
 			dragged = null;
 			if (!config.rememberQuery) {
 				rememberedQuery = "";
@@ -207,15 +245,55 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 		return isEnabled() && config.search ? TAB_HEIGHT : 0;
 	}
 
-	private static void placeButton(ToolButton button, List<Slot> region, ContainerScreenAccessor gui) {
+	private void placeButton(ToolButton button, List<Slot> region, ContainerScreenAccessor gui) {
 		int maxX = 0;
 		int minY = Integer.MAX_VALUE;
 		for (Slot slot : region) {
 			maxX = Math.max(maxX, slot.x + 16);
 			minY = Math.min(minY, slot.y);
 		}
+		// Above the section names, not on them.
+		int raise = sections.active(gui) ? SectionView.HEADER : 0;
 		button.setX(gui.cobblecomfort$leftPos() + maxX - ToolButton.SIZE);
-		button.setY(gui.cobblecomfort$topPos() + minY - ToolButton.SIZE - 2);
+		button.setY(gui.cobblecomfort$topPos() + minY - ToolButton.SIZE - 2 - raise);
+	}
+
+	// ---------------------------------------------------------------- section view
+
+	/** Called before the survival inventory lays itself out, to set its size for the view in use. */
+	public void beforeInventoryInit(InventoryScreen screen) {
+		sections.beforeInit(screen, isEnabled() && config.sectionView);
+	}
+
+	public SectionView sections() {
+		return sections;
+	}
+
+	private void toggleSections(AbstractContainerScreen<?> screen) {
+		config.sectionView = !config.sectionView;
+		save();
+		// Lays the screen out anew: its size changes, and with it where everything sits.
+		screen.resize(screen.width, screen.height);
+	}
+
+	// ---------------------------------------------------------------- bundle panels
+
+	boolean bundlePanelsShown() {
+		return isEnabled() && config.bundlePanels;
+	}
+
+	private void toggleBundlePanels() {
+		config.bundlePanels = !config.bundlePanels;
+		save();
+	}
+
+	/** How far the bundle panels reach right of a container GUI (0 without them), so other things there can make room. */
+	public int bundlePanelsWidth(Object screen) {
+		if (!bundlePanelsShown() || !(screen instanceof AbstractContainerScreen<?> container)
+				|| screen instanceof CreativeModeInventoryScreen) {
+			return 0;
+		}
+		return bundles.width(container);
 	}
 
 	/** Alt+click locks a slot, middle click sorts the area under the cursor. Returns false to swallow the click. */
@@ -471,7 +549,7 @@ public final class InventoryToolsFeature extends Feature<InventoryToolsConfig> {
 
 	// ---------------------------------------------------------------- locks
 
-	private boolean isLocked(Slot slot) {
+	boolean isLocked(Slot slot) {
 		return config.locks && slot.container instanceof Inventory && locks.isLocked(slot.getContainerSlot());
 	}
 

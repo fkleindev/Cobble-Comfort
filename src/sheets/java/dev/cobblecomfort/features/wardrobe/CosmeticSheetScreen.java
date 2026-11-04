@@ -29,7 +29,7 @@ public final class CosmeticSheetScreen extends Screen {
 
 	/** What a sheet is of. */
 	public enum Category {
-		BADGES("badges"), HATS("hats"), NECK("neck"), BACK("back"), CHARMS("charms"), TOTEMS("totems");
+		BADGES("badges"), HATS("hats"), NECK("neck"), BACK("back"), CHARMS("charms"), TOTEMS("totems"), TOOL_CHARMS("tool_charms"), FACE("face");
 
 		public final String file;
 
@@ -176,6 +176,10 @@ public final class CosmeticSheetScreen extends Screen {
 					trinket -> (g, x0, y0, x1, y1) -> WardrobeScreen.trinketPreview(g, trinket, x0, y0, x1, y1, WardrobeScreen.tile(215f)));
 			case TOTEMS -> grouped(TotemSkin.Style.values(), TotemSkin.Style::title, TotemSkin::variants, TotemSkin::title,
 					skin -> (g, x0, y0, x1, y1) -> WardrobeScreen.totemPreview(g, skin, x0 + 3, y0 + 3, x1 - 3, y1 - 3));
+			case FACE -> grouped(Face.Style.values(), Face.Style::title, Face::variants, Face::title,
+					face -> (g, x0, y0, x1, y1) -> WardrobeScreen.facePreview(g, face, x0, y0, x1, y1, WardrobeScreen.tile(25f)));
+			case TOOL_CHARMS -> grouped(ToolCharm.Style.values(), ToolCharm.Style::title, ToolCharm::variants, ToolCharm::title,
+					charm -> (g, x0, y0, x1, y1) -> WardrobeScreen.toolCharmPreview(g, charm.style.showcase, charm, x0 + 3, y0 + 3, x1 - 3, y1 - 3));
 		};
 	}
 

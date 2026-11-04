@@ -2,6 +2,7 @@ package dev.cobblecomfort.features.enchanting;
 
 import dev.cobblecomfort.features.enchantdesc.EnchantDescFeature;
 import dev.cobblecomfort.features.hud.render.RenderUtil;
+import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -40,7 +41,8 @@ final class OddsPanel {
 
 	private static Bounds bounds(ContainerScreenAccessor gui) {
 		int screenWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
-		int x = gui.cobblecomfort$leftPos() + gui.cobblecomfort$imageWidth() + GAP;
+		int x = gui.cobblecomfort$leftPos() + gui.cobblecomfort$imageWidth() + GAP
+				+ InventoryToolsFeature.INSTANCE.bundlePanelsWidth(gui);
 		if (x + WIDTH > screenWidth - 2) {
 			x = gui.cobblecomfort$leftPos() - WIDTH - GAP;
 		}

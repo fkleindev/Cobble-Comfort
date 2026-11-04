@@ -7,13 +7,13 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.input.InputWithModifiers;
 import net.minecraft.network.chat.Component;
 
-/** A tiny vanilla-style button with a pixel icon: sort, deposit (arrow up) or restock (arrow down). */
+/** A tiny vanilla-style button with a pixel icon: sort, deposit (arrow up), restock (arrow down) or switch the view. */
 final class ToolButton extends AbstractButton {
 	static final int SIZE = 11;
 	private static final int ICON_HOVER = 0xFF202020;
 
 	enum Icon {
-		SORT, DEPOSIT, RESTOCK
+		SORT, DEPOSIT, RESTOCK, SECTIONS, GRID, BUNDLE
 	}
 
 	private final Icon icon;
@@ -47,6 +47,27 @@ final class ToolButton extends AbstractButton {
 			}
 			case DEPOSIT -> arrow(g, x, y, color, true);
 			case RESTOCK -> arrow(g, x, y, color, false);
+			case SECTIONS -> {
+				// Two blocks of different height side by side: the inventory in sections.
+				g.fill(x + 3, y + 3, x + 5, y + 8, color);
+				g.fill(x + 6, y + 3, x + 8, y + 6, color);
+			}
+			case GRID -> {
+				// A 3x3 grid of dots: the plain inventory.
+				for (int i = 0; i < 3; i++) {
+					for (int j = 0; j < 3; j++) {
+						g.fill(x + 3 + 2 * i, y + 3 + 2 * j, x + 4 + 2 * i, y + 4 + 2 * j, color);
+					}
+				}
+			}
+			case BUNDLE -> {
+				// A small sack, tied at the neck: the bundle panels.
+				g.fill(x + 4, y + 2, x + 7, y + 3, color);
+				g.fill(x + 5, y + 3, x + 6, y + 4, color);
+				g.fill(x + 3, y + 4, x + 8, y + 5, color);
+				g.fill(x + 2, y + 5, x + 9, y + 8, color);
+				g.fill(x + 3, y + 8, x + 8, y + 9, color);
+			}
 		}
 	}
 

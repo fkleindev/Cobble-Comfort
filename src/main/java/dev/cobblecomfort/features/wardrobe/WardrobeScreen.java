@@ -35,6 +35,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -43,8 +44,8 @@ import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
 /**
- * The wardrobe: the player on a turntable on the left (drag to turn), and on the right tabs for badges, hats, plush
- * pets, the belt and saved outfits. Every change is worn at once, so the figure shows it.
+ * The wardrobe: the player on a turntable on the left (drag to turn), and on the right tabs for badges, hats, the face, what
+ * is worn round the neck and on the back, totems, the charms on weapons and tools, the belt and saved outfits. Every change is worn at once, so the figure shows it.
  */
 public final class WardrobeScreen extends Screen {
 	private static final int MAX_WIDTH = 440;
@@ -56,6 +57,10 @@ public final class WardrobeScreen extends Screen {
 	private static final int TAB_ICON_WIDTH = 20;
 	/** A hat tile: big enough to show the head wearing it. */
 	private static final int HAT_CELL = 46;
+	/** A button for a kind of weapon or tool, showing its item. */
+	private static final int KIND_BUTTON = 22;
+	/** How much bigger than its tile a weapon or tool is drawn, for its charm to show. */
+	private static final float TOOL_ZOOM = 1.5f;
 	private static final int ROW = 22;
 	private static final int LINE = 0x20FFFFFF;
 	private static final int WORN = 0xFFFF7FB0;
@@ -69,7 +74,7 @@ public final class WardrobeScreen extends Screen {
 	public static final RenderStateDataKey<Boolean> TILE = RenderStateDataKey.create(() -> "cobblecomfort:wardrobe_tile");
 
 	enum Tab {
-		BADGES, HATS, NECK, BACK, TOTEM, BELT, OUTFITS
+		BADGES, HATS, FACE, NECK, BACK, TOTEM, TOOLS, BELT, OUTFITS
 	}
 
 	/** Something clickable drawn this frame: its box, what a click does, and its tooltip (may be empty). */
@@ -108,6 +113,10 @@ public final class WardrobeScreen extends Screen {
 	private Object openKind;
 	/** On the back tab: the charms rather than what is carried. */
 	private boolean charms;
+	/** On the face tab: the place whose pieces are shown. */
+	private Face.Place facePlace = Face.Place.EYES;
+	/** On the weapons and tools tab: the kind whose charm is shown. */
+	private ToolKind toolKind = ToolKind.SWORD;
 	/** Set when a kind of hat is opened: its colours are scrolled into view once drawn. */
 	private boolean reveal;
 
@@ -171,9 +180,11 @@ public final class WardrobeScreen extends Screen {
 		return new ItemStack(switch (t) {
 			case BADGES -> Items.GOLD_NUGGET;
 			case HATS -> Items.GOLDEN_HELMET;
+			case FACE -> Items.CARVED_PUMPKIN;
 			case NECK -> Items.STRING;
 			case BACK -> Items.ELYTRA;
 			case TOTEM -> Items.TOTEM_OF_UNDYING;
+			case TOOLS -> Items.IRON_SWORD;
 			case BELT -> Items.BUNDLE;
 			case OUTFITS -> Items.ARMOR_STAND;
 		});
@@ -236,9 +247,11 @@ public final class WardrobeScreen extends Screen {
 			switch (tab) {
 				case BADGES -> drawBadges(g);
 				case HATS -> drawHats(g);
+				case FACE -> drawFace(g);
 				case NECK -> drawNecks(g);
 				case BACK -> drawBack(g);
 				case TOTEM -> drawTotems(g);
+				case TOOLS -> drawTools(g);
 				case BELT -> drawBelt(g);
 				case OUTFITS -> drawOutfits(g);
 			}
@@ -455,6 +468,9 @@ public final class WardrobeScreen extends Screen {
 
 	/** A group's kinds of hat, one tile each; under them the colours of the kind clicked open. */
 	private int hatGroup(GuiGraphicsExtractor g, Hat.Group group, int x0, int y) {
+		if (Arrays.stream(Hat.Style.values()).noneMatch(style -> style.group == group)) {
+			return y - 4;
+		}
 		g.text(font, group.title(), x0, y, MapUi.TEXT, false);
 		if (group.seasonal()) {
 			MapUi.smallText(g, font, group.season(), x0 + font.width(group.title()) + 6, y + 1,
@@ -863,6 +879,54 @@ public final class WardrobeScreen extends Screen {
 		return tile(hovered ? (System.nanoTime() / 1e9f * 90f + turn) % 360f : turn);
 	}
 
+	// ---- face
+
+	private Slot<Face.Style, Face> faceSlot(Face.Place place) {
+		WardrobeFeature f = feature();
+		return new Slot<>(Face.Style.at(place), s -> s.group, Face.Style::title, Face::variants, p -> p.style, Face::title,
+				p -> p.unlock, f::earned, () -> f.face(place), p -> f.wearFace(place, p), p -> p.main[0], this::facePreview,
+				"cobblecomfort.wardrobe.face_on", "cobblecomfort.wardrobe.face_off");
+	}
+
+	/** The two places on the face, each with what is worn there; then the pieces for the place picked. */
+	private void drawFace(GuiGraphicsExtractor g) {
+		int x0 = bodyLeft();
+		int y = bodyTop() + 2 - scroll;
+		Face.Place[] places = Face.Place.values();
+		int w = 0;
+		for (Face.Place place : places) {
+			w = Math.max(w, font.width(place.title()) + 16);
+		}
+		for (int i = 0; i < places.length; i++) {
+			Face.Place place = places[i];
+			Face worn = feature().face(place);
+			chip(g, place.title(), facePlace == place, x0 + i * (w + 4), y, w, () -> {
+				facePlace = place;
+				openKind = null;
+			}, worn == null ? Component.translatable("cobblecomfort.wardrobe.face_none") : worn.title());
+		}
+		y += 22;
+		y = hint(g, Component.translatable("cobblecomfort.wardrobe.face_" + facePlace.name().toLowerCase(java.util.Locale.ROOT) + "_hint"),
+				x0, y);
+		y = kinds(g, faceSlot(facePlace), x0, y);
+		contentBottom = y + scroll - bodyTop();
+	}
+
+	/** Your face wearing {@code face}, nearly from the front; the tile under the mouse turns. */
+	private void facePreview(GuiGraphicsExtractor g, Face face, int cx, int cy, int cx1, int cy1) {
+		facePreview(g, face, cx, cy, cx1, cy1, tileFigure(cx, cy, cx1, cy1, 25f));
+	}
+
+	static void facePreview(GuiGraphicsExtractor g, Face face, int cx, int cy, int cx1, int cy1, EntityRenderState state) {
+		if (state instanceof AvatarRenderState avatar) {
+			// Nothing on the head: a helmet would hide it.
+			avatar.headEquipment = ItemStack.EMPTY;
+			avatar.setData(FaceLayer.PREVIEW, face);
+			// The middle of the head, a little low for a bandana's point under the chin.
+			figure(g, avatar, (cy1 - cy - 2) / 0.72f, avatar.boundingBoxHeight - 0.28f, 5f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
+		}
+	}
+
 	// ---- back
 
 	// ---- totem
@@ -930,6 +994,80 @@ public final class WardrobeScreen extends Screen {
 		hits.add(new Hit(x, y, x1, y1, action, List.of(tooltip)));
 	}
 
+	// ---- weapon and tool charms
+
+	private Slot<ToolCharm.Style, ToolCharm> toolCharmSlot(ToolKind kind) {
+		WardrobeFeature f = feature();
+		return new Slot<>(ToolCharm.Style.values(), s -> s.group, ToolCharm.Style::title, ToolCharm::variants, c -> c.style,
+				ToolCharm::title, c -> c.unlock, f::earned, () -> f.toolCharm(kind), c -> f.wearToolCharm(kind, c),
+				c -> c.main[0], (g, charm, cx, cy, cx1, cy1) -> toolCharmPreview(g, kind, charm, cx + 2, cy + 2, cx1 - 2, cy1 - 2),
+				"cobblecomfort.wardrobe.tool_charm_on", "cobblecomfort.wardrobe.tool_charm_off");
+	}
+
+	/** One button for each kind of weapon and tool, showing the item; then the charms for the kind picked. */
+	private void drawTools(GuiGraphicsExtractor g) {
+		int x0 = bodyLeft();
+		int y = bodyTop() + 2 - scroll;
+		int columns = Math.max(1, (bodyRight() - x0 + 2) / (KIND_BUTTON + 2));
+		ToolKind[] kinds = ToolKind.values();
+		for (int i = 0; i < kinds.length; i++) {
+			ToolKind kind = kinds[i];
+			int bx = x0 + i % columns * (KIND_BUTTON + 2);
+			int by = y + i / columns * (KIND_BUTTON + 2);
+			boolean on = kind == toolKind;
+			MapUi.buttonFace(g, bx, by, bx + KIND_BUTTON, by + KIND_BUTTON, false, on, WORN);
+			if (!on) {
+				RenderUtil.roundedOutline(g, bx, by, bx + KIND_BUTTON, by + KIND_BUTTON, 3, 0x30FFFFFF, 0x18FFFFFF);
+			}
+			g.item(kind.icon(), bx + (KIND_BUTTON - 16) / 2, by + (KIND_BUTTON - 16) / 2);
+			ToolCharm worn = feature().toolCharm(kind);
+			Component current = worn == null ? Component.translatable("cobblecomfort.wardrobe.tool_charm_none") : worn.title();
+			hits.add(new Hit(bx, by, bx + KIND_BUTTON, by + KIND_BUTTON, () -> {
+				toolKind = kind;
+				openKind = null;
+			}, List.of(kind.title(), current.copy().withStyle(ChatFormatting.GRAY))));
+		}
+		y += (kinds.length + columns - 1) / columns * (KIND_BUTTON + 2) + 4;
+		y = hint(g, Component.translatable("cobblecomfort.wardrobe.tools_hint", toolKind.title()), x0, y);
+		// Where the charm is tied on this kind: placed by hand in the charm editor.
+		Component place = Component.translatable("cobblecomfort.wardrobe.tool_charm_place", toolKind.title());
+		int px1 = x0 + font.width(place) + 16;
+		boolean over = hoverX >= x0 && hoverX < px1 && hoverY >= y && hoverY < y + 18;
+		MapUi.textButton(g, font, place, x0, y, px1, y + 18, over, true, MapUi.ACCENT);
+		ToolKind editing = toolKind;
+		hits.add(new Hit(x0, y, px1, y + 18, () -> minecraft.gui.setScreen(new CharmEditorScreen(this, editing)),
+				List.of(Component.translatable("cobblecomfort.wardrobe.tool_charm_place_hint").withStyle(ChatFormatting.GRAY))));
+		if (feature().charmSpotMoved(toolKind)) {
+			MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.tool_charm_moved"), px1 + 6, y + 6, WORN, 0.75f);
+		}
+		y += 24;
+		y = kinds(g, toolCharmSlot(toolKind), x0, y);
+		contentBottom = y + scroll - bodyTop();
+	}
+
+	/**
+	 * A weapon or tool of this kind with {@code charm} hanging from it, seen close up: the item larger than the box, the
+	 * place the charm is tied a little above the middle, the rest cut off.
+	 */
+	static void toolCharmPreview(GuiGraphicsExtractor g, ToolKind kind, ToolCharm charm, int x0, int y0, int x1, int y1) {
+		float size = Math.min(x1 - x0, y1 - y0) * TOOL_ZOOM;
+		Vector3f spot = WardrobeFeature.INSTANCE.charmSpot(kind, false);
+		float ax = (x0 + x1) / 2f - spot.x / 16f * size;
+		float ay = y0 + (y1 - y0) * 0.3f - (1f - spot.y / 16f) * size;
+		g.enableScissor(x0, y0, x1, y1);
+		g.pose().pushMatrix();
+		g.pose().translate(ax, ay);
+		g.pose().scale(size / 16f);
+		NameCharmFeature.INSTANCE.preview = charm;
+		try {
+			g.item(kind.icon(), 0, 0);
+		} finally {
+			NameCharmFeature.INSTANCE.preview = null;
+		}
+		g.pose().popMatrix();
+		g.disableScissor();
+	}
+
 	// ---- belt
 
 	private void drawBelt(GuiGraphicsExtractor g) {
@@ -954,14 +1092,7 @@ public final class WardrobeScreen extends Screen {
 			c.ranged = !c.ranged;
 			belt.save();
 		});
-		y += 6;
-		NameCharmFeature charm = NameCharmFeature.INSTANCE;
-		y = toggleRow(g, Component.translatable("cobblecomfort.wardrobe.name_charm"), charm.config().enabled, true, x0, x1, y, () -> {
-			charm.config().enabled = !charm.config().enabled;
-			charm.save();
-		});
-		MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.name_charm_hint"), x0 + 10, y, MapUi.TEXT_FAINT, 0.75f);
-		contentBottom = y + 10 + scroll - bodyTop();
+		contentBottom = y + scroll - bodyTop();
 	}
 
 	/** A label with an on/off switch on the right; the whole row toggles. */
@@ -1025,7 +1156,12 @@ public final class WardrobeScreen extends Screen {
 			}
 			BackPiece back = BackPiece.byKey(outfit.back);
 			Trinket trinket = Trinket.byKey(outfit.trinket);
-			ItemStack[] more = {back == null ? ItemStack.EMPTY : back.icon(), trinket == null ? ItemStack.EMPTY : trinket.icon()};
+			Face eyes = Face.byKey(outfit.eyes);
+			Face mouth = Face.byKey(outfit.mouth);
+			Face skin = Face.byKey(outfit.skin);
+			ItemStack[] more = {back == null ? ItemStack.EMPTY : back.icon(), trinket == null ? ItemStack.EMPTY : trinket.icon(),
+					eyes == null ? ItemStack.EMPTY : eyes.icon(), mouth == null ? ItemStack.EMPTY : mouth.icon(),
+					skin == null ? ItemStack.EMPTY : skin.icon()};
 			for (int i = 0; i < more.length; i++) {
 				g.pose().pushMatrix();
 				g.pose().translate(hatX + 24 + 12 * i, y + 4);
@@ -1033,7 +1169,7 @@ public final class WardrobeScreen extends Screen {
 				g.item(more[i], 0, 0);
 				g.pose().popMatrix();
 			}
-			int textX = hatX + 48 + 4;
+			int textX = hatX + 24 + 12 * more.length + 4;
 			g.text(font, outfit.name, textX, y + 6, wearing ? MapUi.TEXT : MapUi.TEXT_DIM, false);
 			if (wearing) {
 				MapUi.smallText(g, font, Component.translatable("cobblecomfort.wardrobe.wearing"), textX + font.width(outfit.name) + 6, y + 7, WORN, 0.75f);

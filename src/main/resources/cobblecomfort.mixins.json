@@ -60,6 +60,8 @@
 		"LocatorBarMixin",
 		"EffectsInInventoryMixin",
 		"ContainerScreenAccessor",
+		"InventoryScreenMixin",
+		"SlotAccessor",
 		"ModelPartAccessor",
 		"EnchantmentScreenMixin",
 		"FoodDataAccessor",

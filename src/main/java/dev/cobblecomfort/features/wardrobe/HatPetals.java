@@ -13,13 +13,15 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.JukeboxBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Vector3f;
 
 /**
  * What falls from a hat: now and then a petal (or an autumn leaf) from a wreath and confetti from a party hat or a
  * New Year's top hat, more often while its wearer runs; notes rise from headphones while a jukebox plays nearby; a
  * bell on the neck or the back, an elf's hat or reindeer antlers rings softly as its wearer walks; snowflakes drift from
- * ice wings, and rockets on the back spray sparks while their wearer is in the air.
+ * ice wings, and rockets on the back spray sparks while their wearer is in the air; a pipe puffs smoke.
  */
 final class HatPetals {
 	private static final double RANGE = 32.0;
@@ -36,6 +38,11 @@ final class HatPetals {
 	private static final int BELL_TICKS = 7;
 	private static final float BELL_SPEED = 1.5f;
 	private static final float BELL_VOLUME = 0.15f;
+	/** A pipe puffs about every this many ticks; its smoke is this big. */
+	private static final float SMOKE_CHANCE = 1f / 50f;
+	private static final float SMOKE_SCALE = 0.45f;
+	/** How far the neck, which the head turns about, is below the eyes (blocks). */
+	private static final double NECK_BELOW_EYES = 0.12;
 
 	private HatPetals() {
 	}
@@ -68,6 +75,7 @@ final class HatPetals {
 			if (player == mc.player && mc.options.getCameraType() == CameraType.FIRST_PERSON) {
 				continue;
 			}
+			smoke(mc, player, hat, random);
 			BackPiece back = WardrobeFeature.INSTANCE.backFor(player);
 			if (back != null && back.style == BackPiece.Style.ICE_WINGS) {
 				fall(mc, player, random, ParticleTypes.SNOWFLAKE, 1f);
@@ -84,6 +92,38 @@ final class HatPetals {
 				case HEADPHONES -> notes(mc, player, random);
 				default -> {
 				}
+			}
+		}
+	}
+
+
+	/**
+	 * Now and then a puff of smoke from the bowl of a pipe, or bubbles under water. Not while a helmet or a pumpkin hides
+	 * the face, nor lying down to swim or fly.
+	 */
+	private static void smoke(Minecraft mc, AbstractClientPlayer player, Hat hat, RandomSource random) {
+		if (random.nextFloat() >= SMOKE_CHANCE || player.isVisuallySwimming() || player.isFallFlying()
+				|| hat != null && hat.style == Hat.Style.PUMPKIN
+				|| hat == null && !player.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
+				|| WardrobeFeature.INSTANCE.facesFor(player).stream().noneMatch(face -> face.style == Face.Style.PIPE)) {
+			return;
+		}
+		// The bowl, from the neck the head turns about: across to the left, up, out to the front.
+		Vector3f bowl = FaceLayer.PIPE_BOWL;
+		Vec3 forward = Vec3.directionFromRotation(player.getXRot(), player.getYHeadRot());
+		Vec3 up = Vec3.directionFromRotation(player.getXRot() - 90f, player.getYHeadRot());
+		double yaw = Math.toRadians(player.getYHeadRot());
+		Vec3 left = new Vec3(Math.cos(yaw), 0.0, Math.sin(yaw));
+		Vec3 at = new Vec3(player.getX(), player.getEyeY() - NECK_BELOW_EYES, player.getZ())
+				.add(left.scale(bowl.x)).add(up.scale(-bowl.y)).add(forward.scale(-bowl.z));
+		boolean water = player.isUnderWater();
+		int puffs = 1 + random.nextInt(2);
+		for (int i = 0; i < puffs; i++) {
+			Particle particle = mc.particleEngine.createParticle(water ? ParticleTypes.BUBBLE : ParticleTypes.WHITE_SMOKE,
+					at.x + (random.nextDouble() - 0.5) * 0.04, at.y + i * 0.04, at.z + (random.nextDouble() - 0.5) * 0.04,
+					(random.nextDouble() - 0.5) * 0.01, 0.02 + random.nextDouble() * 0.01, (random.nextDouble() - 0.5) * 0.01);
+			if (particle != null && !water) {
+				particle.scale(SMOKE_SCALE);
 			}
 		}
 	}

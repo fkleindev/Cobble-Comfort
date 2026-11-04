@@ -4,6 +4,7 @@ import dev.cobblecomfort.CobbleComfortClient;
 import dev.cobblecomfort.core.Feature;
 import dev.cobblecomfort.features.hud.Rect;
 import dev.cobblecomfort.features.hud.editor.HudEditorScreen;
+import dev.cobblecomfort.features.invtools.InventoryToolsFeature;
 import dev.cobblecomfort.features.map.MapFeature;
 import dev.cobblecomfort.mixin.ContainerScreenAccessor;
 import dev.isxander.yacl3.api.ConfigCategory;
@@ -275,7 +276,8 @@ public final class EffectHudFeature extends Feature<EffectHudConfig> {
 			return false;
 		}
 		ContainerScreenAccessor gui = (ContainerScreenAccessor) screen;
-		int x = gui.cobblecomfort$leftPos() + gui.cobblecomfort$imageWidth() + MARGIN;
+		int x = gui.cobblecomfort$leftPos() + gui.cobblecomfort$imageWidth() + MARGIN
+				+ InventoryToolsFeature.INSTANCE.bundlePanelsWidth(screen);
 		int available = screen.width - x - MARGIN;
 		List<MobEffectInstance> effects = effects(mc.player);
 		if (effects.isEmpty() || available < EffectRenderer.CELL_WIDTH) {

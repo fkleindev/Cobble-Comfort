@@ -19,6 +19,16 @@ public class InventoryToolsConfig extends FeatureConfig {
 	public int actionsPerTick = 0;
 	public boolean sortAnimation = true;
 
+	// Sections
+	/** The survival inventory split into sections by kind of item, switched with a button in the inventory. */
+	public boolean sectionView = false;
+	public boolean sectionButton = true;
+
+	// Bundles
+	/** Panels right of the GUI showing each bundle's contents, switched with a button above the inventory. */
+	public boolean bundlePanels = true;
+	public boolean bundleButton = true;
+
 	// Moving items
 	/** Buttons in storage containers: deposit what the container already holds, top up the inventory's stacks. */
 	public boolean transferButtons = true;

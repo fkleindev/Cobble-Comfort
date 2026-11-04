@@ -116,6 +116,14 @@ There is also a key for the HUD editor.
 ### Inventory
 - **Inventory tools:** search field (also searches tooltips and shulker contents), sort buttons or middle click to sort,
   and slot locks that protect items from being moved or dropped.
+- **Inventory sections:** a button in the inventory switches to a view that splits your inventory (not the hotbar) into
+  sections by kind of item: blocks, functional blocks, tools, combat, food, materials, other and free slots. When an
+  item of another kind lands in a slot, the slot slides over to its section. Only the view changes, so it works on any
+  server.
+- **Bundle panels:** next to the inventory and containers, a panel for every bundle shows what it holds, rounded and
+  tinted in the bundle's colour. Click an item to take it out, shift-click to put it straight into the inventory, click
+  with an item on the cursor to put it in. A button above the inventory shows and hides them. Uses only vanilla clicks,
+  so it works on any server.
 - **Moving items:** in chests, barrels, shulker boxes and other storage, one button deposits everything the container
   already holds some of, another tops up your stacks from it; the items fly over one after another. Hold Shift and drag
   over slots to move them all at once.
@@ -231,6 +239,18 @@ There is also a key for the HUD editor.
   and neck piece, or the game's own totem (all three from the start), or a plush allay, axolotl (in its five colours),
   creeper, frog (three colours), bee, warden with a beating heart or a little Ender Dragon, earned with an advancement,
   by finding an item or entering a biome. In December and January a snowman and a gingerbread man. Wings flap.
+- **Face:** a wardrobe tab with three places worn together, hidden under a helmet. **Eyes:** round glasses,
+  sunglasses, an eye patch, a masquerade mask whose feather springs as you turn your head, and steampunk goggles with a
+  loupe that flip up onto your forehead when you look up. **Nose & mouth:** a bandana mask with its knot ends swinging
+  behind your head, a twirled or walrus moustache, and a pipe (wooden, corncob or dark briar) with a glowing ember that
+  puffs smoke now and then (bubbles under water). **Paint:** blush, freckles or war paint on the skin, under whatever
+  else you wear. In October and November a pumpkin or skull mask, in December and January a glowing reindeer nose, in
+  February a clown nose.
+- **Weapons & tools:** a wardrobe tab to choose a charm for each kind of weapon and tool (sword, axe, pickaxe, shovel,
+  hoe, spear, mace, trident, bow, crossbow, fishing rod): the name tag (renamed items only), a tassel, a gem chunk,
+  feathers, a fish lure, a little bell or a glow berry, most in several colours. They swing like the name charm. A 3D
+  editor lets you tie each kind's charm wherever you like on the item: click to place it, drag to turn the item,
+  separately for first person.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
   Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
   hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace
@@ -249,6 +269,13 @@ There is also a key for the HUD editor.
 - **Soft doors:** doors, trapdoors and fence gates (wood, iron and copper) swing open and shut with a little overshoot
   instead of snapping; gates swing as two halves around their posts. Only the look is animated, so you can still walk
   through at once. Speed and bounce are adjustable; works with Sodium and Iris shaders.
+- **Footprints:** players and mobs walking over snow, sand or mud leave prints that slowly fade away again: shoes,
+  paws, hooves and bird claws, depending on who walked there. Sneaking leaves fainter ones, and rain or snowfall
+  wears them away sooner. Coming out of the water, wet feet leave dark prints on any ground for a few steps.
+- **Atmosphere:** small clouds of breath in the cold (snowy biomes, high mountains), from players, animals and
+  villagers but not the undead; rings and splashes where someone wades through shallow water; fireflies blinking over
+  swamps, meadows, flower forests and cherry groves on clear nights, darting away from players; and snow settling on
+  players' heads and shoulders in snowfall, which they shake off by jumping and which melts under a roof.
 - **Light overlay (F7):** red crosses on blocks where monsters can spawn at any time, yellow ones where they can only
   spawn at night, following the real spawn rules (no crosses on glass, slabs, carpets or in mushroom fields) and the
   light limits of each dimension. Optionally the block light as a number. Crosses fade out as you light up an area. The
@@ -268,8 +295,9 @@ other dimensions.
 - Shared are the name, world, position, facing and, unless switched off, health and armour.
 - It also shares the **pet plushes** each player with the mod wears on their back (charm and backpack: pet type,
   variant and collar colour), **what hangs on their belt** (bundle colours and fullness, weapons and arrow count) and
-  **what they chose in the wardrobe** (badges, hat, neck and back pieces, and how their totems look), so everyone with
-  the mod sees them. The plugin only passes these on, so new cosmetics need no plugin update.
+  **what they chose in the wardrobe** (badges, hat, face, neck and back pieces, the charms on their
+  weapons and tools, and how their totems look), so everyone with the mod sees them. The plugin only passes these on,
+  so new cosmetics need no plugin update.
 
 ### For server admins
 

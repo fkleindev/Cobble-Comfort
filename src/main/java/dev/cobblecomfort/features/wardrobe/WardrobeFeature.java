@@ -17,6 +17,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.advancements.AdvancementHolder;
@@ -39,13 +40,18 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,6 +65,8 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	public static final WardrobeFeature INSTANCE = new WardrobeFeature();
 
 	private static final int EARN_CHECK_TICKS = 40;
+	/** How far in front of a weapon or tool or behind it a charm may be tied, in item pixels. */
+	public static final float MAX_SPOT_DEPTH = 4f;
 	/** The inventory's player preview box, relative to the GUI's corner; the button sits in its bottom right. */
 	private static final int PREVIEW_RIGHT = 75;
 	private static final int PREVIEW_BOTTOM = 78;
@@ -77,6 +85,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		key = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.cobblecomfort.wardrobe", InputConstants.KEY_J,
 				CobbleComfortClient.keyCategory()));
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+		PictureInPictureRendererRegistry.register(context -> new CharmSceneRenderer());
 		ScreenEvents.AFTER_INIT.register((mc, screen, width, height) -> {
 			if (screen instanceof InventoryScreen inventory && isEnabled() && config.inventoryButton) {
 				addInventoryButton(inventory);
@@ -86,6 +95,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
 			worldKey = null;
 			HatLayer.forget();
+			FaceLayer.forget();
 			NeckLayer.forget();
 			BackLayer.forget();
 		});
@@ -95,6 +105,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				RenderLayerParent<AvatarRenderState, PlayerModel> parent = (RenderLayerParent<AvatarRenderState, PlayerModel>) (Object) avatar;
 				helper.register(new BadgeLayer(parent));
 				helper.register(new HatLayer(parent));
+				helper.register(new FaceLayer(parent));
 				helper.register(new NeckLayer(parent));
 				helper.register(new BackLayer(parent));
 			}
@@ -107,6 +118,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 	}
 
 	private void tick(Minecraft mc) {
+		migrateNameCharm();
 		if (!isEnabled()) {
 			while (key.consumeClick()) {
 				// Swallowed while off.
@@ -158,6 +170,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		Map<AdvancementHolder, AdvancementProgress> progress = connection.getAdvancements().progress();
 		checkHats(mc, progress);
 		checkNecks(mc, progress);
+		checkFaces(mc, progress);
 		checkBack(mc, progress);
 		checkTotems(mc, progress);
 		List<Badge> fresh = new ArrayList<>();
@@ -375,6 +388,11 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return isEnabled() && config.share ? hat() : null;
 	}
 
+	/** Whether this player is seen wearing a wardrobe hat. */
+	public boolean wearsHat(AbstractClientPlayer player) {
+		return hatFor(player) != null;
+	}
+
 	/** The hat this player wears, or null. */
 	Hat hatFor(AbstractClientPlayer player) {
 		if (!isEnabled()) {
@@ -479,6 +497,107 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return look == null ? null : look.neck();
 	}
 
+	// ---------------------------------------------------------------- face
+
+	/** Earns the face pieces whose condition is met; all colours of a kind at once, seasonal ones only in season. */
+	private void checkFaces(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
+		List<Face> fresh = new ArrayList<>();
+		for (Face face : Face.values()) {
+			if (!earned(face) && face.inSeason() && met(mc, progress, face.unlock)
+					&& fresh.stream().noneMatch(other -> other.style == face.style)) {
+				fresh.add(face);
+			}
+		}
+		if (fresh.isEmpty()) {
+			return;
+		}
+		for (Face face : fresh) {
+			unlocks().faces.add(face.key());
+		}
+		save();
+		if (config.announce) {
+			Component names = Component.empty();
+			for (int i = 0; i < fresh.size(); i++) {
+				names = names.copy().append(i > 0 ? Component.literal(", ") : Component.empty()).append(fresh.get(i).style.title());
+			}
+			mc.gui.toastManager().addToast(new TrackerToast(fresh.getFirst().icon(),
+					Component.translatable("cobblecomfort.wardrobe.earned_face", names), earnedHint("earned_face")));
+		}
+	}
+
+	/** Whether a face piece is yours: free, or a colour of its kind earned. */
+	public boolean earned(Face face) {
+		List<String> faces = unlocks().faces;
+		return face.free() || Face.variants(face.style).stream().anyMatch(other -> faces.contains(other.key()));
+	}
+
+	/** What you wear at this place on the face, or null. */
+	public Face face(Face.Place place) {
+		Face face = Face.byKey(switch (place) {
+			case EYES -> config.eyes;
+			case MOUTH -> config.mouth;
+			case SKIN -> config.skin;
+		});
+		return face != null && face.style.place == place && earned(face) ? face : null;
+	}
+
+	/** Puts a piece on the face, in its place (null: takes off what is worn at {@code place}). */
+	public void wearFace(Face.Place place, Face face) {
+		if (face != null && (!earned(face) || face.style.place != place)) {
+			return;
+		}
+		String key = face == null ? "" : face.key();
+		switch (place) {
+			case EYES -> config.eyes = key;
+			case MOUTH -> config.mouth = key;
+			case SKIN -> config.skin = key;
+		}
+		save();
+	}
+
+	/** What you tell other players you wear at this place on the face. */
+	public Face sharedFace(Face.Place place) {
+		return isEnabled() && config.share ? face(place) : null;
+	}
+
+	/** What this player wears on the face: the paint on the skin first, then eyes and mouth; empty for none. */
+	List<Face> facesFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return List.of();
+		}
+		Face eyes;
+		Face mouth;
+		Face skin;
+		if (player == Minecraft.getInstance().player) {
+			if (!config.showOwn) {
+				return List.of();
+			}
+			eyes = face(Face.Place.EYES);
+			mouth = face(Face.Place.MOUTH);
+			skin = face(Face.Place.SKIN);
+		} else {
+			PlushLook look = config.showOthers ? PetPlushFeature.INSTANCE.shared(player.getUUID()) : null;
+			if (look == null) {
+				return List.of();
+			}
+			eyes = look.eyes();
+			mouth = look.mouth();
+			skin = look.skin();
+		}
+		List<Face> faces = new ArrayList<>(3);
+		// Paint first: it lies on the skin, under the rest.
+		if (skin != null) {
+			faces.add(skin);
+		}
+		if (eyes != null) {
+			faces.add(eyes);
+		}
+		if (mouth != null) {
+			faces.add(mouth);
+		}
+		return faces;
+	}
+
 	// ---------------------------------------------------------------- back
 
 	/** Earns the back pieces and charms whose condition is met; all colours of a kind at once. They stay earned in this world. */
@@ -497,22 +616,31 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				trinkets.add(trinket);
 			}
 		}
-		if (pieces.isEmpty() && trinkets.isEmpty()) {
+		List<ToolCharm> tools = new ArrayList<>();
+		for (ToolCharm charm : ToolCharm.values()) {
+			if (!earned(charm) && charm.inSeason() && met(mc, progress, charm.unlock)
+					&& tools.stream().noneMatch(other -> other.style == charm.style)) {
+				tools.add(charm);
+			}
+		}
+		if (pieces.isEmpty() && trinkets.isEmpty() && tools.isEmpty()) {
 			return;
 		}
 		WardrobeConfig.Unlocks unlocks = unlocks();
 		pieces.forEach(piece -> unlocks.backs.add(piece.key()));
 		trinkets.forEach(trinket -> unlocks.trinkets.add(trinket.key()));
+		tools.forEach(charm -> unlocks.toolCharms.add(charm.key()));
 		save();
 		if (config.announce) {
 			Component names = Component.empty();
 			List<Component> titles = new ArrayList<>();
 			pieces.forEach(piece -> titles.add(piece.style.title()));
 			trinkets.forEach(trinket -> titles.add(trinket.style.title()));
+			tools.forEach(charm -> titles.add(charm.style.title()));
 			for (int i = 0; i < titles.size(); i++) {
 				names = names.copy().append(i > 0 ? Component.literal(", ") : Component.empty()).append(titles.get(i));
 			}
-			ItemStack icon = pieces.isEmpty() ? trinkets.getFirst().icon() : pieces.getFirst().icon();
+			ItemStack icon = !pieces.isEmpty() ? pieces.getFirst().icon() : !trinkets.isEmpty() ? trinkets.getFirst().icon() : tools.getFirst().icon();
 			mc.gui.toastManager().addToast(new TrackerToast(icon, Component.translatable("cobblecomfort.wardrobe.earned_back", names),
 					earnedHint("earned_back")));
 		}
@@ -682,6 +810,168 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return look == null ? null : look.neck();
 	}
 
+	// ---------------------------------------------------------------- weapon and tool charms
+
+	/** Whether a tool charm is yours: free, or a variant of its kind earned. */
+	public boolean earned(ToolCharm charm) {
+		List<String> earned = unlocks().toolCharms;
+		return charm.free() || ToolCharm.variants(charm.style).stream().anyMatch(other -> earned.contains(other.key()));
+	}
+
+	/** The charm on your weapons or tools of this kind: the name tag unless another (or none) is chosen. */
+	public ToolCharm toolCharm(ToolKind kind) {
+		String key = config.toolCharms.get(kind.key());
+		if (key == null) {
+			return ToolCharm.NAME_TAG;
+		}
+		ToolCharm charm = ToolCharm.byKey(key);
+		return charm != null && earned(charm) ? charm : null;
+	}
+
+	/** Ties a charm to every weapon or tool of this kind (null: none). */
+	public void wearToolCharm(ToolKind kind, ToolCharm charm) {
+		if (charm != null && !earned(charm)) {
+			return;
+		}
+		config.toolCharms.put(kind.key(), charm == null ? "" : charm.key());
+		save();
+	}
+
+	/** The charm on each kind as you tell other players, or null when not shared (they see the name tag then). */
+	public Map<ToolKind, ToolCharm> sharedToolCharms() {
+		if (!isEnabled() || !config.share) {
+			return null;
+		}
+		Map<ToolKind, ToolCharm> charms = new EnumMap<>(ToolKind.class);
+		for (ToolKind kind : ToolKind.values()) {
+			charms.put(kind, toolCharm(kind));
+		}
+		return charms;
+	}
+
+	/**
+	 * The charm on a weapon or tool of this kind held by {@code holder}: your choice for yours (and for one with no
+	 * holder), a player's as they share it, else the name tag (mobs, players without the mod or who don't share).
+	 */
+	public ToolCharm toolCharmFor(LivingEntity holder, ToolKind kind) {
+		Minecraft mc = Minecraft.getInstance();
+		if (holder == null || holder == mc.player) {
+			return isEnabled() ? toolCharm(kind) : ToolCharm.NAME_TAG;
+		}
+		if (!isEnabled() || !config.showOthers || !(holder instanceof AbstractClientPlayer player)) {
+			return ToolCharm.NAME_TAG;
+		}
+		PlushLook look = PetPlushFeature.INSTANCE.shared(player.getUUID());
+		Map<ToolKind, ToolCharm> charms = look == null ? null : look.toolCharms();
+		return charms == null || !charms.containsKey(kind) ? ToolCharm.NAME_TAG : charms.get(kind);
+	}
+
+	/**
+	 * Where your charms are tied on weapons and tools of this kind, in item pixels ({@link ToolKind#defaultSpot}):
+	 * where you moved them in the charm editor, else the default.
+	 */
+	public Vector3f charmSpot(ToolKind kind, boolean firstPerson) {
+		WardrobeConfig.CharmSpot spot = config.charmSpots.get(kind.key());
+		if (spot == null) {
+			return kind.defaultSpot(firstPerson);
+		}
+		return firstPerson ? new Vector3f(spot.nearX, spot.nearY, spot.nearZ) : new Vector3f(spot.x, spot.y, spot.z);
+	}
+
+	/** Whether charms on this kind are tied somewhere else than by default. */
+	public boolean charmSpotMoved(ToolKind kind) {
+		return config.charmSpots.containsKey(kind.key());
+	}
+
+	/** Moves where charms are tied on this kind (not saved: {@link #save()} once done). */
+	public void moveCharmSpot(ToolKind kind, boolean firstPerson, Vector3fc to) {
+		WardrobeConfig.CharmSpot spot = config.charmSpots.get(kind.key());
+		if (spot == null) {
+			spot = new WardrobeConfig.CharmSpot();
+			Vector3f far = kind.defaultSpot(false);
+			Vector3f near = kind.defaultSpot(true);
+			spot.x = far.x;
+			spot.y = far.y;
+			spot.z = far.z;
+			spot.nearX = near.x;
+			spot.nearY = near.y;
+			spot.nearZ = near.z;
+			config.charmSpots.put(kind.key(), spot);
+		}
+		Vector3f clamped = clampSpot(to);
+		if (firstPerson) {
+			spot.nearX = clamped.x;
+			spot.nearY = clamped.y;
+			spot.nearZ = clamped.z;
+		} else {
+			spot.x = clamped.x;
+			spot.y = clamped.y;
+			spot.z = clamped.z;
+		}
+	}
+
+	/** Ties charms on this kind where they are by default again. */
+	public void resetCharmSpot(ToolKind kind) {
+		config.charmSpots.remove(kind.key());
+		save();
+	}
+
+	/** Within the item, and no further than a few pixels in front of it or behind. */
+	public static Vector3f clampSpot(Vector3fc spot) {
+		return new Vector3f(Mth.clamp(spot.x(), 0f, 16f), Mth.clamp(spot.y(), 0f, 16f), Mth.clamp(spot.z(), -MAX_SPOT_DEPTH, MAX_SPOT_DEPTH));
+	}
+
+	/** Where charms are tied on each kind as you tell other players (third person, only the moved ones), or null. */
+	public Map<ToolKind, Vector3fc> sharedCharmSpots() {
+		if (!isEnabled() || !config.share) {
+			return null;
+		}
+		Map<ToolKind, Vector3fc> spots = new EnumMap<>(ToolKind.class);
+		for (ToolKind kind : ToolKind.values()) {
+			if (charmSpotMoved(kind)) {
+				spots.put(kind, charmSpot(kind, false));
+			}
+		}
+		return spots;
+	}
+
+	/**
+	 * Where a charm is tied on a weapon or tool of this kind held by {@code holder}, in item pixels: yours for yours (and
+	 * for one with no holder), a player's as they share it, else the default.
+	 */
+	public Vector3f charmSpotFor(LivingEntity holder, ToolKind kind, boolean firstPerson) {
+		Minecraft mc = Minecraft.getInstance();
+		if (holder == null || holder == mc.player) {
+			return charmSpot(kind, firstPerson);
+		}
+		if (isEnabled() && config.showOthers && holder instanceof AbstractClientPlayer player) {
+			PlushLook look = PetPlushFeature.INSTANCE.shared(player.getUUID());
+			Map<ToolKind, Vector3fc> spots = look == null ? null : look.charmSpots();
+			Vector3fc spot = spots == null ? null : spots.get(kind);
+			if (spot != null) {
+				return clampSpot(spot);
+			}
+		}
+		return kind.defaultSpot(firstPerson);
+	}
+
+	/** The name charm used to be switched on and off as a whole: switched off, it becomes no charm on any kind. */
+	private void migrateNameCharm() {
+		if (config.toolCharmsMigrated) {
+			return;
+		}
+		config.toolCharmsMigrated = true;
+		NameCharmFeature names = NameCharmFeature.INSTANCE;
+		if (!names.config().enabled) {
+			for (ToolKind kind : ToolKind.values()) {
+				config.toolCharms.putIfAbsent(kind.key(), "");
+			}
+			names.config().enabled = true;
+			names.save();
+		}
+		save();
+	}
+
 	/** How quickly the swinging parts of hats and neck pieces stop. */
 	double damping() {
 		return Mth.lerp(Mth.clamp(config.hatSwing, 0f, 1f), 7.0, 0.6);
@@ -698,13 +988,22 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		outfit.hat = hat == null ? "" : hat.key();
 		Neck neck = neck();
 		outfit.neck = neck == null ? "" : neck.key();
+		Face eyes = face(Face.Place.EYES);
+		outfit.eyes = eyes == null ? "" : eyes.key();
+		Face mouth = face(Face.Place.MOUTH);
+		outfit.mouth = mouth == null ? "" : mouth.key();
+		Face skin = face(Face.Place.SKIN);
+		outfit.skin = skin == null ? "" : skin.key();
 		outfit.back = config.back;
 		outfit.trinket = config.trinket;
 		outfit.totem = config.totem;
 		outfit.bundles = BeltFeature.INSTANCE.config().bundles;
 		outfit.melee = BeltFeature.INSTANCE.config().melee;
 		outfit.ranged = BeltFeature.INSTANCE.config().ranged;
-		outfit.nameCharm = NameCharmFeature.INSTANCE.config().enabled;
+		for (ToolKind kind : ToolKind.values()) {
+			ToolCharm charm = toolCharm(kind);
+			outfit.toolCharms.put(kind.key(), charm == null ? "" : charm.key());
+		}
 		return outfit;
 	}
 
@@ -723,6 +1022,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		config.worn = new ArrayList<>(outfit.badges);
 		config.hat = outfit.hat;
 		config.neck = outfit.neck;
+		config.eyes = outfit.eyes;
+		config.mouth = outfit.mouth;
+		config.skin = outfit.skin;
 		config.back = outfit.back;
 		config.trinket = outfit.trinket;
 		config.totem = outfit.totem;
@@ -731,17 +1033,35 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		BeltFeature.INSTANCE.config().melee = outfit.melee;
 		BeltFeature.INSTANCE.config().ranged = outfit.ranged;
 		BeltFeature.INSTANCE.save();
-		NameCharmFeature.INSTANCE.config().enabled = outfit.nameCharm;
-		NameCharmFeature.INSTANCE.save();
+		// Outfits from before tool charms only knew whether the name charm was on.
+		config.toolCharms = new HashMap<>(outfit.toolCharms);
+		if (outfit.toolCharms.isEmpty() && !outfit.nameCharm) {
+			for (ToolKind kind : ToolKind.values()) {
+				config.toolCharms.put(kind.key(), "");
+			}
+		}
+		save();
 	}
 
 	/** Whether everything an outfit holds is worn right now. */
 	public boolean wearing(WardrobeConfig.Outfit outfit) {
 		WardrobeConfig.Outfit now = capture(outfit.name);
 		return now.badges.equals(outfit.badges) && now.hat.equals(outfit.hat) && now.neck.equals(outfit.neck)
+				&& now.eyes.equals(outfit.eyes) && now.mouth.equals(outfit.mouth) && now.skin.equals(outfit.skin)
 				&& now.back.equals(outfit.back) && now.trinket.equals(outfit.trinket) && now.totem.equals(outfit.totem)
 				&& now.bundles == outfit.bundles && now.melee == outfit.melee
-				&& now.ranged == outfit.ranged && now.nameCharm == outfit.nameCharm;
+				&& now.ranged == outfit.ranged && sameToolCharms(now, outfit);
+	}
+
+	/** Whether two outfits put the same charms on weapons and tools (one from before tool charms by its name charm switch). */
+	private static boolean sameToolCharms(WardrobeConfig.Outfit now, WardrobeConfig.Outfit outfit) {
+		for (ToolKind kind : ToolKind.values()) {
+			String theirs = outfit.toolCharms.getOrDefault(kind.key(), outfit.nameCharm || !outfit.toolCharms.isEmpty() ? ToolCharm.NAME_TAG.key() : "");
+			if (!now.toolCharms.get(kind.key()).equals(theirs)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public KeyMapping key() {

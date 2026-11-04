@@ -5,6 +5,7 @@ import dev.cobblecomfort.core.IrisCompat;
 import dev.cobblecomfort.features.belt.BeltFeature;
 import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.plush.PlushJiggle;
+import dev.cobblecomfort.features.wardrobe.Face;
 import dev.cobblecomfort.features.wardrobe.WardrobeFeature;
 import dev.isxander.yacl3.api.ConfigCategory;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -65,11 +66,15 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 		if (mc.player == null || mc.level == null) {
 			return;
 		}
-		// One look carries everything worn (belt, badges, hat, neck, back, totem), each shared if its feature allows.
+		// One look carries everything worn (belt, badges, hat, neck, back, totem, tool charms, face, where the tool charms
+		// are tied), each shared if its feature allows.
 		sync.tick(new PlushLook(null, null, BeltFeature.INSTANCE.shared(), BeltFeature.INSTANCE.sharedGear(),
 				WardrobeFeature.INSTANCE.shared(), WardrobeFeature.INSTANCE.sharedHat(),
 				WardrobeFeature.INSTANCE.sharedNeck(), WardrobeFeature.INSTANCE.sharedBack(),
-				WardrobeFeature.INSTANCE.sharedTrinket(), WardrobeFeature.INSTANCE.sharedTotem()));
+				WardrobeFeature.INSTANCE.sharedTrinket(), WardrobeFeature.INSTANCE.sharedTotem(),
+				WardrobeFeature.INSTANCE.sharedToolCharms(), WardrobeFeature.INSTANCE.sharedFace(Face.Place.EYES),
+				WardrobeFeature.INSTANCE.sharedFace(Face.Place.MOUTH), WardrobeFeature.INSTANCE.sharedCharmSpots(),
+				WardrobeFeature.INSTANCE.sharedFace(Face.Place.SKIN)));
 	}
 
 	/** Speed lost per second: little with a long swing, a lot with a short one. */

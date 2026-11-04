@@ -16,6 +16,8 @@ import dev.cobblecomfort.features.fullbright.FullbrightFeature;
 import dev.cobblecomfort.features.lightoverlay.LightOverlayFeature;
 import dev.cobblecomfort.features.namecharm.NameCharmFeature;
 import dev.cobblecomfort.features.petplush.PetPlushFeature;
+import dev.cobblecomfort.features.atmosphere.AtmosphereFeature;
+import dev.cobblecomfort.features.footprints.FootprintsFeature;
 import dev.cobblecomfort.features.plantsway.PlantSwayFeature;
 import dev.cobblecomfort.features.belt.BeltFeature;
 import dev.cobblecomfort.features.softdoors.SoftDoorsFeature;
@@ -88,6 +90,8 @@ public class CobbleComfortClient implements ClientModInitializer {
 		FeatureManager.register(BeltFeature.INSTANCE);
 		FeatureManager.register(PlantSwayFeature.INSTANCE);
 		FeatureManager.register(SoftDoorsFeature.INSTANCE);
+		FeatureManager.register(FootprintsFeature.INSTANCE);
+		FeatureManager.register(AtmosphereFeature.INSTANCE);
 		FeatureManager.register(HangingFeature.INSTANCE);
 		FeatureManager.register(StuckArrowsFeature.INSTANCE);
 		FeatureManager.register(WardrobeFeature.INSTANCE);
