@@ -44,6 +44,13 @@ public class WardrobeConfig extends FeatureConfig {
 	public Map<String, CharmSpot> charmSpots = new HashMap<>();
 	/** Whether the name charm switched off before tool charms came is carried over (as no charm on any kind). */
 	public boolean toolCharmsMigrated;
+	/** The companion following you (key of {@link Companion}, "" none), its name, what it wears and in which dye colour. */
+	public String companion = "";
+	public String companionName = "";
+	public String companionAccessory = "none";
+	public int companionColor = 14;
+	/** The companions of other players with the mod (needs the Cobble Comfort Sync plugin on the server). */
+	public boolean showOtherCompanions = true;
 	/** What has been earned, per world (singleplayer) or server (multiplayer); it stays earned there. */
 	public Map<String, Unlocks> unlocks = new HashMap<>();
 	/** How long the swinging parts of hats and neck pieces keep swinging: 0 settles almost at once, 1 for a long time. */
@@ -67,6 +74,7 @@ public class WardrobeConfig extends FeatureConfig {
 		public List<String> totems = new ArrayList<>();
 		public List<String> toolCharms = new ArrayList<>();
 		public List<String> faces = new ArrayList<>();
+		public List<String> companions = new ArrayList<>();
 	}
 
 	/**
@@ -91,6 +99,8 @@ public class WardrobeConfig extends FeatureConfig {
 		public String back = "";
 		public String trinket = "";
 		public String totem = "";
+		/** The companion taken along; null in outfits from before companions (they leave it as it is). */
+		public String companion;
 		public boolean bundles = true;
 		public boolean melee = true;
 		public boolean ranged = true;

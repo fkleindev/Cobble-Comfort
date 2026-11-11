@@ -35,6 +35,11 @@ public final class WardrobeConfigUi {
 						.option(Opts.bool("wardrobe.bell_sound", d.bellSound, () -> c(feature).bellSound, v -> c(feature).bellSound = v))
 						.build())
 				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.wardrobe.companions"))
+						.option(Opts.bool("wardrobe.show_other_companions", d.showOtherCompanions, () -> c(feature).showOtherCompanions,
+								v -> c(feature).showOtherCompanions = v))
+						.build())
+				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.wardrobe.buttons"))
 						.option(Opts.bool("wardrobe.inventory_button", d.inventoryButton, () -> c(feature).inventoryButton, v -> c(feature).inventoryButton = v))
 						.option(Opts.bool("wardrobe.map_button", d.mapButton, () -> c(feature).mapButton, v -> c(feature).mapButton = v))

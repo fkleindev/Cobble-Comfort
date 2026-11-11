@@ -3,10 +3,12 @@ package dev.cobblecomfort.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
+import dev.cobblecomfort.core.ModUserIcon;
 import dev.cobblecomfort.features.toasts.ToastsFeature;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.PlayerTabOverlay;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.Scoreboard;
@@ -18,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
 
@@ -65,6 +68,12 @@ public abstract class PlayerTabOverlayMixin {
 			int color, Operation<Void> original, @Local(index = 27) PlayerInfo info) {
 		ToastsFeature.INSTANCE.drawHeadFrame(g, x, y, size, info);
 		original.call(g, skin, x, y, size, hat, upsideDown, color);
+	}
+
+	/** Players with the mod get the Cobble Comfort icon in front of their name (the column width counts it in). */
+	@Inject(method = "getNameForDisplay", at = @At("RETURN"), cancellable = true)
+	private void cobblecomfort$modUserIcon(PlayerInfo info, CallbackInfoReturnable<Component> cir) {
+		cir.setReturnValue(ModUserIcon.decorate(info.getProfile().id(), cir.getReturnValue()));
 	}
 
 	@Inject(method = "extractPingIcon", at = @At("HEAD"), cancellable = true)

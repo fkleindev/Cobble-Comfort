@@ -7,6 +7,7 @@
 		"AbstractContainerScreenMixin",
 		"ItemModelResolverMixin",
 		"PunchyArmRendererMixin",
+		"AvatarNameTagMixin",
 		"ItemStackRenderStateAccessor",
 		"LayerRenderStateAccessor",
 		"SectionCompilerMixin",

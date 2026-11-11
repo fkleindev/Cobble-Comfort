@@ -28,6 +28,14 @@ public final class AtmosphereConfigUi {
 								() -> c(feature).fireflyCount, v -> c(feature).fireflyCount = v))
 						.option(Opts.bool("atmosphere.snow_cover", d.snowCover, () -> c(feature).snowCover, v -> c(feature).snowCover = v))
 						.build())
+				.group(OptionGroup.createBuilder()
+						.name(Component.translatable("cobblecomfort.group.atmosphere.birds"))
+						.option(Opts.bool("atmosphere.birds", d.birds, () -> c(feature).birds, v -> c(feature).birds = v))
+						.option(Opts.intSlider("atmosphere.bird_amount", d.birdAmount, 25, 300, 25,
+								() -> c(feature).birdAmount, v -> c(feature).birdAmount = v))
+						.option(Opts.bool("atmosphere.bird_sounds", d.birdSounds, () -> c(feature).birdSounds, v -> c(feature).birdSounds = v))
+						.option(Opts.bool("atmosphere.birds_at_night", d.birdsAtNight, () -> c(feature).birdsAtNight, v -> c(feature).birdsAtNight = v))
+						.build())
 				.build();
 	}
 

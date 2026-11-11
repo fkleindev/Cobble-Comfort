@@ -53,6 +53,7 @@ public final class CobbleConfigScreen {
 						.name(Component.translatable("cobblecomfort.category.general"))
 						.option(Opts.bool("general.enabled", true, () -> general.enabled, v -> general.enabled = v))
 						.option(Opts.bool("general.update_check", true, () -> general.updateCheck, v -> general.updateCheck = v))
+						.option(Opts.bool("general.mod_user_icon", true, () -> general.modUserIcon, v -> general.modUserIcon = v))
 						.build(),
 				() -> general.enabled));
 		return new SettingsScreen(parent, Component.translatable("cobblecomfort.config.title"), sections, FeatureManager::saveAll);

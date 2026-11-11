@@ -9,9 +9,12 @@ other players show up on the minimap and map even beyond render distance and in 
 - Shared: name, world, position, facing, and (unless disabled) health and armour.
 - Also passes on the pet plushes each player with the mod wears on their back (charm and backpack) and what
   hangs on their belt (bundles, weapons, arrow count), the badges pinned to their chest, the hat on their
-  head, what they wear round the neck and carry on their back, to everyone who has the mod; this needs no opt-in, it
-  is only a cosmetic.
+  head, what they wear round the neck and carry on their back, and the little companion following them, to everyone
+  who has the mod; this needs no opt-in, it is only a cosmetic.
   The plugin passes the looks on unread.
+- The same list tells the mod who else has it, so those players get the Cobble Comfort icon in front of their name
+  in chat, the player list and their name tag. With `share-plushes: false` the list stays empty and only the own
+  name gets the icon.
 
 ## Install
 

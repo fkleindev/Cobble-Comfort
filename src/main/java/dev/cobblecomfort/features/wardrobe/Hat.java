@@ -293,7 +293,7 @@ public enum Hat {
 
 	/** The wardrobe's groups of hats. Seasonal ones can only be earned in their months, then worn all year. */
 	public enum Group {
-		ALL_YEAR(0, 0), SEASON(10, 11), WINTER(12, 1), CARNIVAL(2, 2);
+		ALL_YEAR(0, 0), SEASON(10, 11), WINTER(12, 1), CARNIVAL(2, 2), EASTER(4, 4);
 
 		private final int firstMonth;
 		private final int lastMonth;

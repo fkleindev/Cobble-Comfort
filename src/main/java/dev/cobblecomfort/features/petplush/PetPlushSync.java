@@ -10,8 +10,10 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -42,7 +44,7 @@ public final class PetPlushSync {
 	}
 
 	/** Server to client: the looks of all players with the mod, replacing the previous list. */
-	public record PlushesPayload(boolean known, Map<UUID, PlushLook> looks) implements CustomPacketPayload {
+	public record PlushesPayload(boolean known, Set<UUID> players, Map<UUID, PlushLook> looks) implements CustomPacketPayload {
 		public static final Type<PlushesPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("cobblecomfort", "plushes"));
 		public static final StreamCodec<FriendlyByteBuf, PlushesPayload> CODEC = StreamCodec.of((buf, payload) -> {
 			buf.writeVarInt(VERSION);
@@ -58,12 +60,14 @@ public final class PetPlushSync {
 		}, buf -> {
 			if (buf.readVarInt() != VERSION) {
 				buf.skipBytes(buf.readableBytes());
-				return new PlushesPayload(false, Map.of());
+				return new PlushesPayload(false, Set.of(), Map.of());
 			}
 			int count = buf.readVarInt();
+			Set<UUID> players = new HashSet<>();
 			Map<UUID, PlushLook> looks = new HashMap<>();
 			for (int i = 0; i < count; i++) {
 				UUID uuid = buf.readUUID();
+				players.add(uuid);
 				byte[] bytes = buf.readByteArray(MAX_LOOK_BYTES);
 				try {
 					looks.put(uuid, PlushLook.read(new FriendlyByteBuf(Unpooled.wrappedBuffer(bytes))));
@@ -71,7 +75,7 @@ public final class PetPlushSync {
 					// A look from a newer mod version this one can't read: skip that player.
 				}
 			}
-			return new PlushesPayload(true, looks);
+			return new PlushesPayload(true, players, looks);
 		});
 
 		@Override
@@ -81,6 +85,8 @@ public final class PetPlushSync {
 	}
 
 	private final Map<UUID, PlushLook> looks = new HashMap<>();
+	/** Everyone the server listed, i.e. every player with the mod on (also those whose look this version can't read). */
+	private final Set<UUID> players = new HashSet<>();
 	/** What the server was last told; {@code sentAny} is false until the first message on this connection. */
 	private PlushLook sent;
 	private boolean sentAny;
@@ -92,6 +98,8 @@ public final class PetPlushSync {
 			if (payload.known()) {
 				looks.clear();
 				looks.putAll(payload.looks());
+				players.clear();
+				players.addAll(payload.players());
 			}
 		});
 	}
@@ -111,8 +119,14 @@ public final class PetPlushSync {
 
 	public void clear() {
 		looks.clear();
+		players.clear();
 		sent = null;
 		sentAny = false;
+	}
+
+	/** Whether the server listed this player as one with the mod on. */
+	public boolean hasMod(UUID player) {
+		return players.contains(player);
 	}
 
 	/** The look another player shared, or null. */

@@ -20,6 +20,16 @@ public class AtmosphereConfig extends FeatureConfig {
 	/** How many fireflies at most around you. */
 	public int fireflyCount = 24;
 
+	// Birds
+	/** Birds flying over now and then, the kind depending on the biome. */
+	public boolean birds = true;
+	/** How often flocks come by, in percent. */
+	public int birdAmount = 100;
+	/** Their quiet calls. */
+	public boolean birdSounds = true;
+	/** Owls and bats at night. */
+	public boolean birdsAtNight = true;
+
 	// Snow
 	/** Snow settles on the head and shoulders of players standing in snowfall, and falls off when they jump. */
 	public boolean snowCover = true;

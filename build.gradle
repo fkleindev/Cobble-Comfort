@@ -27,8 +27,8 @@ dependencies {
 	// Mod Menu is optional at runtime: compile against it, run with it in dev.
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	localRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
-	// Another mod jar to run along with, e.g. to check Punchy in the game tests: -Pextra_runtime_mod=<jar>.
-	if (findProperty("extra_runtime_mod")) localRuntime files(findProperty("extra_runtime_mod"))
+	// Other mod jars to run along with, e.g. to check Punchy or Iris in the game tests: -Pextra_runtime_mod=<jar>[;<jar>...].
+	if (findProperty("extra_runtime_mod")) localRuntime files(findProperty("extra_runtime_mod").split(";"))
 }
 
 // Client game tests live in src/gametest and run with `./gradlew runClientGameTest`.
@@ -134,4 +134,11 @@ if (devProfileModsDirs) {
 		installDevJar.configure { dependsOn copyJar }
 	}
 	tasks.named("build") { finalizedBy installDevJar }
+}
+
+// A shader pack for the game tests' screenshots (needs Iris and Sodium as extra_runtime_mod): -Ptest_shaderpack=<zip>.
+if (findProperty("test_shaderpack")) {
+	loom.runs.matching { it.name == "clientGameTest" }.configureEach {
+		property "cobblecomfort.test.shaderpack", file(findProperty("test_shaderpack")).absolutePath
+	}
 }

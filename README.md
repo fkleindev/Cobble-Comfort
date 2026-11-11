@@ -166,6 +166,8 @@ There is also a key for the HUD editor.
   switched off.
 - The player list fades in, shows the ping as a coloured number, lets players glide to their new place and fade in when
   they join, and frames heads in their team colour.
+- Players who have the mod get the Cobble Comfort icon in front of their name in chat, the player list and their name
+  tag (others are recognised on servers with the Cobble Comfort Sync plugin).
 
 ### Crosshair and transitions
 - **Hit marker:** short strokes around the crosshair when an attack lands, yellow for critical hits and red and larger
@@ -251,6 +253,17 @@ There is also a key for the HUD editor.
   feathers, a fish lure, a little bell or a glow berry, most in several colours. They swing like the name charm. A 3D
   editor lets you tie each kind's charm wherever you like on the item: click to place it, drag to turn the item,
   separately for first person.
+- **Companion:** a wardrobe tab for a little voxel companion that follows you everywhere: a mushroomling, a cloud
+  sheep, a mini dragon, an owl, a mini golem, a red panda, a sea turtle, a kitten in a box and a shadow wolf, each in
+  several variants, plus a pumpkin imp in October and November, a little snowman in December and January and an Easter
+  bunny in April. It walks, hops, floats or flies, follows you up stairs, swims, rides along, sits down when you stand
+  still and falls asleep after a while. Each has its own things to do: the red panda rears up, nibbles bamboo and
+  washes its face; the turtle hides in its shell, munches a berry and yawns; the kitten ducks into its box, peeks out
+  and hops out to stretch; the shadow wolf howls, bows down to play and steps through the shadows to your other side,
+  and fades into the dark at night with glowing eyes and marks. Sneak up and look at it to pet it. Give it a name, a
+  bow, collar, flower or crown. When two players with companions stand together, the companions walk up to each other,
+  sniff, hop with hearts and sometimes play tag. It is only drawn: never in the way, and blocks can still be placed
+  where it stands. Other players with the mod see it through the server plugin.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
   Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
   hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace
@@ -275,7 +288,10 @@ There is also a key for the HUD editor.
 - **Atmosphere:** small clouds of breath in the cold (snowy biomes, high mountains), from players, animals and
   villagers but not the undead; rings and splashes where someone wades through shallow water; fireflies blinking over
   swamps, meadows, flower forests and cherry groves on clear nights, darting away from players; and snow settling on
-  players' heads and shoulders in snowfall, which they shake off by jumping and which melts under a roof.
+  players' heads and shoulders in snowfall, which they shake off by jumping and which melts under a roof. Birds fly
+  over now and then, suited to the biome: gulls over the sea, geese in a V, ducks and herons over swamps, songbirds over
+  forests, parrots in the jungle, ravens over the taiga, eagles and vultures circling over mountains and dry land; at
+  night owls and bats. Little voxel models that work with shaders, with quiet calls; how often is adjustable.
 - **Light overlay (F7):** red crosses on blocks where monsters can spawn at any time, yellow ones where they can only
   spawn at night, following the real spawn rules (no crosses on glass, slabs, carpets or in mushroom fields) and the
   light limits of each dimension. Optionally the block light as a number. Crosses fade out as you light up an area. The
@@ -295,7 +311,7 @@ other dimensions.
 - Shared are the name, world, position, facing and, unless switched off, health and armour.
 - It also shares the **pet plushes** each player with the mod wears on their back (charm and backpack: pet type,
   variant and collar colour), **what hangs on their belt** (bundle colours and fullness, weapons and arrow count) and
-  **what they chose in the wardrobe** (badges, hat, face, neck and back pieces, the charms on their
+  **what they chose in the wardrobe** (badges, hat, face, neck and back pieces, their companion, the charms on their
   weapons and tools, and how their totems look), so everyone with the mod sees them. The plugin only passes these on,
   so new cosmetics need no plugin update.
 

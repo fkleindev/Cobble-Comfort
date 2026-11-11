@@ -74,7 +74,7 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 				WardrobeFeature.INSTANCE.sharedTrinket(), WardrobeFeature.INSTANCE.sharedTotem(),
 				WardrobeFeature.INSTANCE.sharedToolCharms(), WardrobeFeature.INSTANCE.sharedFace(Face.Place.EYES),
 				WardrobeFeature.INSTANCE.sharedFace(Face.Place.MOUTH), WardrobeFeature.INSTANCE.sharedCharmSpots(),
-				WardrobeFeature.INSTANCE.sharedFace(Face.Place.SKIN)));
+				WardrobeFeature.INSTANCE.sharedFace(Face.Place.SKIN), WardrobeFeature.INSTANCE.sharedCompanion()));
 	}
 
 	/** Speed lost per second: little with a long swing, a lot with a short one. */
@@ -119,6 +119,11 @@ public final class PetPlushFeature extends Feature<PetPlushConfig> {
 	/** What another player shared through the server plugin (plushes and belt bundles), or null. */
 	public PlushLook shared(UUID player) {
 		return sync.get(player);
+	}
+
+	/** Whether the Sync plugin listed this player as one with the mod on (needs the plugin; empty without it). */
+	public boolean hasMod(UUID player) {
+		return sync.hasMod(player);
 	}
 
 	/** The pet plushes a player on an older version shares, or null (our own come from the wardrobe). */

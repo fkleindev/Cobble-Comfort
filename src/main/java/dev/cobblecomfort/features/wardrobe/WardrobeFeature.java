@@ -18,6 +18,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.advancements.AdvancementHolder;
@@ -73,6 +74,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	private KeyMapping key;
 	private int ticks;
+	private final Companions companions = new Companions();
 	/** The world or server played in, whose unlocks count; null outside one. */
 	private String worldKey;
 
@@ -86,6 +88,12 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				CobbleComfortClient.keyCategory()));
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
 		PictureInPictureRendererRegistry.register(context -> new CharmSceneRenderer());
+		LevelRenderEvents.COLLECT_SUBMITS.register(context -> {
+			Minecraft mc = Minecraft.getInstance();
+			if (isEnabled()) {
+				companions.render(context, mc, mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
+			}
+		});
 		ScreenEvents.AFTER_INIT.register((mc, screen, width, height) -> {
 			if (screen instanceof InventoryScreen inventory && isEnabled() && config.inventoryButton) {
 				addInventoryButton(inventory);
@@ -98,6 +106,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 			FaceLayer.forget();
 			NeckLayer.forget();
 			BackLayer.forget();
+			companions.clear();
 		});
 		LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 			if (renderer instanceof AvatarRenderer<?> avatar) {
@@ -108,6 +117,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 				helper.register(new FaceLayer(parent));
 				helper.register(new NeckLayer(parent));
 				helper.register(new BackLayer(parent));
+				helper.register(new CompanionLayer(parent));
 			}
 		});
 	}
@@ -132,6 +142,11 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		}
 		if (mc.player != null && ++ticks % EARN_CHECK_TICKS == 0) {
 			checkEarned(mc);
+		}
+		if (mc.level != null && !mc.isPaused()) {
+			companions.tick(mc, mc.level, this);
+		} else if (mc.level == null) {
+			companions.clear();
 		}
 		if (mc.player != null && mc.level != null && (config.petals || config.bellSound)) {
 			HatPetals.tick(mc, config.petals, config.bellSound);
@@ -173,6 +188,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		checkFaces(mc, progress);
 		checkBack(mc, progress);
 		checkTotems(mc, progress);
+		checkCompanions(mc, progress);
 		List<Badge> fresh = new ArrayList<>();
 		for (Map.Entry<AdvancementHolder, AdvancementProgress> entry : progress.entrySet()) {
 			if (!entry.getValue().isDone()) {
@@ -997,6 +1013,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		outfit.back = config.back;
 		outfit.trinket = config.trinket;
 		outfit.totem = config.totem;
+		outfit.companion = config.companion;
 		outfit.bundles = BeltFeature.INSTANCE.config().bundles;
 		outfit.melee = BeltFeature.INSTANCE.config().melee;
 		outfit.ranged = BeltFeature.INSTANCE.config().ranged;
@@ -1028,6 +1045,9 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		config.back = outfit.back;
 		config.trinket = outfit.trinket;
 		config.totem = outfit.totem;
+		if (outfit.companion != null) {
+			config.companion = outfit.companion;
+		}
 		save();
 		BeltFeature.INSTANCE.config().bundles = outfit.bundles;
 		BeltFeature.INSTANCE.config().melee = outfit.melee;
@@ -1049,6 +1069,7 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return now.badges.equals(outfit.badges) && now.hat.equals(outfit.hat) && now.neck.equals(outfit.neck)
 				&& now.eyes.equals(outfit.eyes) && now.mouth.equals(outfit.mouth) && now.skin.equals(outfit.skin)
 				&& now.back.equals(outfit.back) && now.trinket.equals(outfit.trinket) && now.totem.equals(outfit.totem)
+				&& (outfit.companion == null || outfit.companion.equals(now.companion))
 				&& now.bundles == outfit.bundles && now.melee == outfit.melee
 				&& now.ranged == outfit.ranged && sameToolCharms(now, outfit);
 	}
@@ -1066,5 +1087,136 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 
 	public KeyMapping key() {
 		return key;
+	}
+
+	// ---------------------------------------------------------------- companions
+
+	/** Earns the seasonal companions in their months (the others are yours from the start); all variants of a kind at once. */
+	private void checkCompanions(Minecraft mc, Map<AdvancementHolder, AdvancementProgress> progress) {
+		List<Companion> fresh = new ArrayList<>();
+		for (Companion companion : Companion.values()) {
+			if (!earned(companion) && companion.inSeason() && met(mc, progress, companion.unlock())
+					&& fresh.stream().noneMatch(other -> other.style == companion.style)) {
+				fresh.add(companion);
+			}
+		}
+		if (fresh.isEmpty()) {
+			return;
+		}
+		WardrobeConfig.Unlocks unlocks = unlocks();
+		fresh.forEach(companion -> unlocks.companions.add(companion.key()));
+		save();
+		if (config.announce) {
+			Component names = Component.empty();
+			for (int i = 0; i < fresh.size(); i++) {
+				names = names.copy().append(i > 0 ? Component.literal(", ") : Component.empty()).append(fresh.get(i).style.title());
+			}
+			mc.gui.toastManager().addToast(new TrackerToast(fresh.getFirst().icon(),
+					Component.translatable("cobblecomfort.wardrobe.earned_companion", names), earnedHint("earned_companion")));
+		}
+	}
+
+	/** Whether a companion is yours: free, or a variant of its kind earned. */
+	public boolean earned(Companion companion) {
+		List<String> earned = unlocks().companions;
+		return companion.free() || Companion.variants(companion.style).stream().anyMatch(other -> earned.contains(other.key()));
+	}
+
+	/** Your companion, or null. */
+	public Companion companion() {
+		Companion companion = Companion.byKey(config.companion);
+		return companion != null && earned(companion) ? companion : null;
+	}
+
+	/** Takes a companion along (null: none). */
+	public void wearCompanion(Companion companion) {
+		if (companion != null && !earned(companion)) {
+			return;
+		}
+		config.companion = companion == null ? "" : companion.key();
+		save();
+	}
+
+	public String companionName() {
+		return Companion.cleanName(config.companionName);
+	}
+
+	public void nameCompanion(String name) {
+		config.companionName = Companion.cleanName(name);
+		save();
+	}
+
+	public Companion.Accessory companionAccessory() {
+		return Companion.Accessory.byKey(config.companionAccessory);
+	}
+
+	public void dressCompanion(Companion.Accessory accessory) {
+		config.companionAccessory = accessory.name().toLowerCase(java.util.Locale.ROOT);
+		save();
+	}
+
+	public int companionColor() {
+		return Mth.clamp(config.companionColor, 0, 15);
+	}
+
+	public void colorCompanion(int color) {
+		config.companionColor = Mth.clamp(color, 0, 15);
+		save();
+	}
+
+	/** How your companion looks, or null for none. */
+	public Companion.Look companionLook() {
+		Companion companion = companion();
+		return companion == null ? null : new Companion.Look(companion, companionName(), companionAccessory(), companionColor());
+	}
+
+	/** What you tell other players about your companion. */
+	public Companion.Look sharedCompanion() {
+		return isEnabled() && config.share ? companionLook() : null;
+	}
+
+	/** The companion following this player, or null. */
+	Companion.Look companionFor(AbstractClientPlayer player) {
+		if (!isEnabled()) {
+			return null;
+		}
+		if (player == Minecraft.getInstance().player) {
+			return config.showOwn ? companionLook() : null;
+		}
+		PlushLook look = config.showOthers && config.showOtherCompanions ? PetPlushFeature.INSTANCE.shared(player.getUUID()) : null;
+		return look == null ? null : look.companion();
+	}
+
+	/** Earns every companion in this world, seasonal ones too (tests). */
+	public void unlockAllCompanions() {
+		for (Companion companion : Companion.values()) {
+			if (!unlocks().companions.contains(companion.key())) {
+				unlocks().companions.add(companion.key());
+			}
+		}
+	}
+
+	/** How many companions are meeting each other right now (tests). */
+	public int companionMeetings() {
+		return companions.meetingCount();
+	}
+
+	/** How many companions are about (tests). */
+	public int companionCount() {
+		return companions.count();
+	}
+
+	/** Where your own companion is, or null (tests). */
+	public net.minecraft.world.phys.Vec3 companionPosition() {
+		Minecraft mc = Minecraft.getInstance();
+		Companions.State state = mc.player == null ? null : companions.state(mc.player.getUUID());
+		return state == null || state.hidden ? null : new net.minecraft.world.phys.Vec3(state.x, state.y, state.z);
+	}
+
+	/** What your companion is doing by itself now and how dark it is around it, e.g. "7 0.73" (tests). */
+	public String companionAction() {
+		Minecraft mc = Minecraft.getInstance();
+		Companions.State state = mc.player == null ? null : companions.state(mc.player.getUUID());
+		return state == null ? "none" : state.action + " " + String.format(java.util.Locale.ROOT, "%.2f", state.shade);
 	}
 }

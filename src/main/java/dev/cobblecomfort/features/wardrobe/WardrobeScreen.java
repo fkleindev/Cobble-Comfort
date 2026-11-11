@@ -74,7 +74,7 @@ public final class WardrobeScreen extends Screen {
 	public static final RenderStateDataKey<Boolean> TILE = RenderStateDataKey.create(() -> "cobblecomfort:wardrobe_tile");
 
 	enum Tab {
-		BADGES, HATS, FACE, NECK, BACK, TOTEM, TOOLS, BELT, OUTFITS
+		BADGES, HATS, FACE, NECK, BACK, TOTEM, TOOLS, BELT, COMPANION, OUTFITS
 	}
 
 	/** Something clickable drawn this frame: its box, what a click does, and its tooltip (may be empty). */
@@ -104,6 +104,7 @@ public final class WardrobeScreen extends Screen {
 	private int maxScroll;
 	private EditBox name;
 	private FlatButton saveButton;
+	private EditBox companionName;
 	/** Where the mouse is this frame. */
 	private int hoverX;
 	private int hoverY;
@@ -169,6 +170,15 @@ public final class WardrobeScreen extends Screen {
 		addRenderableWidget(name);
 		saveButton = addRenderableWidget(new FlatButton(bodyRight() - 78, bodyBottom() - 20, 78, 18,
 				Component.translatable("cobblecomfort.wardrobe.save_outfit"), MapUi.ACCENT, this::saveOutfit));
+		companionName = new EditBox(font, bodyLeft() + 6, bodyBottom() - 15, bodyRight() - bodyLeft() - 12, 10,
+				Component.translatable("cobblecomfort.wardrobe.companion_name"));
+		companionName.setBordered(false);
+		companionName.setTextColor(MapUi.TEXT);
+		companionName.setHint(Component.translatable("cobblecomfort.wardrobe.companion_name").withColor(MapUi.TEXT_FAINT));
+		companionName.setMaxLength(Companion.MAX_NAME);
+		companionName.setValue(feature().companionName());
+		companionName.setResponder(typed -> feature().nameCompanion(typed));
+		addRenderableWidget(companionName);
 		updateWidgets();
 	}
 
@@ -186,6 +196,7 @@ public final class WardrobeScreen extends Screen {
 			case TOTEM -> Items.TOTEM_OF_UNDYING;
 			case TOOLS -> Items.IRON_SWORD;
 			case BELT -> Items.BUNDLE;
+			case COMPANION -> Items.LEAD;
 			case OUTFITS -> Items.ARMOR_STAND;
 		});
 	}
@@ -196,6 +207,12 @@ public final class WardrobeScreen extends Screen {
 		name.active = outfits;
 		saveButton.visible = outfits;
 		if (!outfits && getFocused() == name) {
+			setFocused(null);
+		}
+		boolean companion = tab == Tab.COMPANION;
+		companionName.visible = companion;
+		companionName.active = companion;
+		if (!companion && getFocused() == companionName) {
 			setFocused(null);
 		}
 	}
@@ -218,7 +235,7 @@ public final class WardrobeScreen extends Screen {
 
 	/** The bottom of the scrolling list: above the name field on the outfits tab. */
 	private int visibleBottom() {
-		return tab == Tab.OUTFITS ? bodyBottom() - 26 : bodyBottom();
+		return tab == Tab.OUTFITS || tab == Tab.COMPANION ? bodyBottom() - 26 : bodyBottom();
 	}
 
 	// ---------------------------------------------------------------- drawing
@@ -253,6 +270,7 @@ public final class WardrobeScreen extends Screen {
 				case TOTEM -> drawTotems(g);
 				case TOOLS -> drawTools(g);
 				case BELT -> drawBelt(g);
+				case COMPANION -> drawCompanions(g);
 				case OUTFITS -> drawOutfits(g);
 			}
 		} finally {
@@ -262,6 +280,9 @@ public final class WardrobeScreen extends Screen {
 		if (tab == Tab.OUTFITS) {
 			MapUi.field(g, bodyLeft(), bodyBottom() - 20, bodyRight() - 84, bodyBottom() - 2, name.isFocused());
 			saveButton.active = !name.getValue().isBlank();
+		}
+		if (tab == Tab.COMPANION) {
+			MapUi.field(g, bodyLeft(), bodyBottom() - 20, bodyRight(), bodyBottom() - 2, companionName.isFocused());
 		}
 		super.extractRenderState(g, mouseX, mouseY, delta);
 		for (Hit hit : hits) {
@@ -280,6 +301,10 @@ public final class WardrobeScreen extends Screen {
 		RenderUtil.roundedFill(g, x0, y0, x1, y1, 4, 0x30000000);
 		EntityRenderState state = figure(spin);
 		if (state != null) {
+			Companion.Look companion = feature().companionLook();
+			if (companion != null) {
+				state.setData(CompanionLayer.BESIDE, companion);
+			}
 			figure(g, state, (y1 - y0) * 0.38f, state.boundingBoxHeight / 2f + 0.0625f, 8f, x0, y0, x1, y1);
 		}
 		MapUi.centeredText(g, font, Component.translatable("cobblecomfort.wardrobe.drag"), (x0 + x1) / 2f, bodyBottom() - 4, MapUi.TEXT_FAINT, 0.75f);
@@ -980,6 +1005,77 @@ public final class WardrobeScreen extends Screen {
 				x0, y);
 		y = charms ? kinds(g, trinketSlot(), x0, y) : kinds(g, backSlot(), x0, y);
 		contentBottom = y + scroll - bodyTop();
+	}
+
+	// ---- companions
+
+	private Slot<Companion.Style, Companion> companionSlot() {
+		WardrobeFeature f = feature();
+		return new Slot<>(Companion.Style.values(), s -> s.group, Companion.Style::title, Companion::variants, c -> c.style,
+				Companion::title, Companion::unlock, f::earned, f::companion, f::wearCompanion, c -> c.main, this::companionPreview,
+				"cobblecomfort.wardrobe.companion_on", "cobblecomfort.wardrobe.companion_off");
+	}
+
+	/** The companions, then what yours wears (and in which colour); its name in the field at the bottom. */
+	private void drawCompanions(GuiGraphicsExtractor g) {
+		WardrobeFeature f = feature();
+		int x0 = bodyLeft();
+		int y = hint(g, Component.translatable("cobblecomfort.wardrobe.companion_hint"), x0, bodyTop() + 2 - scroll);
+		y = kinds(g, companionSlot(), x0, y);
+		g.text(font, Component.translatable("cobblecomfort.wardrobe.companion_accessory"), x0, y, MapUi.TEXT, false);
+		y += 12;
+		int x = x0;
+		for (Companion.Accessory accessory : Companion.Accessory.values()) {
+			int w = font.width(accessory.title()) + 14;
+			if (x + w > bodyRight()) {
+				x = x0;
+				y += 20;
+			}
+			chip(g, accessory.title(), f.companionAccessory() == accessory, x, y, w, () -> f.dressCompanion(accessory),
+					Component.translatable("cobblecomfort.wardrobe.companion_accessory_hint"));
+			x += w + 4;
+		}
+		y += 22;
+		if (f.companionAccessory().dyed()) {
+			x = x0;
+			for (int color = 0; color < 16; color++) {
+				int id = color;
+				int x1 = x + 12;
+				boolean on = f.companionColor() == id;
+				g.fill(x, y, x1, y + 12, on ? MapUi.TEXT : 0xC0101014);
+				g.fill(x + 1, y + 1, x1 - 1, y + 11, CompanionModel.dye(id));
+				hits.add(new Hit(x, y, x1, y + 12, () -> f.colorCompanion(id),
+						List.of(Component.translatable("color.minecraft." + net.minecraft.world.item.DyeColor.byId(id).getName()))));
+				x += 14;
+				if (x + 12 > bodyRight()) {
+					x = x0;
+					y += 14;
+				}
+			}
+			y += 18;
+		}
+		contentBottom = y + scroll - bodyTop();
+	}
+
+	/** A companion alone on a tile, three-quarter on; the one under the mouse turns. */
+	private void companionPreview(GuiGraphicsExtractor g, Companion companion, int cx, int cy, int cx1, int cy1) {
+		WardrobeFeature f = feature();
+		Companion.Look look = new Companion.Look(companion, "", companion == f.companion() ? f.companionAccessory() : Companion.Accessory.NONE,
+				f.companionColor());
+		companionPreview(g, look, cx, cy, cx1, cy1, tileFigure(cx, cy, cx1, cy1, 30f));
+	}
+
+	static void companionPreview(GuiGraphicsExtractor g, Companion.Look look, int cx, int cy, int cx1, int cy1, EntityRenderState state) {
+		if (state instanceof AvatarRenderState avatar) {
+			avatar.setData(CompanionLayer.ALONE, look);
+			// Only the companion: the figure itself stays out of sight.
+			avatar.isInvisible = true;
+			avatar.isInvisibleToPlayer = true;
+			avatar.headEquipment = ItemStack.EMPTY;
+			float height = CompanionModel.height(look.companion().style);
+			// Seen a little from above, as companions are in the world.
+			figure(g, avatar, (cy1 - cy - 4) / (height + 0.3f), height / 2f + 0.02f, -18f, cx + 1, cy + 1, cx1 - 1, cy1 - 1);
+		}
 	}
 
 	/** A small pill button that lights up while on. */

@@ -4,6 +4,7 @@ import dev.cobblecomfort.features.belt.BeltBundle;
 import dev.cobblecomfort.features.belt.BeltGear;
 import dev.cobblecomfort.features.wardrobe.Badge;
 import dev.cobblecomfort.features.wardrobe.BackPiece;
+import dev.cobblecomfort.features.wardrobe.Companion;
 import dev.cobblecomfort.features.wardrobe.Face;
 import dev.cobblecomfort.features.wardrobe.Hat;
 import dev.cobblecomfort.features.wardrobe.Neck;
@@ -29,13 +30,13 @@ import java.util.Map;
  */
 public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles, BeltGear gear, List<Badge> badges, Hat hat,
 		Neck neck, BackPiece back, Trinket trinket, TotemSkin totem, Map<ToolKind, ToolCharm> toolCharms, Face eyes, Face mouth,
-		Map<ToolKind, Vector3fc> charmSpots, Face skin) {
+		Map<ToolKind, Vector3fc> charmSpots, Face skin, Companion.Look companion) {
 	/** Charm spots are shared in quarters of an item pixel. */
 	private static final float SPOT_STEPS = 4f;
-	public static final PlushLook NONE = new PlushLook(null, null, List.of(), BeltGear.NONE, List.of(), null, null, null, null, null, null, null, null, null, null);
+	public static final PlushLook NONE = new PlushLook(null, null, List.of(), BeltGear.NONE, List.of(), null, null, null, null, null, null, null, null, null, null, null);
 
 	public PlushLook(PetPlush charm, PetPlush pack) {
-		this(charm, pack, List.of(), BeltGear.NONE, List.of(), null, null, null, null, null, null, null, null, null, null);
+		this(charm, pack, List.of(), BeltGear.NONE, List.of(), null, null, null, null, null, null, null, null, null, null, null);
 	}
 
 	public boolean hasPets() {
@@ -51,7 +52,8 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 	 * each the kind ({@link ToolKind} order) and the charm's id + 1 (0: none, {@link ToolCharm} order); then what is worn over the eyes and on the nose
 	 * and mouth, each its id + 1 (0: none, {@link Face} order); then the number of kinds whose charms are tied somewhere
 	 * else than by default and for each the kind and where, in quarters of an item pixel across, up (unsigned bytes) and
-	 * towards the front (a signed byte); then the paint on the skin of the face, its id + 1 (0: none).
+	 * towards the front (a signed byte); then the paint on the skin of the face, its id + 1 (0: none); then the companion,
+	 * its id + 1 (0: none), and if one its name, what it wears ({@link Companion.Accessory} order) and the dye colour id.
 	 */
 	public void write(FriendlyByteBuf buf) {
 		write(buf, charm);
@@ -91,6 +93,12 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 			}
 		}
 		buf.writeVarInt(skin == null ? 0 : skin.ordinal() + 1);
+		buf.writeVarInt(companion == null ? 0 : companion.companion().ordinal() + 1);
+		if (companion != null) {
+			buf.writeUtf(companion.name(), Companion.MAX_NAME * 4);
+			buf.writeVarInt(companion.accessory().ordinal());
+			buf.writeVarInt(companion.color());
+		}
 	}
 
 	public static PlushLook read(FriendlyByteBuf buf) {
@@ -143,8 +151,21 @@ public record PlushLook(PetPlush charm, PetPlush pack, List<BeltBundle> bundles,
 			}
 		}
 		Face skin = buf.isReadable() ? Face.byId(buf.readVarInt() - 1) : null;
+		Companion.Look companion = null;
+		int companionId = buf.isReadable() ? buf.readVarInt() : 0;
+		if (companionId > 0) {
+			// A kind this version does not know yet: none.
+			Companion kind = Companion.byId(companionId - 1);
+			String name = buf.readUtf(Companion.MAX_NAME * 4);
+			Companion.Accessory accessory = Companion.Accessory.byId(buf.readVarInt());
+			int color = buf.readVarInt();
+			if (kind != null) {
+				companion = new Companion.Look(kind, Companion.cleanName(name),
+						accessory, Mth.clamp(color, 0, 15));
+			}
+		}
 		return new PlushLook(charm, pack, List.copyOf(bundles), gear, List.copyOf(badges), hat, neck, back, trinket, totem, toolCharms, eyes, mouth,
-				charmSpots, skin);
+				charmSpots, skin, companion);
 	}
 
 	private static void write(FriendlyByteBuf buf, PetPlush plush) {

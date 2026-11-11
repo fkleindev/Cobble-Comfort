@@ -29,7 +29,7 @@ public final class CosmeticSheetScreen extends Screen {
 
 	/** What a sheet is of. */
 	public enum Category {
-		BADGES("badges"), HATS("hats"), NECK("neck"), BACK("back"), CHARMS("charms"), TOTEMS("totems"), TOOL_CHARMS("tool_charms"), FACE("face");
+		BADGES("badges"), HATS("hats"), NECK("neck"), BACK("back"), CHARMS("charms"), TOTEMS("totems"), TOOL_CHARMS("tool_charms"), FACE("face"), COMPANIONS("companions");
 
 		public final String file;
 
@@ -180,6 +180,93 @@ public final class CosmeticSheetScreen extends Screen {
 					face -> (g, x0, y0, x1, y1) -> WardrobeScreen.facePreview(g, face, x0, y0, x1, y1, WardrobeScreen.tile(25f)));
 			case TOOL_CHARMS -> grouped(ToolCharm.Style.values(), ToolCharm.Style::title, ToolCharm::variants, ToolCharm::title,
 					charm -> (g, x0, y0, x1, y1) -> WardrobeScreen.toolCharmPreview(g, charm.style.showcase, charm, x0 + 3, y0 + 3, x1 - 3, y1 - 3));
+			case COMPANIONS -> companions();
+		};
+	}
+
+	/** Every companion, then each kind once happy (just petted) and once asleep. */
+	private static List<Section> companions() {
+		List<Section> sections = new ArrayList<>(grouped(Companion.Style.values(), Companion.Style::title, Companion::variants,
+				Companion::title, companion -> companion(companion, null)));
+		CompanionModel.Pose happy = new CompanionModel.Pose(0, 0, 0, 0, 0, 0, 0.2f, 0, 1f, 0, 22f, CompanionModel.NONE, 0, 0, 0);
+		CompanionModel.Pose dozing = new CompanionModel.Pose(0, 0, 0, 1f, 0, 0, 0, 0, 0, 0, 30f, CompanionModel.NONE, 0, 0, 0);
+		for (CompanionModel.Pose pose : new CompanionModel.Pose[]{happy, dozing}) {
+			List<Item> items = new ArrayList<>();
+			for (Companion.Style style : Companion.Style.values()) {
+				items.add(new Item(style.title(), companion(Companion.variants(style).getFirst(), pose)));
+			}
+			sections.add(new Section(Component.literal(pose == happy ? "Happy" : "Asleep"), items));
+		}
+		// What the red panda does by itself: rearing up, nibbling bamboo (fresh and half eaten), washing its face.
+		CompanionModel.Pose idle = CompanionModel.Pose.idle(18f);
+		CompanionModel.Pose[] acts = {idle.doing(CompanionModel.STAND, 0.5f), idle.doing(CompanionModel.SNACK, 0.1f),
+				idle.doing(CompanionModel.SNACK, 0.7f), idle.doing(CompanionModel.GROOM, 0.5f)};
+		String[] names = {"Rearing up", "Snack", "Snack, half eaten", "Grooming"};
+		List<Item> items = new ArrayList<>();
+		for (int i = 0; i < acts.length; i++) {
+			items.add(new Item(Component.literal(names[i]), companion(Companion.RED_PANDA_CLASSIC, acts[i])));
+		}
+		items.add(new Item(Component.literal("Side"), companion(Companion.RED_PANDA_CLASSIC, idle, 100f)));
+		items.add(new Item(Component.literal("Asleep, side"), companion(Companion.RED_PANDA_CLASSIC, dozing, 120f)));
+		items.add(new Item(Component.literal("Asleep, from above"), companion(Companion.RED_PANDA_CLASSIC, dozing, 200f)));
+		sections.add(new Section(Component.literal("Red panda"), items));
+		// The turtle: walking, swimming, hiding (peeking out), munching a berry, yawning, asleep.
+		List<Item> turtle = new ArrayList<>();
+		CompanionModel.Pose walking = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0);
+		CompanionModel.Pose swimming = new CompanionModel.Pose(0, 0, 0, 0, 1f, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0);
+		Object[][] turtlePoses = {{"Walking", walking}, {"Swimming", swimming}, {"Hiding", idle.doing(CompanionModel.HIDE, 0.5f)},
+				{"Snack", idle.doing(CompanionModel.SNACK, 0.2f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
+				{"Asleep", dozing}, {"Happy", happy}};
+		for (Object[] entry : turtlePoses) {
+			turtle.add(new Item(Component.literal((String) entry[0]), companion(Companion.TURTLE_GREEN, (CompanionModel.Pose) entry[1])));
+		}
+		sections.add(new Section(Component.literal("Turtle"), turtle));
+		// The kitten: hopping, ducking and peeking out, out of the box (jumping, stretching, washing), licking a paw in the
+		// box, yawning, asleep, happy, afloat.
+		List<Item> kitten = new ArrayList<>();
+		CompanionModel.Pose hopping = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, -0.5f, 18f, CompanionModel.NONE, 0, 0, 0);
+		Object[][] kittenPoses = {{"Hopping", hopping}, {"Ducked", idle.doing(CompanionModel.HIDE, 0.4f)},
+				{"Peeking", idle.doing(CompanionModel.HIDE, 0.85f)}, {"Jumping out", idle.doing(CompanionModel.OUT, 0.06f)},
+				{"Stretching", idle.doing(CompanionModel.OUT, 0.3f)}, {"Washing outside", idle.doing(CompanionModel.OUT, 0.66f)},
+				{"Licking a paw", idle.doing(CompanionModel.GROOM, 0.5f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
+				{"Asleep", dozing}, {"Happy", happy}, {"Afloat", swimming}};
+		for (Object[] entry : kittenPoses) {
+			kitten.add(new Item(Component.literal((String) entry[0]), companion(Companion.KITTEN_GINGER, (CompanionModel.Pose) entry[1])));
+		}
+		sections.add(new Section(Component.literal("Kitten"), kitten));
+		// The shadow wolf: trotting, sitting, howling, bowing to play, vanishing into smoke, yawning, asleep, happy; and
+		// every variant in the dark (fading into the shadows).
+		List<Item> wolf = new ArrayList<>();
+		CompanionModel.Pose sitting = new CompanionModel.Pose(0, 0, 1f, 0, 0, 0, 0.3f, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0);
+		Object[][] wolfPoses = {{"Trotting", walking}, {"Sitting", sitting}, {"Howling", idle.doing(CompanionModel.HOWL, 0.5f)},
+				{"Play bow", idle.doing(CompanionModel.PLAYBOW, 0.5f)}, {"Vanishing", idle.doing(CompanionModel.VANISH, 0.3f)},
+				{"Smoke", idle.doing(CompanionModel.VANISH, 0.5f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
+				{"Asleep", dozing}, {"Happy", happy}, {"Side", idle}};
+		for (Object[] entry : wolfPoses) {
+			String name = (String) entry[0];
+			wolf.add(new Item(Component.literal(name), companion(Companion.SHADOW_WOLF_NIGHT, (CompanionModel.Pose) entry[1],
+					name.equals("Side") ? 100f : 30f)));
+		}
+		for (Companion variant : Companion.variants(Companion.Style.SHADOW_WOLF)) {
+			wolf.add(new Item(Component.literal("In the dark"), companion(variant, idle.inShade(1f))));
+		}
+		wolf.add(new Item(Component.literal("Howling in the dark"), companion(Companion.SHADOW_WOLF_SOUL,
+				idle.doing(CompanionModel.HOWL, 0.5f).inShade(1f))));
+		sections.add(new Section(Component.literal("Shadow wolf"), wolf));
+		return sections;
+	}
+
+	private static Drawer companion(Companion companion, CompanionModel.Pose pose) {
+		return companion(companion, pose, 30f);
+	}
+
+	private static Drawer companion(Companion companion, CompanionModel.Pose pose, float turn) {
+		return (g, x0, y0, x1, y1) -> {
+			var state = WardrobeScreen.tile(turn);
+			if (state != null && pose != null) {
+				state.setData(CompanionLayer.STANCE, pose);
+			}
+			WardrobeScreen.companionPreview(g, new Companion.Look(companion, "", Companion.Accessory.NONE, 14), x0, y0, x1, y1, state);
 		};
 	}
 
