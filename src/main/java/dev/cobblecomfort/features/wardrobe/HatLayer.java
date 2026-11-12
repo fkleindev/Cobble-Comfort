@@ -105,15 +105,39 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
 	/**
 	 * A box in head space (blocks, y down) and its colour; {@code helmet} if it is part of what shows the helmet,
-	 * {@code glow} if it lights itself (a carved pumpkin's face).
+	 * {@code glow} if it lights itself (a carved pumpkin's face); what it is made of, or null for the piece's own
+	 * material (see {@link #material}).
 	 */
-	record Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet, boolean glow) {
+	record Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet, boolean glow,
+			CompanionTexture.Material material) {
 		Box(float x0, float y0, float z0, float x1, float y1, float z1, int color, boolean helmet) {
-			this(x0, y0, z0, x1, y1, z1, color, helmet, false);
+			this(x0, y0, z0, x1, y1, z1, color, helmet, false, null);
 		}
 
 		Box glowing() {
-			return new Box(x0, y0, z0, x1, y1, z1, color, helmet, true);
+			return new Box(x0, y0, z0, x1, y1, z1, color, helmet, true, CompanionTexture.Material.PLAIN);
+		}
+
+		/** The same box made of {@code material} (a metal buckle on a cloth hat). */
+		Box in(CompanionTexture.Material material) {
+			return new Box(x0, y0, z0, x1, y1, z1, color, helmet, glow, material);
+		}
+	}
+
+	/**
+	 * What the piece being drawn is made of, for its boxes that do not say (render thread: set by each piece's
+	 * drawing, plain again after).
+	 */
+	private static CompanionTexture.Material material = CompanionTexture.Material.PLAIN;
+
+	/** Draws {@code drawing} with the boxes it submits made of {@code material} where they do not say otherwise. */
+	static void in(CompanionTexture.Material material, Runnable drawing) {
+		CompanionTexture.Material before = HatLayer.material;
+		HatLayer.material = material;
+		try {
+			drawing.run();
+		} finally {
+			HatLayer.material = before;
 		}
 	}
 
@@ -154,6 +178,12 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	}
 
 	private static void draw(PoseStack pose, SubmitNodeCollector collector, Hat hat, HelmetLook helmet, CharmPendulum[] pendulums,
+			int entityId, float speed, int light) {
+		in(WornMaterials.of(hat.style), () -> drawIn(pose, collector, hat, helmet, pendulums, entityId, speed, light));
+	}
+
+	/** Draws a hat, textured in its material ({@link WornMaterials}). */
+	private static void drawIn(PoseStack pose, SubmitNodeCollector collector, Hat hat, HelmetLook helmet, CharmPendulum[] pendulums,
 			int entityId, float speed, int light) {
 		pose.pushPose();
 		pose.translate(0f, sink(hat.style) * V, 0f);
@@ -418,9 +448,13 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	}
 
 	static void submit(PoseStack pose, SubmitNodeCollector collector, List<Box> boxes, HelmetLook helmet, int light) {
-		collector.submitCustomGeometry(pose, TYPE, (p, vc) -> {
-			for (Box box : boxes) {
-				box(vc, p, box, light);
+		// Textured like the companions, a pattern pixel a voxel big; each box in its own material or the piece's.
+		CompanionTexture.Material piece = material;
+		collector.submitCustomGeometry(pose, CompanionTexture.type(), (p, vc) -> {
+			for (Box b : boxes) {
+				CompanionTexture.box(vc, p, Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.min(b.z0, b.z1),
+						Math.max(b.x0, b.x1), Math.max(b.y0, b.y1), Math.max(b.z0, b.z1), b.color, b.glow ? FULL_BRIGHT : light,
+						b.material != null ? b.material : piece, 0, 2 * V, false);
 			}
 		});
 		if (helmet != null && helmet.glint()) {
@@ -2105,7 +2139,7 @@ final class HatLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 				z0 = nz0;
 				z1 = nz1;
 			}
-			out.add(new Box(x0, b.y0, z0, x1, b.y1, z1, b.color, b.helmet, b.glow));
+			out.add(new Box(x0, b.y0, z0, x1, b.y1, z1, b.color, b.helmet, b.glow, b.material));
 		}
 	}
 

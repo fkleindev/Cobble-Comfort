@@ -203,6 +203,11 @@ final class FaceLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
 	/** Draws a piece in the head's space, its moving parts left out (they are drawn with the pendulums). */
 	static void draw(PoseStack pose, SubmitNodeCollector collector, Face face, int light, Flip flip) {
+		HatLayer.in(WornMaterials.of(face.style), () -> drawIn(pose, collector, face, light, flip));
+	}
+
+	/** Draws a piece, textured in its material ({@link WornMaterials}). */
+	private static void drawIn(PoseStack pose, SubmitNodeCollector collector, Face face, int light, Flip flip) {
 		List<Box> boxes = new ArrayList<>();
 		switch (face.style) {
 			case GLASSES -> glasses(boxes, face);

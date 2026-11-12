@@ -7,14 +7,21 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -39,7 +46,9 @@ final class Companions {
 	private static final double NAME_RANGE = 12;
 	private static final float GRAVITY = 0.08f;
 	/** Resting, it gets up to follow once its player is further away than this (blocks). */
-	private static final double LEASH = 3.6;
+	private static final double LEASH = 4.8;
+	/** Following, how far behind its player it keeps (blocks). */
+	private static final double FOLLOW = 3.2;
 
 	private final Map<UUID, State> states = new HashMap<>();
 	private final RandomSource random = RandomSource.create();
@@ -313,7 +322,12 @@ final class Companions {
 			s.rest = null;
 		}
 		s.idle = s.following ? 0 : s.idle + 1;
-		boolean sleeping = owner.isSleeping() || s.idle > 900;
+		notice(level, s, owner, riding);
+		if (s.beg) {
+			s.idle = 0;
+		}
+		// By a campfire it dozes off sooner.
+		boolean sleeping = owner.isSleeping() || !s.beg && s.idle > (s.fire != null ? 500 : 900);
 		s.happy = Math.max(0, s.happy - 0.02f);
 		float dark = 1 - level.getMaxLocalRawBrightness(BlockPos.containing(s.x, s.y + 0.5, s.z)) / 15f;
 		s.shade = approach(s.shade, dark, 0.01f);
@@ -324,6 +338,7 @@ final class Companions {
 
 		boolean wasOnGround = s.onGround;
 		s.swimming = false;
+		s.galloping = false;
 		double fallSpeed = s.vy;
 		if (chasing) {
 			chase(level, s, owner);
@@ -331,7 +346,7 @@ final class Companions {
 			ride(s, owner);
 		} else if (style == Companion.Style.OWL && s.idle > 60 && !owner.isInWater() && s.meeting == null) {
 			perch(s, owner);
-		} else if (style.movement == Companion.Movement.FLY && (s.idle < 100 || owner.isInWater()) && s.meeting == null) {
+		} else if (style.movement == Companion.Movement.FLY && (s.idle < 100 || owner.isInWater()) && s.meeting == null && !s.beg) {
 			fly(level, s, owner, ownerSpeed);
 		} else {
 			walk(level, s, owner, ownerSpeed, style.movement);
@@ -345,13 +360,15 @@ final class Companions {
 		}
 
 		// Smooth poses.
-		float sitTarget = s.mode == Mode.RIDING || s.mode == Mode.PERCHED || s.idle > 40 && s.speed < 0.02 && s.meeting == null ? 1 : 0;
+		float sitTarget = s.mode == Mode.RIDING || s.mode == Mode.PERCHED || s.idle > 40 && s.speed < 0.02 && s.meeting == null
+				|| s.beg && s.speed < 0.02 ? 1 : 0;
 		s.sit = approach(s.sit, sleeping ? 0 : sitTarget, 0.1f);
 		s.sleep = approach(s.sleep, sleeping && s.mode != Mode.FLYING ? 1 : 0, sleeping ? 0.03f : 0.2f);
 		// Wings out when flying; for those that walk, how much they swim.
 		s.fly = approach(s.fly, s.mode == Mode.FLYING || s.swimming || s.rolling ? 1 : 0, s.rolling ? 0.2f : 0.12f);
 		s.walking = approach(s.walking, Mth.clamp((float) s.speed * 8f, 0, 1), 0.25f);
-		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM || style == Companion.Style.MECH ? 3.2f : style == Companion.Style.SALAMANDER ? 5.5f : 4.5f);
+		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM || style == Companion.Style.MECH ? 3.2f : style == Companion.Style.SALAMANDER ? 5.5f : 4.5f)
+				* (s.galloping ? 1.3f : 1f);
 		s.dash = approach(s.dash, chasing ? 1 : 0, 0.08f);
 		if (!chasing) {
 			s.pitch = approach(s.pitch, 0, 0.1f);
@@ -409,7 +426,7 @@ final class Companions {
 			Vec3 at = wanted;
 			if (i > 0) {
 				float angle = random.nextFloat() * Mth.TWO_PI;
-				double r = 1.4 + random.nextDouble() * 1.6;
+				double r = 2.2 + random.nextDouble() * 1.4;
 				at = owner.position().add(Mth.cos(angle) * r, 0, Mth.sin(angle) * r);
 			}
 			Double ground = ground(level, at.x, owner.getY() + 1.2, at.z, 2.5);
@@ -418,6 +435,12 @@ final class Companions {
 			}
 		}
 		return spot(owner, 0.9, 0.25);
+	}
+
+	/** Whether stepping to ({@code x}, {@code z}) would go down more than a step from {@code floor}. */
+	private static boolean drop(ClientLevel level, double x, double z, double y, double floor) {
+		Double ground = ground(level, x, y + 0.5, z, 30);
+		return ground == null || ground < floor - 1.1;
 	}
 
 	private static double horizontal(Vec3 a, Vec3 b) {
@@ -451,7 +474,7 @@ final class Companions {
 	/** Flies off to the player's side, behind and below head height, bobbing; out of the way of their view. */
 	private void fly(ClientLevel level, State s, Player owner, double ownerSpeed) {
 		s.mode = Mode.FLYING;
-		Vec3 spot = spot(owner, 1.7, -1.2);
+		Vec3 spot = spot(owner, 2.2, -1.9);
 		double ty = owner.getY() + 1.2 + Mth.sin(s.age * 0.08f) * 0.15;
 		double dx = spot.x - s.x, dy = ty - s.y, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
@@ -528,22 +551,26 @@ final class Companions {
 		// (looking around does not move it), now and then strolling over to another one.
 		Vec3 spot;
 		boolean strolling = false;
+		boolean settled = s.fire != null || s.curious != null;
 		if (s.target != null) {
 			spot = s.target;
+		} else if (s.beg) {
+			// Begging: right in front of its player, looking up at the food.
+			spot = spot(owner, 0.25 * s.side, 1.25);
 		} else if (!s.following) {
 			Vec3 feet = owner.position();
-			if (s.rest == null || horizontal(s.rest, feet) > LEASH + 0.5 || horizontal(s.rest, feet) < 1.0) {
+			if (s.rest == null || horizontal(s.rest, feet) > LEASH + 0.5 || !settled && horizontal(s.rest, feet) < 1.8) {
 				// Where it is now, if that is a good distance away; else beside its player.
 				double away = Math.hypot(s.x - feet.x, s.z - feet.z);
 				Vec3 here = new Vec3(s.x, s.y, s.z);
-				s.rest = s.rest == null && away > 1.4 && away < LEASH && s.onGround ? here
-						: restingPlace(level, owner, spot(owner, 1.9 * s.side, 0.3));
+				s.rest = s.rest == null && away > 2.2 && away < LEASH && s.onGround ? here
+						: restingPlace(level, owner, spot(owner, 2.6 * s.side, 0.4));
 				s.restAge = 0;
-			} else if (++s.restAge > 200 && s.action == CompanionModel.NONE && s.idle < 750 && s.sleep < 0.05f
+			} else if (++s.restAge > 200 && !settled && s.action == CompanionModel.NONE && s.idle < 750 && s.sleep < 0.05f
 					&& random.nextInt(260) == 0) {
 				// Round the player from where it is now, a little to one side or the other (never across past them).
 				float angle = (float) Math.atan2(s.z - feet.z, s.x - feet.x) + (random.nextBoolean() ? 1 : -1) * (0.4f + random.nextFloat() * 0.9f);
-				double r = 1.6 + random.nextDouble() * 1.8;
+				double r = 2.3 + random.nextDouble() * 1.6;
 				s.rest = restingPlace(level, owner, feet.add(Mth.cos(angle) * r, 0, Mth.sin(angle) * r));
 				s.restAge = 0;
 			}
@@ -551,7 +578,12 @@ final class Companions {
 			strolling = true;
 		} else {
 			s.rest = null;
-			spot = spot(owner, 1.0, -1.4);
+			// Trailing a few blocks after its player like a dog on a long lead: towards them only while further away
+			// than that, never crowding them.
+			double ax = s.x - owner.getX(), az = s.z - owner.getZ();
+			double apart = Math.hypot(ax, az);
+			spot = apart > FOLLOW ? new Vec3(owner.getX() + ax / apart * FOLLOW, owner.getY(), owner.getZ() + az / apart * FOLLOW)
+					: new Vec3(s.x, s.y, s.z);
 		}
 		double dx = spot.x - s.x, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
@@ -565,9 +597,28 @@ final class Companions {
 			max *= 1.35;
 		}
 		double speed = dist > 0.35 ? Math.min(dist * 0.4, max) : 0;
+		// Its player sprinting: it gallops after them in long bounds (hoppers leap higher; the mech skates on its
+		// rocket boots instead).
+		s.galloping = owner.isSprinting() && !strolling && s.target == null && !s.beg && !s.rolling && speed > 0.12
+				&& movement != Companion.Movement.HOVER && !s.swimming;
+		if (s.galloping && s.onGround && movement == Companion.Movement.WALK && kind != Companion.Style.MECH) {
+			s.vy = 0.24;
+			s.onGround = false;
+			BlockState under = level.getBlockState(BlockPos.containing(s.x, s.y - 0.1, s.z));
+			if (!under.isAir()) {
+				for (int i = 0; i < 2; i++) {
+					level.addParticle(new BlockParticleOption(ParticleTypes.BLOCK, under), s.x + (random.nextDouble() - 0.5) * 0.4, s.y + 0.05,
+							s.z + (random.nextDouble() - 0.5) * 0.4, 0, 0.05, 0);
+				}
+			}
+		}
+		if (s.galloping && kind == Companion.Style.MECH && s.age % 2 == 0) {
+			float back = s.yaw + Mth.PI;
+			level.addParticle(ParticleTypes.SMALL_FLAME, s.x + Mth.sin(back) * 0.25, s.y + 0.05, s.z + Mth.cos(back) * 0.25, 0, 0.01, 0);
+		}
 		// Hoppers only move while in the air.
 		if (movement == Companion.Movement.HOP && s.onGround && speed > 0.02) {
-			s.vy = 0.3;
+			s.vy = s.galloping ? 0.38 : 0.3;
 			s.onGround = false;
 		}
 		if (s.look.companion().style == Companion.Style.RED_PANDA && s.onGround && dist > 2.5 && random.nextInt(10) == 0) {
@@ -627,6 +678,26 @@ final class Companions {
 				x = s.x;
 				z = s.z;
 			}
+			// Not over an edge higher than a step, unless its player went down there too: along the edge where it can,
+			// else it waits (and pops over to them once left too far behind).
+			if (!landing && (x != s.x || z != s.z) && owner.getY() > s.y - 1.0) {
+				Double here = ground(level, s.x, s.y + 0.5, s.z, 30);
+				double floor = here != null ? here : s.y;
+				if (drop(level, x, z, s.y, floor)) {
+					if (!drop(level, x, s.z, s.y, floor)) {
+						z = s.z;
+					} else if (!drop(level, s.x, z, s.y, floor)) {
+						x = s.x;
+					} else {
+						x = s.x;
+						z = s.z;
+						s.vx = s.vz = 0;
+						if (dist > 2) {
+							s.stuck++;
+						}
+					}
+				}
+			}
 			Double below = ground(level, x, s.y + 0.5, z, 30);
 			if (s.onGround && (below == null || below < s.y - 0.55)) {
 				s.onGround = false;
@@ -652,9 +723,13 @@ final class Companions {
 		s.z = z;
 		s.speed = Math.hypot(x - s.xo, z - s.zo);
 		// Facing its player while resting (turning round with their view would look restless), else where they head.
+		// What has caught its eye, the fire it warms itself at, or the food it begs for comes first.
+		Vec3 toward = s.curious != null ? s.curious : s.fire != null ? s.fire : null;
 		float rest = s.face != null ? (float) Math.atan2(s.face.x - s.x, s.face.z - s.z)
-				: s.rest != null ? (float) Math.atan2(owner.getX() - s.x, owner.getZ() - s.z) : heading(owner);
-		s.yaw = moving ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.3f) : turnTo(s.yaw, rest, s.face != null ? 0.25f : 0.04f);
+				: toward != null ? (float) Math.atan2(toward.x - s.x, toward.z - s.z)
+				: s.rest != null || s.beg ? (float) Math.atan2(owner.getX() - s.x, owner.getZ() - s.z) : heading(owner);
+		boolean eager = s.face != null || s.beg || s.curious != null;
+		s.yaw = moving ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.3f) : turnTo(s.yaw, rest, eager ? 0.25f : 0.04f);
 	}
 
 	/**
@@ -662,6 +737,167 @@ final class Companions {
 	 * face; the turtle hides in its shell, munches a berry or yawns; the kitten ducks into its box, hops out to stretch,
 	 * licks a paw or yawns. Moving or falling asleep stops it.
 	 */
+	/**
+	 * What it notices round it: its player eating (it comes begging, and sometimes gets a crumb), a lit campfire nearby
+	 * while resting (it settles down by it to warm itself, happy, dozing off sooner), and, now and then, an item on the
+	 * ground or a flower, which it trots over to and sniffs (a flower may make it sneeze).
+	 */
+	private void notice(ClientLevel level, State s, Player owner, boolean riding) {
+		Companion.Style kind = s.look.companion().style;
+		boolean eating = !riding && owner.isUsingItem() && owner.getUseItem().has(DataComponents.FOOD) && s.mode != Mode.PERCHED
+				&& s.meeting == null && s.distanceSq(owner.position()) < 100;
+		if (eating) {
+			if (!s.beg) {
+				s.beg = true;
+				s.begAge = 0;
+				s.action = CompanionModel.NONE;
+			}
+			s.begAge++;
+			s.begFood = owner.getUseItem().getItem();
+			s.curious = null;
+			// Up on its hind legs every so often (a little hop for those without).
+			if (s.onGround && s.speed < 0.02 && s.begAge % 28 == 14) {
+				if (kind == Companion.Style.RED_PANDA || kind == Companion.Style.PENGUIN) {
+					start(s, CompanionModel.STAND);
+				} else {
+					s.vy = 0.22;
+					s.onGround = false;
+				}
+			}
+		} else if (s.beg) {
+			s.beg = false;
+			s.action = CompanionModel.NONE;
+			if (s.begAge >= 28 && s.begFood != null && random.nextInt(3) != 0 && s.distanceSq(owner.position()) < 9) {
+				// A crumb for it: munched with bits flying, and a happy hop.
+				for (int i = 0; i < 6; i++) {
+					level.addParticle(new ItemParticleOption(ParticleTypes.ITEM, s.begFood), s.x, s.y + 0.4, s.z,
+							(random.nextDouble() - 0.5) * 0.1, 0.08 + random.nextDouble() * 0.05, (random.nextDouble() - 0.5) * 0.1);
+				}
+				level.addParticle(ParticleTypes.HEART, s.x, s.y + 0.8, s.z, 0, 0.02, 0);
+				s.happy = 1;
+				if (s.onGround) {
+					s.vy = 0.3;
+					s.onGround = false;
+				}
+			}
+		}
+
+		if (s.following || s.beg) {
+			s.fire = null;
+			s.curious = null;
+			s.curiousItem = null;
+			return;
+		}
+		// A campfire to sit by (looked for every two seconds).
+		if (s.age % 40 == 0) {
+			Vec3 fire = campfire(level, owner);
+			if (fire != null && s.fire == null) {
+				// Beside it, on the far side from its player.
+				float angle = (float) Math.atan2(fire.z - owner.getZ(), fire.x - owner.getX()) + (float) s.side * 0.9f;
+				s.rest = restingPlace(level, owner, fire.add(Mth.cos(angle) * 1.3, -0.5, Mth.sin(angle) * 1.3));
+				s.restAge = 0;
+				s.curious = null;
+				s.curiousItem = null;
+				// Wide awake again: it sits and warms itself first, then dozes off.
+				s.idle = 41;
+			}
+			s.fire = fire;
+		}
+		if (s.fire != null) {
+			if (s.distanceSq(s.fire) < 5 && s.speed < 0.02) {
+				// Warm and content; a snowman sweats a little.
+				s.happy = Math.max(s.happy, 0.5f);
+				if (kind == Companion.Style.SNOWMAN && random.nextInt(12) == 0) {
+					level.addParticle(ParticleTypes.DRIPPING_WATER, s.x + (random.nextDouble() - 0.5) * 0.4, s.y + 0.5 + random.nextDouble() * 0.4,
+							s.z + (random.nextDouble() - 0.5) * 0.4, 0, 0, 0);
+				}
+			}
+			return;
+		}
+
+		if (s.curious != null) {
+			s.curiousAge++;
+			boolean gone = s.curiousItem != null && (s.curiousItem.isRemoved() || s.curiousItem.distanceToSqr(s.curious) > 1);
+			boolean there = s.distanceSq(s.curious) < 1.2 && s.speed < 0.02;
+			if (there) {
+				s.sniff++;
+				if (s.sniff % 10 == 0 && s.sniff < 50) {
+					s.squash = 0.15f;
+				}
+			}
+			if (s.sniff == 55) {
+				if (s.curiousItem == null && random.nextInt(2) == 0) {
+					// Atchoo: the pollen got it.
+					level.addParticle(ParticleTypes.SNEEZE, s.x + Mth.sin(s.yaw) * 0.3, s.y + 0.35, s.z + Mth.cos(s.yaw) * 0.3,
+							Mth.sin(s.yaw) * 0.05, 0.02, Mth.cos(s.yaw) * 0.05);
+					s.squash = 0.8f;
+				}
+				if (s.onGround) {
+					s.vy = 0.24;
+					s.onGround = false;
+				}
+			}
+			if (gone || s.sniff > 75 || s.curiousAge > 200) {
+				s.curious = null;
+				s.curiousItem = null;
+				s.rest = null;
+				s.curiosityCooldown = 300 + random.nextInt(500);
+			}
+			return;
+		}
+		if (s.idle > 80 && s.action == CompanionModel.NONE && s.sleep < 0.05f && s.mode == Mode.WALKING && --s.curiosityCooldown <= 0) {
+			s.curiosityCooldown = 120 + random.nextInt(200);
+			ItemEntity item = null;
+			for (ItemEntity candidate : level.getEntitiesOfClass(ItemEntity.class, new net.minecraft.world.phys.AABB(
+					s.x - 5, s.y - 1.5, s.z - 5, s.x + 5, s.y + 1.5, s.z + 5))) {
+				if (horizontal(candidate.position(), owner.position()) < LEASH - 0.4 && candidate.onGround()) {
+					item = candidate;
+					break;
+				}
+			}
+			Vec3 thing = item != null ? item.position() : flower(level, s, owner);
+			if (thing != null) {
+				double dx = s.x - thing.x, dz = s.z - thing.z, d = Math.max(0.01, Math.hypot(dx, dz));
+				s.curious = thing;
+				s.curiousItem = item;
+				s.curiousAge = 0;
+				s.sniff = 0;
+				s.rest = new Vec3(thing.x + dx / d * 0.55, thing.y, thing.z + dz / d * 0.55);
+				s.restAge = 0;
+			}
+		}
+	}
+
+	/** The middle of a lit campfire within a few blocks of the player, or null. */
+	private static Vec3 campfire(ClientLevel level, Player owner) {
+		BlockPos feet = owner.blockPosition();
+		Vec3 best = null;
+		double bestDistance = Double.MAX_VALUE;
+		for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-4, -2, -4), feet.offset(4, 1, 4))) {
+			BlockState state = level.getBlockState(pos);
+			if (state.is(BlockTags.CAMPFIRES) && CampfireBlock.isLitCampfire(state)) {
+				double d = pos.distSqr(feet);
+				if (d < bestDistance) {
+					bestDistance = d;
+					best = Vec3.atBottomCenterOf(pos).add(0, 0.5, 0);
+				}
+			}
+		}
+		return best;
+	}
+
+	/** A flower near it (and its player) at about their height, picked at random, or null. */
+	private Vec3 flower(ClientLevel level, State s, Player owner) {
+		for (int i = 0; i < 16; i++) {
+			BlockPos pos = BlockPos.containing(s.x + random.nextInt(9) - 4, s.y + random.nextInt(3) - 1, s.z + random.nextInt(9) - 4);
+			if (level.getBlockState(pos).is(BlockTags.SMALL_FLOWERS) && horizontal(Vec3.atBottomCenterOf(pos), owner.position()) < LEASH - 0.4
+					&& horizontal(Vec3.atBottomCenterOf(pos), owner.position()) > 1.2) {
+				return Vec3.atBottomCenterOf(pos);
+			}
+		}
+		return null;
+	}
+
 	private void act(ClientLevel level, State s, Player owner) {
 		Companion.Style style = s.look.companion().style;
 		if (style != Companion.Style.RED_PANDA && style != Companion.Style.TURTLE && style != Companion.Style.KITTEN
@@ -670,18 +906,20 @@ final class Companions {
 			s.action = CompanionModel.NONE;
 			return;
 		}
-		boolean calm = s.sleep < 0.05f && s.mode == Mode.WALKING && s.speed < 0.02 && s.onGround && s.meeting == null;
+		boolean calm = s.sleep < 0.05f && s.mode == Mode.WALKING && s.speed < 0.02 && s.onGround && s.meeting == null
+				&& s.curious == null;
 		if (!calm) {
 			s.action = CompanionModel.NONE;
 			s.actionAge = 0;
 			return;
 		}
 		if (s.action == CompanionModel.NONE) {
-			if (s.idle > 50 && --s.actionCooldown <= 0) {
+			if (s.idle > 50 && !s.beg && --s.actionCooldown <= 0) {
 				int[] choices = style == Companion.Style.MECH
 						? new int[]{CompanionModel.SCAN, CompanionModel.ROCKET, CompanionModel.SHAKE}
 						: style == Companion.Style.SALAMANDER
-						? new int[]{CompanionModel.BASK, CompanionModel.YAWN, CompanionModel.STAND}
+						? s.fire != null ? new int[]{CompanionModel.BASK, CompanionModel.BASK, CompanionModel.BASK, CompanionModel.YAWN}
+						: new int[]{CompanionModel.BASK, CompanionModel.YAWN, CompanionModel.STAND}
 						: style == Companion.Style.HEDGEHOG
 						? new int[]{CompanionModel.SNIFF, CompanionModel.SNACK, CompanionModel.HIDE, CompanionModel.YAWN}
 						: style == Companion.Style.PENGUIN
@@ -730,6 +968,13 @@ final class Companions {
 	/** Where its head turns: to its player, or to you when you look at it from close by. */
 	private void look(Minecraft mc, State s, Player owner) {
 		Vec3 at = s.face != null ? new Vec3(s.face.x, s.face.y + 0.35, s.face.z) : owner.getEyePosition();
+		if (s.face == null && s.curious != null && s.distanceSq(s.curious) < 4) {
+			// Nose down to what it found.
+			at = s.curious;
+		} else if (s.face == null && s.fire != null && s.idle % 240 < 170) {
+			// Gazing into the flames, now and then back at its player.
+			at = s.fire.add(0, 0.3, 0);
+		}
 		Player viewer = mc.player;
 		if (viewer != null && viewer != owner && s.distanceSq(viewer.position()) < 36 && looksAt(viewer, s)) {
 			at = viewer.getEyePosition();
@@ -1129,6 +1374,18 @@ final class Companions {
 		int restAge;
 		/** Following its player (else resting near them), and for how long they have stood still. */
 		boolean following = true;
+		/** Begging while its player eats, for how long, and what they eat. */
+		boolean beg;
+		int begAge;
+		Item begFood;
+		/** The lit campfire it warms itself at while resting (its middle), or null. */
+		Vec3 fire;
+		/** What it went over to sniff while resting (an item on the ground, else a flower), for how long, how long it sniffed, and until it looks again. */
+		Vec3 curious;
+		ItemEntity curiousItem;
+		int curiousAge, sniff, curiosityCooldown = 200;
+		/** Bounding after its sprinting player. */
+		boolean galloping;
 		int ownerStill;
 
 		State(Companion.Look look, Player owner) {

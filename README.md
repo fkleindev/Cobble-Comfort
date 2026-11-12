@@ -237,6 +237,8 @@ There is also a key for the HUD editor.
   and a little snowman.
   Cosmetics that borrow the game's textures (pins, plushes, the belt's weapons, the sword, name charms) always use
   the vanilla ones, whatever resource pack is on, so they look the same for everyone.
+  Hats, face, neck and back pieces are textured like the companions in what they are made of: felt and cloth, knitted
+  wool, plaited straw, leather, wood grain, leaves, fur, feathers and metal.
 - **Totem:** a wardrobe tab for how your totems of undying look: the plush of you, a Mini-Me plush wearing your hat
   and neck piece, or the game's own totem (all three from the start), or a plush allay, axolotl (in its five colours),
   creeper, frog (three colours), bee, warden with a beating heart or a little Ender Dragon, earned with an advancement,
@@ -269,6 +271,10 @@ There is also a key for the HUD editor.
   in the cracks of its basalt scales, flicks its tongue, does push-ups, basks, yawns embers and steams in the rain.
   The mini dragon and the owl keep a little more distance in the air and race along beside you when you glide on
   elytra, wings swept back, trailing streams of air.
+  It warms itself by a lit campfire near you, gazing into the flames and dozing off sooner; begs in front of you while
+  you eat, sitting up or hopping, and sometimes catches a crumb; gallops after you in bounds when you sprint; and now
+  and then trots over to sniff at an item on the ground or a flower, sometimes sneezing. It keeps a little more
+  distance and does not walk off ledges it could not climb back up.
   Sneak up and look at it to pet it. Give it a name, a bow, collar, flower or crown. When two players with companions
   stand together, the companions walk up to each other, sniff, hop with hearts and sometimes play tag. It is only
   drawn: never in the way, and blocks can still be placed where it stands. Other players with the mod see it through

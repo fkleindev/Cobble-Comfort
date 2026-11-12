@@ -78,6 +78,12 @@ final class NeckLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 	/** Draws a neck piece {@code z} from the middle of the body, its moving parts on {@code pendulums}. */
 	private static void draw(PoseStack pose, SubmitNodeCollector collector, Neck neck, float z, CharmPendulum[] pendulums,
 			int entityId, int light) {
+		HatLayer.in(WornMaterials.of(neck.style), () -> drawIn(pose, collector, neck, z, pendulums, entityId, light));
+	}
+
+	/** Draws a neck piece, textured in its material ({@link WornMaterials}). */
+	private static void drawIn(PoseStack pose, SubmitNodeCollector collector, Neck neck, float z, CharmPendulum[] pendulums,
+			int entityId, int light) {
 		List<Box> boxes = new ArrayList<>();
 		switch (neck.style) {
 			case SCARF, NORDIC -> scarf(boxes, neck, z);

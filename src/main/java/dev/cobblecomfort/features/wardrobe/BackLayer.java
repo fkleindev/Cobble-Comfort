@@ -7,6 +7,7 @@ import dev.cobblecomfort.features.namecharm.CharmPendulum;
 import dev.cobblecomfort.features.petplush.Torso;
 import dev.cobblecomfort.features.plush.PlushFeature;
 import dev.cobblecomfort.features.wardrobe.HatLayer.Box;
+import dev.cobblecomfort.features.wardrobe.CompanionTexture.Material;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey;
 import net.minecraft.client.Minecraft;
@@ -86,6 +87,12 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 			// None, or a plush backpack: the plush layer draws that.
 			return;
 		}
+		HatLayer.in(WornMaterials.of(piece.style), () -> drawPiece(pose, collector, light, state, player, piece, preview));
+	}
+
+	/** Draws a back piece, textured in its material ({@link WornMaterials}). */
+	private void drawPiece(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state,
+			AbstractClientPlayer player, BackPiece piece, BackPiece preview) {
 		pose.pushPose();
 		getParentModel().root().translateAndRotate(pose);
 		getParentModel().body.translateAndRotate(pose);
@@ -272,14 +279,14 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 	/** Straps from the top of the back over both shoulders and down the chest. */
 	private static void shoulderStraps(List<Box> out, int color, float back, float front) {
 		for (float x : new float[]{-5f, 3f}) {
-			out.add(raw(x, -0.5f, front - 0.5f, x + 2f, 0f, back, color));
-			out.add(raw(x, 0f, front - 0.5f, x + 2f, 9f, front, color));
+			out.add(raw(x, -0.5f, front - 0.5f, x + 2f, 0f, back, color).in(Material.LEATHER));
+			out.add(raw(x, 0f, front - 0.5f, x + 2f, 9f, front, color).in(Material.LEATHER));
 		}
 	}
 
 	private static List<Box> mug(BackPiece piece) {
 		int tin = 0xFFB0B4BC;
-		return List.of(raw(-0.25f, 0f, -0.25f, 0.25f, 1f, 0.25f, 0xFF3A3A40), raw(-1.25f, 1f, -1.25f, 1.25f, 3.5f, 1.25f, tin),
+		return List.of(raw(-0.25f, 0f, -0.25f, 0.25f, 1f, 0.25f, 0xFF3A3A40), raw(-1.25f, 1f, -1.25f, 1.25f, 3.5f, 1.25f, tin).in(Material.METAL),
 				raw(-1.35f, 1f, -1.35f, 1.35f, 1.4f, 1.35f, lighter(tin)), raw(1.25f, 1.6f, -0.25f, 2f, 2.9f, 0.25f, tin));
 	}
 
@@ -360,7 +367,7 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 	private static List<Box> mirrored(List<Box> boxes) {
 		List<Box> out = new ArrayList<>(boxes.size());
 		for (Box b : boxes) {
-			out.add(new Box(-b.x1(), b.y0(), b.z0(), -b.x0(), b.y1(), b.z1(), b.color(), b.helmet(), b.glow()));
+			out.add(new Box(-b.x1(), b.y0(), b.z0(), -b.x0(), b.y1(), b.z1(), b.color(), b.helmet(), b.glow(), b.material()));
 		}
 		return out;
 	}
@@ -667,7 +674,7 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 	}
 
 	private static List<Box> strap(int color) {
-		return List.of(raw(-1f, -13f, 0f, 1f, 13f, 0.5f, color));
+		return List.of(raw(-1f, -13f, 0f, 1f, 13f, 0.5f, color).in(Material.LEATHER));
 	}
 
 	/**
@@ -751,13 +758,13 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		for (float[] l : layers) {
 			for (float x = -l[2]; x < l[2] - 0.01f; x += 0.75f) {
 				int color = Math.floorMod((int) Math.floor(x / 0.75f), 2) == 0 ? piece.main[2] : piece.second;
-				out.add(raw(x, l[0], 1f - l[2] * 0.5f, Math.min(x + 0.75f, l[2]), l[1], 1f + l[2] * 0.5f, color));
+				out.add(raw(x, l[0], 1f - l[2] * 0.5f, Math.min(x + 0.75f, l[2]), l[1], 1f + l[2] * 0.5f, color).in(Material.STRAW));
 			}
 		}
 		float[] ends = {16f, 15.5f, 16.75f, 15.75f, 16.5f, 15.25f, 16.25f, 16f, 15.5f};
 		for (int i = 0; i < ends.length; i++) {
 			float x = -3.5f + i * 7f / ends.length;
-			out.add(raw(x, 15f, -0.5f, x + 7f / ends.length, ends[i], 2.5f, i % 2 == 0 ? piece.main[2] : piece.second));
+			out.add(raw(x, 15f, -0.5f, x + 7f / ends.length, ends[i], 2.5f, i % 2 == 0 ? piece.main[2] : piece.second).in(Material.STRAW));
 		}
 		out.add(raw(-2f, 6.25f, -0.1f, 2f, 7.5f, 2.1f, piece.accent));
 		out.add(raw(-3f, 10f, -0.45f, 3f, 10.75f, 2.45f, piece.accent));
@@ -779,7 +786,7 @@ public final class BackLayer extends RenderLayer<AvatarRenderState, PlayerModel>
 		float[][] crescent = {{-3f, 0.75f, -22f, -19.5f}, {-6f, -3f, -22.5f, -20f}, {-9f, -6f, -22.5f, -20.5f},
 				{-11f, -9f, -22f, -20.25f}, {-12.5f, -11f, -21.25f, -19.5f}, {-13.5f, -12.5f, -20f, -18f}};
 		for (float[] c : crescent) {
-			out.add(raw(c[0], c[2], 0.6f, c[1], c[3], 1.4f, blade));
+			out.add(raw(c[0], c[2], 0.6f, c[1], c[3], 1.4f, blade).in(Material.METAL));
 			Box edge = raw(c[0], c[3] - 0.5f, 0.55f, c[1], c[3], 1.45f, piece.accent);
 			out.add(piece == BackPiece.HALLOWEEN_SCYTHE_SOUL ? edge.glowing() : edge);
 		}

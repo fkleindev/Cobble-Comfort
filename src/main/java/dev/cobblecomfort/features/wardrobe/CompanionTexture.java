@@ -36,7 +36,9 @@ final class CompanionTexture {
 	/** What a surface is made of. */
 	enum Material {
 		PLAIN, SOFT, SKIN, FUR, WOOL, STONE, SCALES, SHELL, FEATHER, CARDBOARD, PUMPKIN, SNOW, SMOKE, CAP, SPINES, DOWN,
-		METAL, COPPER, PATINA, BASALT, CRACKS, STRIPES
+		METAL, COPPER, PATINA, BASALT, CRACKS, STRIPES,
+		/** For what is worn: woven cloth and felt, knitted wool, plaited straw, leather, wood, leaves. */
+		CLOTH, KNIT, STRAW, LEATHER, WOOD, LEAF
 	}
 
 	private CompanionTexture() {
@@ -145,6 +147,34 @@ final class CompanionTexture {
 			}
 			// Warning stripes, diagonal.
 			case STRIPES -> Math.floorMod(x + y, 8) < 4 ? 250 : 46;
+			// Fine weave: threads over and under, a soft felted mottle.
+			case CLOTH -> 240 + ((x + y) % 2 == 0 ? 5 : -4) + (noise(x, y, 4, 43) - 0.5f) * 12;
+			case KNIT -> {
+				// Columns of V stitches: each column two pixels, the stitch slanting the other way in its neighbour.
+				int column = x / 2 % 2, lx = x % 2;
+				boolean seam = Math.floorMod(y + (column == 0 ? lx : 1 - lx), 3) == 0;
+				yield (seam ? 212 : 246) + (x % 4 == 3 && column == 1 ? -6 : 0) + (hash(x, y, 44) - 0.5f) * 6;
+			}
+			case STRAW -> {
+				// Plaited straw: squares of strands, crosswise from one to the next.
+				boolean across = (x / 4 + y / 4) % 2 == 0;
+				int along = across ? y % 4 : x % 4;
+				yield (along == 3 ? 206 : along == 0 ? 250 : 236) + (hash(across ? x : y, 0, 45) - 0.5f) * 10;
+			}
+			// Leather: a soft blotchy grain with pores.
+			case LEATHER -> 236 + (noise(x, y, 4, 46) - 0.5f) * 16 + (noise(x, y, 8, 47) - 0.5f) * 10 + (hash(x, y, 48) < 0.07f ? -14 : 0);
+			case WOOD -> {
+				// Grain running along, wavering; darker lines between the growth rings.
+				float wave = y + (noise(x, y, 2, 49) - 0.5f) * 5;
+				float ring = Math.floorMod((int) Math.floor(wave), 4);
+				yield (ring == 0 ? 212 : 240) + (hash(x / 3, (int) wave, 50) - 0.5f) * 10;
+			}
+			case LEAF -> {
+				// Overlapping leaves: dark where one ends, a pale vein down the middle of each.
+				float[] cell = cells(x, y, 3, 51);
+				float tone = (hash((int) cell[2], 2, 52) - 0.5f) * 28;
+				yield cell[1] - cell[0] < 0.7f ? 196 : 236 + tone + (cell[0] < 0.8f ? 12 : 0);
+			}
 		};
 	}
 
@@ -219,24 +249,34 @@ final class CompanionTexture {
 	 */
 	static void box(VertexConsumer vc, PoseStack.Pose p, float x0, float y0, float z0, float x1, float y1, float z1,
 			int color, int light, Material material, float bevel) {
-		int side = ARGB.scaleRGB(color, 0.86f);
-		int under = ARGB.scaleRGB(color, 0.72f);
+		box(vc, p, x0, y0, z0, x1, y1, z1, color, light, material, bevel, 1, true);
+	}
+
+	/**
+	 * A box whose coordinates are {@code unit} per voxel (a hat's are in blocks: 1/16), with or without the baked
+	 * shading (without for what is drawn y down, like the worn pieces).
+	 */
+	static void box(VertexConsumer vc, PoseStack.Pose p, float x0, float y0, float z0, float x1, float y1, float z1,
+			int color, int light, Material material, float bevel, float unit, boolean baked) {
+		int side = baked ? ARGB.scaleRGB(color, 0.86f) : color;
+		int under = baked ? ARGB.scaleRGB(color, 0.72f) : color;
 		float dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
-		face(vc, p, side, light, material, bevel, 0, 0, -1, x1, y0, z0, -dx, 0, 0, 0, dy, 0);
-		face(vc, p, side, light, material, bevel, 0, 0, 1, x0, y0, z1, dx, 0, 0, 0, dy, 0);
-		face(vc, p, side, light, material, bevel, -1, 0, 0, x0, y0, z0, 0, 0, dz, 0, dy, 0);
-		face(vc, p, side, light, material, bevel, 1, 0, 0, x1, y0, z1, 0, 0, -dz, 0, dy, 0);
-		face(vc, p, under, light, material, bevel, 0, -1, 0, x0, y0, z0, dx, 0, 0, 0, 0, dz);
-		face(vc, p, color, light, material, bevel, 0, 1, 0, x0, y1, z1, dx, 0, 0, 0, 0, -dz);
+		float u = 1 / unit;
+		face(vc, p, side, light, material, bevel, u, 0, 0, -1, x1, y0, z0, -dx, 0, 0, 0, dy, 0);
+		face(vc, p, side, light, material, bevel, u, 0, 0, 1, x0, y0, z1, dx, 0, 0, 0, dy, 0);
+		face(vc, p, side, light, material, bevel, u, -1, 0, 0, x0, y0, z0, 0, 0, dz, 0, dy, 0);
+		face(vc, p, side, light, material, bevel, u, 1, 0, 0, x1, y0, z1, 0, 0, -dz, 0, dy, 0);
+		face(vc, p, under, light, material, bevel, u, 0, -1, 0, x0, y0, z0, dx, 0, 0, 0, 0, dz);
+		face(vc, p, color, light, material, bevel, u, 0, 1, 0, x0, y1, z1, dx, 0, 0, 0, 0, -dz);
 	}
 
 	/**
 	 * One face: from corner P along U and then V (counter-clockwise seen from outside), cut into pieces where the
 	 * pattern repeats and where the edge shading begins.
 	 */
-	private static void face(VertexConsumer vc, PoseStack.Pose p, int color, int light, Material material, float bevel,
+	private static void face(VertexConsumer vc, PoseStack.Pose p, int color, int light, Material material, float bevel, float scale,
 			float nx, float ny, float nz, float px, float py, float pz, float ux, float uy, float uz, float vx, float vy, float vz) {
-		float lu = Math.abs(ux + uy + uz), lv = Math.abs(vx + vy + vz);
+		float lu = Math.abs(ux + uy + uz) * scale, lv = Math.abs(vx + vy + vz) * scale;
 		if (lu < 1e-4f || lv < 1e-4f) {
 			return;
 		}
@@ -249,8 +289,8 @@ final class CompanionTexture {
 			bevel = 0;
 		}
 		// Where along each axis it is in the world of the pattern: the coordinate that changes along it.
-		float pu = ux != 0 ? px : uy != 0 ? py : pz, du = ux + uy + uz;
-		float pv = vx != 0 ? px : vy != 0 ? py : pz, dv = vx + vy + vz;
+		float pu = (ux != 0 ? px : uy != 0 ? py : pz) * scale, du = (ux + uy + uz) * scale;
+		float pv = (vx != 0 ? px : vy != 0 ? py : pz) * scale, dv = (vx + vy + vz) * scale;
 		float bu = Math.min(bevel, lu / 2), bv = Math.min(bevel, lv / 2);
 		float[] su = cuts(pu, du, lu, bu, material != Material.PLAIN);
 		float[] sv = cuts(pv, dv, lv, bv, material != Material.PLAIN);
