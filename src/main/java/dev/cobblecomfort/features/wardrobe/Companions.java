@@ -38,6 +38,8 @@ final class Companions {
 	private static final double TOO_FAST = 0.9;
 	private static final double NAME_RANGE = 12;
 	private static final float GRAVITY = 0.08f;
+	/** Resting, it gets up to follow once its player is further away than this (blocks). */
+	private static final double LEASH = 3.6;
 
 	private final Map<UUID, State> states = new HashMap<>();
 	private final RandomSource random = RandomSource.create();
@@ -280,9 +282,21 @@ final class Companions {
 			puff(level, s.x, s.y + 0.3, s.z);
 		}
 
-		// Standing still: sit down after a while, then fall asleep; any move wakes it.
+		// Following or resting: once its player stands still it settles down where it is (then sits, then falls asleep),
+		// and it only gets up to follow again once they have gone a few steps away (or up or down), not at every little
+		// move. A perched owl takes off as soon as they move.
 		boolean still = ownerSpeed < 0.02 && Math.abs(owner.getY() - owner.yOld) < 0.02;
-		s.idle = still ? s.idle + 1 : 0;
+		s.ownerStill = still ? s.ownerStill + 1 : 0;
+		if (s.following) {
+			if (s.ownerStill > 10 && !riding) {
+				s.following = false;
+			}
+		} else if (riding || Math.hypot(owner.getX() - s.x, owner.getZ() - s.z) > LEASH || Math.abs(owner.getY() - s.y) > 2.2
+				|| s.mode == Mode.PERCHED && !still) {
+			s.following = true;
+			s.rest = null;
+		}
+		s.idle = s.following ? 0 : s.idle + 1;
 		boolean sleeping = owner.isSleeping() || s.idle > 900;
 		s.happy = Math.max(0, s.happy - 0.02f);
 		float dark = 1 - level.getMaxLocalRawBrightness(BlockPos.containing(s.x, s.y + 0.5, s.z)) / 15f;
@@ -449,10 +463,14 @@ final class Companions {
 		boolean strolling = false;
 		if (s.target != null) {
 			spot = s.target;
-		} else if (s.idle > 30) {
+		} else if (!s.following) {
 			Vec3 feet = owner.position();
-			if (s.rest == null || horizontal(s.rest, feet) > 4.5 || horizontal(s.rest, feet) < 1.0) {
-				s.rest = restingPlace(level, owner, spot(owner, 1.9 * s.side, 0.3));
+			if (s.rest == null || horizontal(s.rest, feet) > LEASH + 0.5 || horizontal(s.rest, feet) < 1.0) {
+				// Where it is now, if that is a good distance away; else beside its player.
+				double away = Math.hypot(s.x - feet.x, s.z - feet.z);
+				Vec3 here = new Vec3(s.x, s.y, s.z);
+				s.rest = s.rest == null && away > 1.4 && away < LEASH && s.onGround ? here
+						: restingPlace(level, owner, spot(owner, 1.9 * s.side, 0.3));
 				s.restAge = 0;
 			} else if (++s.restAge > 200 && s.action == CompanionModel.NONE && s.idle < 750 && s.sleep < 0.05f
 					&& random.nextInt(260) == 0) {
@@ -466,12 +484,12 @@ final class Companions {
 			strolling = true;
 		} else {
 			s.rest = null;
-			spot = spot(owner, 0.8, -0.8);
+			spot = spot(owner, 1.0, -1.4);
 		}
 		double dx = spot.x - s.x, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
 		double max = Math.max(ownerSpeed * 1.15, s.target != null ? 0.15 : strolling && dist < 4 ? 0.07 : 0.13) + (dist > 4 ? 0.25 : 0);
-		double speed = dist > 0.35 ? Math.min(dist * 0.25, max) : 0;
+		double speed = dist > 0.35 ? Math.min(dist * 0.4, max) : 0;
 		// Hoppers only move while in the air.
 		if (movement == Companion.Movement.HOP && s.onGround && speed > 0.02) {
 			s.vy = 0.3;
@@ -884,6 +902,9 @@ final class Companions {
 		/** Where it rests while its player stands still (fixed in the world), and for how long it has been there. */
 		Vec3 rest;
 		int restAge;
+		/** Following its player (else resting near them), and for how long they have stood still. */
+		boolean following = true;
+		int ownerStill;
 
 		State(Companion.Look look, Player owner) {
 			this.look = look;

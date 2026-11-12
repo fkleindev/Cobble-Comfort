@@ -50,6 +50,34 @@ public class CompanionRestTest implements FabricClientGameTest {
 				moved = Math.max(moved, horizontal(at, settled));
 			}
 			LOGGER.info("Rest: moved at most {} while the player looked round", moved);
+			// A few small steps: it stays where it is.
+			Vec3 before = context.computeOnClient(mc -> wardrobe.companionPosition());
+			for (int i = 0; i < 6; i++) {
+				world.getServer().runCommand("execute as @p at @s run tp @s ~0.2 ~ ~");
+				context.waitTicks(2);
+			}
+			context.waitTicks(20);
+			Vec3 after = context.computeOnClient(mc -> wardrobe.companionPosition());
+			LOGGER.info("Rest: moved {} after the player stepped 1.2 blocks", horizontal(after, before));
+			// Walking off: it gets up and follows, a little behind.
+			double sum = 0;
+			int samples = 0;
+			context.runOnClient(mc -> mc.options.keyUp.setDown(true));
+			for (int i = 0; i < 60; i++) {
+				context.waitTicks(1);
+				if (i > 30) {
+					Vec3 at = context.computeOnClient(mc -> wardrobe.companionPosition());
+					Vec3 player = context.computeOnClient(mc -> mc.player.position());
+					sum += horizontal(at, player);
+					samples++;
+				}
+			}
+			context.runOnClient(mc -> mc.options.keyUp.setDown(false));
+			LOGGER.info("Rest: following {} blocks behind on average", sum / samples);
+			context.waitTicks(60);
+			me = context.computeOnClient(mc -> mc.player.position());
+			settled = context.computeOnClient(mc -> wardrobe.companionPosition());
+			LOGGER.info("Rest: settled again {} blocks from the player", horizontal(settled, me));
 			// Standing still for a while: strolling now and then.
 			int strolls = 0;
 			Vec3 last = context.computeOnClient(mc -> wardrobe.companionPosition());
