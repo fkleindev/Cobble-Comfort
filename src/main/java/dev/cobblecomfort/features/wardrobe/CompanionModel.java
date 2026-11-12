@@ -1052,9 +1052,10 @@ final class CompanionModel {
 			float steer = Mth.sin(t * 0.18f + side) * 0.3f * swim;
 			p.push();
 			p.translate(side * 2.3f, shellY + 1.35f, -2.7f);
-			p.rotateY(side * (-2.2f + push + steer + tuck * 0.4f));
+			// Reaching out behind, a little to the side (tucked further back when hiding).
+			p.rotateY(side * (0.8f + push + steer + tuck * 0.5f));
 			p.rotateZ(side * -0.2f * (1 - swim));
-			flipper(p, side, 0.55f, skin, skinDark);
+			flipper(p, side, 0.65f, skin, skinDark);
 			p.pop();
 		}
 

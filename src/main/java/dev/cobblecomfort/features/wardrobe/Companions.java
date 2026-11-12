@@ -361,6 +361,30 @@ final class Companions {
 		return new Vec3(owner.getX() + rx * side + fx * back, owner.getY(), owner.getZ() + rz * side + fz * back);
 	}
 
+	/**
+	 * A place to rest near {@code wanted}: on the ground, with room to stand, at the player's height (give or take a
+	 * step). If there is none there, another spot round the player; if none at all, close beside them.
+	 */
+	private Vec3 restingPlace(ClientLevel level, Player owner, Vec3 wanted) {
+		for (int i = 0; i < 6; i++) {
+			Vec3 at = wanted;
+			if (i > 0) {
+				float angle = random.nextFloat() * Mth.TWO_PI;
+				double r = 1.4 + random.nextDouble() * 1.6;
+				at = owner.position().add(Mth.cos(angle) * r, 0, Mth.sin(angle) * r);
+			}
+			Double ground = ground(level, at.x, owner.getY() + 1.2, at.z, 2.5);
+			if (ground != null && free(level, at.x, ground + 0.2, at.z) && free(level, at.x, ground + 0.7, at.z)) {
+				return new Vec3(at.x, ground, at.z);
+			}
+		}
+		return spot(owner, 0.9, 0.25);
+	}
+
+	private static double horizontal(Vec3 a, Vec3 b) {
+		return Math.hypot(a.x - b.x, a.z - b.z);
+	}
+
 	/** Sits behind its player on whatever they ride. */
 	private void ride(State s, Player owner) {
 		s.mode = Mode.RIDING;
@@ -419,11 +443,34 @@ final class Companions {
 	private void walk(ClientLevel level, State s, Player owner, double ownerSpeed, Companion.Movement movement) {
 		boolean landing = s.mode == Mode.FLYING || s.mode == Mode.PERCHED;
 		s.mode = Mode.WALKING;
-		// Behind you while you walk; next to you when you stand still.
-		Vec3 spot = s.target != null ? s.target : s.idle > 30 ? spot(owner, 0.9 * s.side, 0.25) : spot(owner, 0.8, -0.8);
+		// Behind you while you walk; when you stand still, at a resting place a little away from you, fixed in the world
+		// (looking around does not move it), now and then strolling over to another one.
+		Vec3 spot;
+		boolean strolling = false;
+		if (s.target != null) {
+			spot = s.target;
+		} else if (s.idle > 30) {
+			Vec3 feet = owner.position();
+			if (s.rest == null || horizontal(s.rest, feet) > 4.5 || horizontal(s.rest, feet) < 1.0) {
+				s.rest = restingPlace(level, owner, spot(owner, 1.9 * s.side, 0.3));
+				s.restAge = 0;
+			} else if (++s.restAge > 200 && s.action == CompanionModel.NONE && s.idle < 750 && s.sleep < 0.05f
+					&& random.nextInt(260) == 0) {
+				// Round the player from where it is now, a little to one side or the other (never across past them).
+				float angle = (float) Math.atan2(s.z - feet.z, s.x - feet.x) + (random.nextBoolean() ? 1 : -1) * (0.4f + random.nextFloat() * 0.9f);
+				double r = 1.6 + random.nextDouble() * 1.8;
+				s.rest = restingPlace(level, owner, feet.add(Mth.cos(angle) * r, 0, Mth.sin(angle) * r));
+				s.restAge = 0;
+			}
+			spot = s.rest;
+			strolling = true;
+		} else {
+			s.rest = null;
+			spot = spot(owner, 0.8, -0.8);
+		}
 		double dx = spot.x - s.x, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
-		double max = Math.max(ownerSpeed * 1.15, s.target != null ? 0.15 : 0.13) + (dist > 4 ? 0.25 : 0);
+		double max = Math.max(ownerSpeed * 1.15, s.target != null ? 0.15 : strolling && dist < 4 ? 0.07 : 0.13) + (dist > 4 ? 0.25 : 0);
 		double speed = dist > 0.35 ? Math.min(dist * 0.25, max) : 0;
 		// Hoppers only move while in the air.
 		if (movement == Companion.Movement.HOP && s.onGround && speed > 0.02) {
@@ -511,7 +558,9 @@ final class Companions {
 		s.x = x;
 		s.z = z;
 		s.speed = Math.hypot(x - s.xo, z - s.zo);
-		float rest = s.face != null ? (float) Math.atan2(s.face.x - s.x, s.face.z - s.z) : heading(owner);
+		// Facing its player while resting (turning round with their view would look restless), else where they head.
+		float rest = s.face != null ? (float) Math.atan2(s.face.x - s.x, s.face.z - s.z)
+				: s.rest != null ? (float) Math.atan2(owner.getX() - s.x, owner.getZ() - s.z) : heading(owner);
 		s.yaw = moving ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.3f) : turnTo(s.yaw, rest, s.face != null ? 0.25f : 0.04f);
 	}
 
@@ -661,12 +710,15 @@ final class Companions {
 
 	/** The shadow wolf melts into the shadows and steps out on its player's other side. */
 	private void shadowStep(ClientLevel level, State s, Player owner) {
-		Vec3 spot = spot(owner, -0.9 * s.side, 0.25);
+		// Across from where it stands, on the other side of its player.
+		Vec3 spot = new Vec3(2 * owner.getX() - s.x, owner.getY(), 2 * owner.getZ() - s.z);
 		Double ground = ground(level, spot.x, owner.getY() + 1.5, spot.z, 4);
 		if (ground == null || !free(level, spot.x, ground + 0.2, spot.z) || !free(level, spot.x, ground + 0.6, spot.z)) {
 			return;
 		}
 		s.side = -s.side;
+		s.rest = new Vec3(spot.x, ground, spot.z);
+		s.restAge = 0;
 		ParticleOptions smoke = wolfParticle(s.look.companion());
 		poof(level, s.x, s.y + 0.2, s.z, ParticleTypes.LARGE_SMOKE, 5);
 		poof(level, s.x, s.y + 0.2, s.z, smoke, 6);
@@ -829,6 +881,9 @@ final class Companions {
 		/** Which side of its player it sits on (1 right, -1 left; the shadow wolf swaps by stepping through the shadows); how dark it is around it (0 to 1). */
 		double side = 1;
 		float shade;
+		/** Where it rests while its player stands still (fixed in the world), and for how long it has been there. */
+		Vec3 rest;
+		int restAge;
 
 		State(Companion.Look look, Player owner) {
 			this.look = look;

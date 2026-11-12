@@ -220,6 +220,8 @@ public final class CosmeticSheetScreen extends Screen {
 		for (Object[] entry : turtlePoses) {
 			turtle.add(new Item(Component.literal((String) entry[0]), companion(Companion.TURTLE_GREEN, (CompanionModel.Pose) entry[1])));
 		}
+		turtle.add(new Item(Component.literal("From behind"), companion(Companion.TURTLE_GREEN, walking, 150f)));
+		turtle.add(new Item(Component.literal("Hiding, behind"), companion(Companion.TURTLE_GREEN, idle.doing(CompanionModel.HIDE, 0.5f), 150f)));
 		sections.add(new Section(Component.literal("Turtle"), turtle));
 		// The kitten: hopping, ducking and peeking out, out of the box (jumping, stretching, washing), licking a paw in the
 		// box, yawning, asleep, happy, afloat.
