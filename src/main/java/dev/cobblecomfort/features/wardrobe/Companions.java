@@ -9,18 +9,29 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ColorParticleOption;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.feline.Cat;
+import net.minecraft.world.entity.animal.feline.Ocelot;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -60,6 +71,31 @@ final class Companions {
 
 	int count() {
 		return states.size();
+	}
+
+	/** Where the companions are that can be seen. */
+	List<Vec3> positions() {
+		List<Vec3> out = new ArrayList<>();
+		for (State s : states.values()) {
+			if (!s.hidden) {
+				out.add(new Vec3(s.x, s.y + 0.3, s.z));
+			}
+		}
+		return out;
+	}
+
+	/** The nearest butterfly within {@code range} of a companion, or null. */
+	private static Vec3 butterfly(State s, double range) {
+		Vec3 best = null;
+		double bestDistance = range * range;
+		for (Vec3 at : dev.cobblecomfort.features.atmosphere.AtmosphereFeature.INSTANCE.butterflies()) {
+			double d = s.distanceSq(at);
+			if (d < bestDistance) {
+				bestDistance = d;
+				best = at;
+			}
+		}
+		return best;
 	}
 
 	/** The companion following this player now, for tests; null for none. */
@@ -104,6 +140,7 @@ final class Companions {
 			state.look = look;
 			tick(mc, level, state, player);
 		}
+		catsWatch(level);
 	}
 
 	// ---------------------------------------------------------------- meeting each other
@@ -331,8 +368,14 @@ final class Companions {
 		s.happy = Math.max(0, s.happy - 0.02f);
 		float dark = 1 - level.getMaxLocalRawBrightness(BlockPos.containing(s.x, s.y + 0.5, s.z)) / 15f;
 		s.shade = approach(s.shade, dark, 0.01f);
-		if (style == Companion.Style.MECH) {
+		if (style == Companion.Style.MECH || s.look.companion() == Companion.LANTERN_COPPER) {
 			weather(level, s, owner == mc.player);
+		}
+		if (style == Companion.Style.LANTERN) {
+			lanternMood(level, s, owner);
+		} else if (style == Companion.Style.WISP) {
+			// In the Nether it flickers.
+			s.fear = approach(s.fear, level.dimension() == Level.NETHER ? 1 : 0, 0.05f);
 		}
 		s.meetCooldown--;
 
@@ -344,6 +387,12 @@ final class Companions {
 			chase(level, s, owner);
 		} else if (riding) {
 			ride(s, owner);
+		} else if (style == Companion.Style.LANTERN && !sleeping && s.meeting == null && !s.beg && s.curious == null && s.fire == null
+				&& (s.cave > 0.5f || s.close)) {
+			// Lighting the way round its player in a cave; close in when they are badly hurt or dread is near.
+			circle(level, s, owner, ownerSpeed);
+		} else if (style == Companion.Style.WISP && s.meeting == null) {
+			ghost(level, s, owner, ownerSpeed);
 		} else if (style == Companion.Style.OWL && s.idle > 60 && !owner.isInWater() && s.meeting == null) {
 			perch(s, owner);
 		} else if (style.movement == Companion.Movement.FLY && (s.idle < 100 || owner.isInWater()) && s.meeting == null && !s.beg) {
@@ -363,17 +412,18 @@ final class Companions {
 		float sitTarget = s.mode == Mode.RIDING || s.mode == Mode.PERCHED || s.idle > 40 && s.speed < 0.02 && s.meeting == null
 				|| s.beg && s.speed < 0.02 ? 1 : 0;
 		s.sit = approach(s.sit, sleeping ? 0 : sitTarget, 0.1f);
-		s.sleep = approach(s.sleep, sleeping && s.mode != Mode.FLYING ? 1 : 0, sleeping ? 0.03f : 0.2f);
+		s.sleep = approach(s.sleep, sleeping && (s.mode != Mode.FLYING || style == Companion.Style.WISP) ? 1 : 0, sleeping ? 0.03f : 0.2f);
 		// Wings out when flying; for those that walk, how much they swim.
 		s.fly = approach(s.fly, s.mode == Mode.FLYING || s.swimming || s.rolling ? 1 : 0, s.rolling ? 0.2f : 0.12f);
 		s.walking = approach(s.walking, Mth.clamp((float) s.speed * 8f, 0, 1), 0.25f);
 		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM || style == Companion.Style.MECH ? 3.2f : style == Companion.Style.SALAMANDER ? 5.5f : 4.5f)
 				* (s.galloping ? 1.3f : 1f);
-		s.dash = approach(s.dash, chasing ? 1 : 0, 0.08f);
+		// A whirlwind runs wild after a sprinting player.
+		s.dash = approach(s.dash, chasing || style == Companion.Style.WIND && owner.isSprinting() && s.following ? 1 : 0, 0.08f);
 		if (!chasing) {
 			s.pitch = approach(s.pitch, 0, 0.1f);
 		}
-		s.flap += 0.5f + s.fly * 0.3f + s.dash * 0.7f;
+		s.flap += style == Companion.Style.WIND ? (0.5f + s.dash * 0.9f) * (1 - 0.7f * s.sleep) : 0.5f + s.fly * 0.3f + s.dash * 0.7f;
 
 		// Squash on landing, stretch while rising.
 		if (!wasOnGround && s.onGround) {
@@ -387,6 +437,7 @@ final class Companions {
 		look(mc, s, owner);
 		pet(mc, level, s);
 		ambient(level, s, owner);
+		drip(level, s);
 	}
 
 	/** Comes out next to the player, on the ground. */
@@ -404,6 +455,7 @@ final class Companions {
 		s.vx = s.vy = s.vz = 0;
 		s.stuck = 0;
 		s.mode = Mode.WALKING;
+		s.thread.clear();
 		s.yaw = heading(owner);
 		s.save();
 	}
@@ -543,6 +595,171 @@ final class Companions {
 		}
 	}
 
+	/**
+	 * A lantern spirit lighting the way: circling its player at shoulder height, closer in where the circle would go into
+	 * the rock (behind them in a narrow tunnel), facing them as it goes round; close beside them when they are badly hurt
+	 * or dread is near.
+	 */
+	private void circle(ClientLevel level, State s, Player owner, double ownerSpeed) {
+		s.mode = Mode.FLYING;
+		s.orbit += (s.close ? 0.05 : 0.03) * s.side;
+		double r = s.close ? 0.95 : 1.7;
+		double ty = owner.getY() + (s.close ? 1.1 : 1.45) + Mth.sin(s.age * 0.09f) * 0.12;
+		double tx = Double.NaN, tz = 0;
+		for (double rr = r; rr >= 0.6; rr -= 0.35) {
+			double x = owner.getX() + Math.cos(s.orbit) * rr, z = owner.getZ() + Math.sin(s.orbit) * rr;
+			if (free(level, x, ty, z) && free(level, x, ty + 0.4, z)) {
+				tx = x;
+				tz = z;
+				break;
+			}
+		}
+		if (Double.isNaN(tx)) {
+			Vec3 behind = spot(owner, 0, -1.0);
+			tx = behind.x;
+			tz = behind.z;
+			ty = owner.getY() + 1.2;
+		}
+		double dx = tx - s.x, dy = ty - s.y, dz = tz - s.z;
+		double dist = Math.sqrt(dx * dx + dz * dz);
+		double max = Math.max(ownerSpeed * 1.4, 0.1) + (dist > 3 ? 0.3 : 0);
+		double speed = Math.min(dist * 0.3, max);
+		s.vx = Mth.lerp(0.35, s.vx, dist > 0.01 ? dx / dist * speed : 0);
+		s.vz = Mth.lerp(0.35, s.vz, dist > 0.01 ? dz / dist * speed : 0);
+		s.vy = Mth.lerp(0.25, s.vy, Mth.clamp(dy * 0.25, -0.3, 0.3));
+		double x = s.x + s.vx, y = s.y + s.vy, z = s.z + s.vz;
+		if (!free(level, x, y + 0.1, z) || !free(level, x, y + 0.5, z)) {
+			// Not through the rock: up or down only, else it waits (and pops over once left too far behind).
+			x = s.x;
+			z = s.z;
+			if (!free(level, x, y + 0.1, z) || !free(level, x, y + 0.5, z)) {
+				y = s.y;
+			}
+		}
+		s.x = x;
+		s.y = y;
+		s.z = z;
+		s.speed = Math.hypot(s.vx, s.vz);
+		s.onGround = false;
+		s.yaw = ownerSpeed > 0.08 && s.speed > 0.05 ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.25f)
+				: turnTo(s.yaw, (float) Math.atan2(owner.getX() - s.x, owner.getZ() - s.z), 0.2f);
+	}
+
+	/**
+	 * A wisp glides after its player through the air and through walls alike: off to their side, a little behind, at
+	 * waist height. Resting, it drifts about its place (by the fire, at what caught its eye, in front of them while they
+	 * eat), and now and then slips into a wall nearby, only its face peeking out, before it comes back.
+	 */
+	private void ghost(ClientLevel level, State s, Player owner, double ownerSpeed) {
+		s.mode = Mode.FLYING;
+		if (!s.following && s.rest == null) {
+			// Settles where it is, unless that is right next to its player.
+			Vec3 here = new Vec3(s.x, owner.getY(), s.z);
+			s.rest = horizontal(here, owner.position()) >= 1.8 ? here : spot(owner, 2.4 * s.side, 0.3);
+			s.restAge = 0;
+		}
+		if (!s.following && s.haunt == null && !roomy(level, s.rest.x, s.rest.y + 0.75, s.rest.z)) {
+			// Not to rest in or against a wall (drifting about, it would be half in it): out to a free place near its player.
+			s.rest = restingPlace(level, owner, spot(owner, 2.2 * s.side, 0.3));
+		}
+		if (s.following || s.beg) {
+			s.haunt = null;
+		} else if (s.haunt == null && s.fire == null && s.curious == null && s.idle > 120 && --s.hauntCooldown <= 0) {
+			s.haunt = wall(level, s.rest.add(0, 0.75, 0));
+			s.hauntAge = 0;
+			s.hauntCooldown = 400 + random.nextInt(600);
+		}
+		if (s.haunt != null && ++s.hauntAge > 110) {
+			s.haunt = null;
+		}
+		// Another player coming close: it ducks away, slips over to them and pops up in front of them: boo.
+		if (s.booVictim != null && (s.following || s.beg || s.action != CompanionModel.HIDE || !s.booVictim.isAlive())) {
+			s.booVictim = null;
+		}
+		if (s.booVictim == null && !s.following && !s.beg && s.haunt == null && s.action == CompanionModel.NONE && s.sleep < 0.05f
+				&& --s.booCooldown <= 0) {
+			s.booCooldown = 10;
+			for (Player other : level.players()) {
+				if (other != owner && !other.isSpectator() && !other.isInvisible() && other.distanceToSqr(s.x, s.y, s.z) < 3.5 * 3.5) {
+					s.booVictim = other;
+					start(s, CompanionModel.HIDE);
+					s.booCooldown = 600 + random.nextInt(600);
+					break;
+				}
+			}
+		}
+		double tx, ty, tz;
+		if (s.beg) {
+			Vec3 spot = spot(owner, 0.25 * s.side, 1.2);
+			tx = spot.x;
+			ty = owner.getY() + 0.6;
+			tz = spot.z;
+		} else if (s.following) {
+			Vec3 spot = spot(owner, 1.7 * s.side, -1.7);
+			tx = spot.x;
+			ty = owner.getY() + 0.75 + Mth.sin(s.age * 0.06f) * 0.1;
+			tz = spot.z;
+		} else if (s.booVictim != null) {
+			// Right in front of their face.
+			Vec3 look = s.booVictim.getLookAngle().multiply(1, 0, 1);
+			look = look.lengthSqr() > 1.0E-4 ? look.normalize() : new Vec3(0, 0, 1);
+			tx = s.booVictim.getX() + look.x * 0.9;
+			ty = s.booVictim.getY() + 0.9;
+			tz = s.booVictim.getZ() + look.z * 0.9;
+		} else if (s.haunt != null) {
+			tx = s.haunt.x;
+			ty = s.haunt.y;
+			tz = s.haunt.z;
+		} else {
+			// Drifting about its place.
+			tx = s.rest.x + Mth.sin(s.age * 0.021f) * 0.3;
+			ty = s.rest.y + 0.75 + Mth.sin(s.age * 0.05f) * 0.1;
+			tz = s.rest.z + Mth.cos(s.age * 0.017f) * 0.3;
+		}
+		double dx = tx - s.x, dy = ty - s.y, dz = tz - s.z;
+		double dist = Math.sqrt(dx * dx + dz * dz);
+		double max = Math.max(ownerSpeed * 1.25, s.booVictim != null ? 0.14 : 0.06) + (dist > 3 ? 0.3 : 0);
+		double speed = Math.min(dist * 0.2, max);
+		s.vx = Mth.lerp(0.25, s.vx, dist > 0.01 ? dx / dist * speed : 0);
+		s.vz = Mth.lerp(0.25, s.vz, dist > 0.01 ? dz / dist * speed : 0);
+		s.vy = Mth.lerp(0.2, s.vy, Mth.clamp(dy * 0.15, -0.25, 0.25));
+		s.x += s.vx;
+		s.y += s.vy;
+		s.z += s.vz;
+		s.speed = Math.hypot(s.vx, s.vz);
+		s.onGround = false;
+		s.stuck = 0;
+		// Facing where it glides; resting, its player (peeking out of a wall too) or what it warms itself at or sniffs.
+		Vec3 toward = s.booVictim != null ? s.booVictim.position() : s.curious != null ? s.curious : s.fire;
+		float rest = toward != null ? (float) Math.atan2(toward.x - s.x, toward.z - s.z)
+				: (float) Math.atan2(owner.getX() - s.x, owner.getZ() - s.z);
+		s.yaw = s.speed > 0.03 && s.haunt == null && s.booVictim == null ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.2f) : turnTo(s.yaw, rest, 0.12f);
+	}
+
+	/** Whether there is room round this point to drift about: nothing solid there or half a block to each side. */
+	private static boolean roomy(ClientLevel level, double x, double y, double z) {
+		return free(level, x, y, z) && free(level, x + 0.5, y, z) && free(level, x - 0.5, y, z) && free(level, x, y, z + 0.5)
+				&& free(level, x, y, z - 0.5);
+	}
+
+	/**
+	 * A spot just inside a wall next to {@code from} (a little way into the first solid block in some direction), for a
+	 * wisp to peek out of; null if there is no wall close by.
+	 */
+	private Vec3 wall(ClientLevel level, Vec3 from) {
+		float start = random.nextFloat() * Mth.TWO_PI;
+		for (int i = 0; i < 8; i++) {
+			float angle = start + i * Mth.TWO_PI / 8;
+			double ux = Mth.cos(angle), uz = Mth.sin(angle);
+			for (double d = 0.6; d <= 2.6; d += 0.2) {
+				if (!free(level, from.x + ux * d, from.y, from.z + uz * d)) {
+					return new Vec3(from.x + ux * (d + 0.3), from.y - 0.2, from.z + uz * (d + 0.3));
+				}
+			}
+		}
+		return null;
+	}
+
 	/** Walks (or hops, or floats) after the player on the ground; steps up, falls down, swims, stops at walls. */
 	private void walk(ClientLevel level, State s, Player owner, double ownerSpeed, Companion.Movement movement) {
 		boolean landing = s.mode == Mode.FLYING || s.mode == Mode.PERCHED;
@@ -601,7 +818,7 @@ final class Companions {
 		// rocket boots instead).
 		s.galloping = owner.isSprinting() && !strolling && s.target == null && !s.beg && !s.rolling && speed > 0.12
 				&& movement != Companion.Movement.HOVER && !s.swimming;
-		if (s.galloping && s.onGround && movement == Companion.Movement.WALK && kind != Companion.Style.MECH) {
+		if (s.galloping && s.onGround && movement == Companion.Movement.WALK && kind != Companion.Style.MECH && kind != Companion.Style.WIND) {
 			s.vy = 0.24;
 			s.onGround = false;
 			BlockState under = level.getBlockState(BlockPos.containing(s.x, s.y - 0.1, s.z));
@@ -825,6 +1042,14 @@ final class Companions {
 					s.squash = 0.15f;
 				}
 			}
+			if (s.sniff == 30 && s.curiousItem == null && kind == Companion.Style.PANDA
+					&& level.getBlockState(BlockPos.containing(s.curious)).is(net.minecraft.world.level.block.Blocks.BAMBOO)) {
+				// Bamboo! It sits down and munches some.
+				s.curious = null;
+				s.curiosityCooldown = 400 + random.nextInt(600);
+				start(s, CompanionModel.SNACK);
+				return;
+			}
 			if (s.sniff == 55) {
 				if (s.curiousItem == null && random.nextInt(2) == 0) {
 					// Atchoo: the pollen got it.
@@ -855,7 +1080,19 @@ final class Companions {
 					break;
 				}
 			}
-			Vec3 thing = item != null ? item.position() : flower(level, s, owner);
+			// A kitten goes for a ball of yarn first (and bats at it); any of them, now and then, after a butterfly.
+			Vec3 toy = kind == Companion.Style.KITTEN ? yarnNear(s, 5) : null;
+			if (toy == null && random.nextInt(3) == 0) {
+				// Or after a butterfly, to pounce where it was (it flutters off in time).
+				toy = butterfly(s, 5);
+				if (toy != null) {
+					toy = new Vec3(toy.x, s.y, toy.z);
+				}
+			}
+			if (toy != null) {
+				item = null;
+			}
+			Vec3 thing = toy != null ? toy : item != null ? item.position() : flower(level, s, owner);
 			if (thing != null) {
 				double dx = s.x - thing.x, dz = s.z - thing.z, d = Math.max(0.01, Math.hypot(dx, dz));
 				s.curious = thing;
@@ -886,11 +1123,37 @@ final class Companions {
 		return best;
 	}
 
+	/** The nearest bamboo to it within a few blocks (and not too far from its player), at about their height, or null. */
+	private static Vec3 bamboo(ClientLevel level, State s, Player owner) {
+		BlockPos at = BlockPos.containing(s.x, s.y, s.z);
+		Vec3 best = null;
+		double bestDistance = Double.MAX_VALUE;
+		for (BlockPos pos : BlockPos.betweenClosed(at.offset(-5, -1, -5), at.offset(5, 1, 5))) {
+			if (level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.BAMBOO)) {
+				Vec3 spot = Vec3.atBottomCenterOf(pos);
+				double d = s.distanceSq(spot);
+				if (d < bestDistance && horizontal(spot, owner.position()) < LEASH - 0.4 && horizontal(spot, owner.position()) > 1.2) {
+					bestDistance = d;
+					best = spot;
+				}
+			}
+		}
+		return best;
+	}
+
 	/** A flower near it (and its player) at about their height, picked at random, or null. */
 	private Vec3 flower(ClientLevel level, State s, Player owner) {
+		if (s.look.companion().style == Companion.Style.PANDA) {
+			// A baby panda goes for bamboo first.
+			Vec3 bamboo = bamboo(level, s, owner);
+			if (bamboo != null) {
+				return bamboo;
+			}
+		}
 		for (int i = 0; i < 16; i++) {
 			BlockPos pos = BlockPos.containing(s.x + random.nextInt(9) - 4, s.y + random.nextInt(3) - 1, s.z + random.nextInt(9) - 4);
-			if (level.getBlockState(pos).is(BlockTags.SMALL_FLOWERS) && horizontal(Vec3.atBottomCenterOf(pos), owner.position()) < LEASH - 0.4
+			BlockState state = level.getBlockState(pos);
+			if (state.is(BlockTags.SMALL_FLOWERS) && horizontal(Vec3.atBottomCenterOf(pos), owner.position()) < LEASH - 0.4
 					&& horizontal(Vec3.atBottomCenterOf(pos), owner.position()) > 1.2) {
 				return Vec3.atBottomCenterOf(pos);
 			}
@@ -902,12 +1165,15 @@ final class Companions {
 		Companion.Style style = s.look.companion().style;
 		if (style != Companion.Style.RED_PANDA && style != Companion.Style.TURTLE && style != Companion.Style.KITTEN
 				&& style != Companion.Style.SHADOW_WOLF && style != Companion.Style.HEDGEHOG && style != Companion.Style.PENGUIN
-				&& style != Companion.Style.MECH && style != Companion.Style.SALAMANDER) {
+				&& style != Companion.Style.MECH && style != Companion.Style.SALAMANDER && style != Companion.Style.LANTERN && style != Companion.Style.WISP
+				&& style != Companion.Style.WIND && style != Companion.Style.YARN && style != Companion.Style.PANDA) {
 			s.action = CompanionModel.NONE;
 			return;
 		}
-		boolean calm = s.sleep < 0.05f && s.mode == Mode.WALKING && s.speed < 0.02 && s.onGround && s.meeting == null
-				&& s.curious == null;
+		// A wisp never stands on the ground: calm is drifting at its place.
+		boolean calm = s.sleep < 0.05f && s.meeting == null && s.curious == null && (style == Companion.Style.WISP
+				? s.booVictim != null || !s.following && s.haunt == null && s.speed < 0.03
+				: s.mode == Mode.WALKING && s.speed < 0.02 && s.onGround);
 		if (!calm) {
 			s.action = CompanionModel.NONE;
 			s.actionAge = 0;
@@ -917,6 +1183,16 @@ final class Companions {
 			if (s.idle > 50 && !s.beg && --s.actionCooldown <= 0) {
 				int[] choices = style == Companion.Style.MECH
 						? new int[]{CompanionModel.SCAN, CompanionModel.ROCKET, CompanionModel.SHAKE}
+						: style == Companion.Style.LANTERN
+						? new int[]{CompanionModel.STAND, CompanionModel.YAWN, CompanionModel.SHAKE}
+						: style == Companion.Style.WISP
+						? new int[]{CompanionModel.SHAKE, CompanionModel.YAWN, CompanionModel.HIDE}
+						: style == Companion.Style.WIND
+						? new int[]{CompanionModel.STAND, CompanionModel.YAWN}
+						: style == Companion.Style.YARN
+						? new int[]{CompanionModel.STAND, CompanionModel.SHAKE}
+						: style == Companion.Style.PANDA
+						? new int[]{CompanionModel.SNACK, CompanionModel.SHAKE, CompanionModel.BASK, CompanionModel.GROOM, CompanionModel.YAWN}
 						: style == Companion.Style.SALAMANDER
 						? s.fire != null ? new int[]{CompanionModel.BASK, CompanionModel.BASK, CompanionModel.BASK, CompanionModel.YAWN}
 						: new int[]{CompanionModel.BASK, CompanionModel.YAWN, CompanionModel.STAND}
@@ -971,6 +1247,12 @@ final class Companions {
 		if (s.face == null && s.curious != null && s.distanceSq(s.curious) < 4) {
 			// Nose down to what it found.
 			at = s.curious;
+		} else if (s.face == null && s.look.companion().style == Companion.Style.KITTEN && yarnNear(s, 6) != null) {
+			// A kitten can't take its eyes off a ball of yarn.
+			at = yarnNear(s, 6);
+		} else if (s.face == null && !s.following && s.mode != Mode.PERCHED && (s.butterfly = butterfly(s, 4)) != null) {
+			// Watching a butterfly flutter by.
+			at = s.butterfly;
 		} else if (s.face == null && s.fire != null && s.idle % 240 < 170) {
 			// Gazing into the flames, now and then back at its player.
 			at = s.fire.add(0, 0.3, 0);
@@ -1012,8 +1294,8 @@ final class Companions {
 			// The red panda rears up, the turtle hides shyly.
 			start(s, kind == Companion.Style.TURTLE ? CompanionModel.HIDE : CompanionModel.STAND);
 		}
-		if (kind == Companion.Style.MECH && s.wear > 0) {
-			// Petting a mech polishes it: the green comes off again.
+		if ((kind == Companion.Style.MECH || s.look.companion() == Companion.LANTERN_COPPER) && s.wear > 0) {
+			// Petting a mech (or a copper lantern) polishes it: the green comes off again.
 			s.wear = Math.max(0, s.wear - 0.004f);
 			if (s.age % 4 == 0) {
 				level.addParticle(ParticleTypes.SCRAPE, s.x + (random.nextDouble() - 0.5) * 0.5, s.y + 0.2 + random.nextDouble() * 0.5,
@@ -1113,6 +1395,159 @@ final class Companions {
 		}
 	}
 
+	/**
+	 * What a lantern spirit feels round its player: monsters close by make its flame gutter, a hissing creeper makes it
+	 * flicker wildly and flinch, its player badly hurt dims it and keeps it close, a warden near (or the darkness it
+	 * brings) all but puts it out and makes it shiver. And whether they are down in a cave: no sky and dark round it.
+	 */
+	private void lanternMood(ClientLevel level, State s, Player owner) {
+		if (s.age % 4 == 0) {
+			float threat = 0;
+			boolean hiss = false, dread = owner.hasEffect(MobEffects.DARKNESS);
+			for (Monster monster : level.getEntitiesOfClass(Monster.class, owner.getBoundingBox().inflate(24), Entity::isAlive)) {
+				double d = monster.distanceTo(owner);
+				if (monster instanceof Warden) {
+					dread = true;
+				} else if (d < 10) {
+					threat = Math.max(threat, (float) Mth.clamp((10 - d) / 8, 0, 1) * 0.6f);
+					if (monster instanceof Creeper creeper && (creeper.getSwelling(1f) > 0.01f || creeper.isIgnited())) {
+						hiss = true;
+					}
+				}
+			}
+			if (hiss && !s.hiss) {
+				// Flinching.
+				s.squash = 0.8f;
+			}
+			s.hiss = hiss;
+			s.threat = hiss ? 1 : threat;
+			s.dread = dread;
+		}
+		boolean hurt = owner.getHealth() <= 6 && !owner.isCreative() && !owner.isSpectator();
+		s.close = hurt || s.dread;
+		float fear = Math.max(s.threat, s.dread ? 0.45f : 0);
+		s.fear = approach(s.fear, fear, fear > s.fear ? 0.15f : 0.02f);
+		s.dim = approach(s.dim, s.dread ? 0.85f : hurt ? 0.5f : 0, 0.03f);
+		boolean cave = s.shade > 0.5f && !level.canSeeSky(BlockPos.containing(owner.getX(), owner.getEyeY(), owner.getZ()));
+		s.cave = approach(s.cave, cave ? 1 : 0, 0.02f);
+		Double floor = ground(level, s.x, s.y + 0.3, s.z, 3);
+		s.floor = floor != null ? floor : Double.NaN;
+	}
+
+	/**
+	 * A lantern spirit's sparks: now and then one rising from its cap, a burst as it flares up, spat out when it is
+	 * frightened; souls drifting off it when dread is near.
+	 */
+	private void lanternSparks(ClientLevel level, State s) {
+		ParticleOptions spark = switch (s.look.companion()) {
+			case LANTERN_SOUL -> ParticleTypes.SOUL_FIRE_FLAME;
+			case LANTERN_COPPER -> ParticleTypes.COPPER_FIRE_FLAME;
+			case LANTERN_AMETHYST -> ParticleTypes.WITCH;
+			default -> ParticleTypes.SMALL_FLAME;
+		};
+		double top = s.y + 0.62;
+		boolean flaring = s.action == CompanionModel.STAND && s.actionAge > 15 && s.actionAge < 40;
+		if (flaring ? s.age % 2 == 0 : random.nextInt(s.fear > 0.8f ? 3 : 45) == 0) {
+			double spread = s.fear > 0.8f ? 0.08 : 0.02;
+			level.addParticle(spark, s.x + (random.nextDouble() - 0.5) * 0.15, top, s.z + (random.nextDouble() - 0.5) * 0.15,
+					(random.nextDouble() - 0.5) * spread, 0.03, (random.nextDouble() - 0.5) * spread);
+		}
+		if (s.dread && random.nextInt(10) == 0) {
+			level.addParticle(ParticleTypes.SOUL, s.x + (random.nextDouble() - 0.5) * 0.3, s.y + 0.3, s.z + (random.nextDouble() - 0.5) * 0.3,
+					0, 0.02, 0);
+		}
+	}
+
+	/**
+	 * A wisp's trail: wisps of smoke (souls, ash, end sparks) off its tail as it glides, a puff as it pops out for its boo,
+	 * and flickers of soul fire in the Nether.
+	 */
+	private void wispSmoke(ClientLevel level, State s) {
+		ParticleOptions trail = switch (s.look.companion()) {
+			case WISP_SOUL -> ParticleTypes.SOUL;
+			case WISP_PALE -> ParticleTypes.WHITE_ASH;
+			case WISP_VOID -> ParticleTypes.REVERSE_PORTAL;
+			default -> ParticleTypes.SMOKE;
+		};
+		double bx = s.x - Mth.sin(s.yaw) * 0.25, bz = s.z - Mth.cos(s.yaw) * 0.25;
+		if (s.speed > 0.04 ? random.nextInt(s.look.companion() == Companion.WISP_SOUL ? 10 : 4) == 0 : random.nextInt(60) == 0) {
+			level.addParticle(trail, bx + (random.nextDouble() - 0.5) * 0.2, s.y + 0.15, bz + (random.nextDouble() - 0.5) * 0.2, 0, 0.01, 0);
+		}
+		if (s.action == CompanionModel.HIDE && s.actionAge == s.actionLength * 6 / 10) {
+			poof(level, s.x, s.y + 0.2, s.z, ParticleTypes.SMOKE, 6);
+		}
+		if (s.fear > 0.5f && random.nextInt(25) == 0) {
+			level.addParticle(ParticleTypes.SOUL_FIRE_FLAME, s.x + (random.nextDouble() - 0.5) * 0.3, s.y + 0.4,
+					s.z + (random.nextDouble() - 0.5) * 0.3, 0, 0.02, 0);
+		}
+	}
+
+	/** A baby panda's sneeze (a puff, and it bounces back a little) and the bits of bamboo it drops as it munches. */
+	private void pandaBits(ClientLevel level, State s) {
+		double fx = Mth.sin(s.yaw), fz = Mth.cos(s.yaw);
+		if (s.action == CompanionModel.GROOM && s.actionAge == s.actionLength * 62 / 100) {
+			level.addParticle(ParticleTypes.SNEEZE, s.x + fx * 0.4, s.y + 0.35, s.z + fz * 0.4, fx * 0.06, 0.02, fz * 0.06);
+			s.squash = 0.7f;
+			if (s.onGround) {
+				s.vy = 0.18;
+				s.onGround = false;
+			}
+		}
+		if (s.action == CompanionModel.SNACK && s.actionAge > 10 && s.actionAge % 14 == 0) {
+			level.addParticle(new ItemParticleOption(ParticleTypes.ITEM, net.minecraft.world.item.Items.BAMBOO),
+					s.x + fx * 0.3, s.y + 0.4, s.z + fz * 0.3, (random.nextDouble() - 0.5) * 0.05, 0.05, (random.nextDouble() - 0.5) * 0.05);
+		}
+	}
+
+	/**
+	 * A companion getting wet (swimming, out in the rain) drips as it dries, faster and steaming by a fire, and shakes
+	 * itself off with a shower of drops once it is out of the water and on its feet. Not those made of fire, air or
+	 * smoke, nor the lantern.
+	 */
+	private void drip(ClientLevel level, State s) {
+		Companion.Style kind = s.look.companion().style;
+		if (!dev.cobblecomfort.features.atmosphere.AtmosphereFeature.INSTANCE.drips() || kind == Companion.Style.SALAMANDER
+				|| kind == Companion.Style.WISP || kind == Companion.Style.WIND || kind == Companion.Style.LANTERN) {
+			s.wet = 0;
+			return;
+		}
+		BlockPos top = BlockPos.containing(s.x, s.y + 0.6, s.z);
+		boolean rain = level.isRaining() && level.canSeeSky(top)
+				&& level.getBiome(top).value().getPrecipitationAt(top, level.getSeaLevel()) == net.minecraft.world.level.biome.Biome.Precipitation.RAIN;
+		if (s.swimming) {
+			s.wet = 1;
+			s.soaked = true;
+		} else if (rain) {
+			s.wet = Math.min(1, s.wet + 1 / 400f);
+		} else if (s.wet > 0) {
+			boolean hot = s.fire != null || level.dimension() == Level.NETHER;
+			s.wet = Math.max(0, s.wet - (hot ? 1 / 100f : 1 / 600f));
+			if (hot && random.nextInt(3) == 0) {
+				level.addParticle(ParticleTypes.WHITE_SMOKE, s.x + (random.nextDouble() - 0.5) * 0.4, s.y + 0.3, s.z + (random.nextDouble() - 0.5) * 0.4,
+						0, 0.03, 0);
+			}
+		}
+		if (s.soaked && !s.swimming && s.onGround && s.speed < 0.05) {
+			// Out of the water: a good shake.
+			s.soaked = false;
+			double h = CompanionModel.height(kind) * 0.5;
+			for (int i = 0; i < 14; i++) {
+				double angle = random.nextDouble() * Mth.TWO_PI;
+				level.addParticle(ParticleTypes.SPLASH, s.x + Math.cos(angle) * 0.25, s.y + h, s.z + Math.sin(angle) * 0.25,
+						Math.cos(angle) * 0.15, 0.08, Math.sin(angle) * 0.15);
+			}
+			s.squash = 0.6f;
+			s.wet *= 0.3f;
+			if (kind == Companion.Style.PENGUIN && s.action == CompanionModel.NONE) {
+				start(s, CompanionModel.SHAKE);
+			}
+		}
+		if (s.wet > 0 && !s.swimming && random.nextFloat() < s.wet * 0.2f) {
+			level.addParticle(ParticleTypes.FALLING_WATER, s.x + (random.nextDouble() - 0.5) * 0.35,
+					s.y + CompanionModel.height(kind) * random.nextDouble() * 0.8, s.z + (random.nextDouble() - 0.5) * 0.35, 0, 0, 0);
+		}
+	}
+
 	/** Small touches: a rain cloud drips in the rain, a snowman leaves a few flakes, a golem's steps thud. */
 	private void ambient(ClientLevel level, State s, Player owner) {
 		Companion.Style style = s.look.companion().style;
@@ -1124,6 +1559,16 @@ final class Companions {
 			mechPuffs(level, s);
 		} else if (style == Companion.Style.SALAMANDER) {
 			salamanderSparks(level, s);
+		} else if (style == Companion.Style.LANTERN) {
+			lanternSparks(level, s);
+		} else if (style == Companion.Style.WISP) {
+			wispSmoke(level, s);
+		} else if (style == Companion.Style.WIND) {
+			windDust(level, s);
+		} else if (style == Companion.Style.YARN) {
+			thread(level, s);
+		} else if (style == Companion.Style.PANDA) {
+			pandaBits(level, s);
 		}
 		boolean sliding = style == Companion.Style.PENGUIN && s.rolling && random.nextInt(2) == 0;
 		if ((style == Companion.Style.SNOWMAN && s.speed > 0.05 && random.nextInt(4) == 0) || sliding) {
@@ -1273,6 +1718,141 @@ final class Companions {
 		}
 	}
 
+
+	/** How many points (a little under a third of a block apart) a ball of yarn's thread has when it is all unwound. */
+	private static final int THREAD = 48;
+
+	/**
+	 * A ball of yarn's thread: laid down on the ground behind it as it rolls along (the far end let go of once it is all
+	 * unwound), wound up again from the far end while it rests, the ball turning as it reels it in.
+	 */
+	private void thread(ClientLevel level, State s) {
+		if (s.speed > 0.01 && !s.swimming) {
+			Double ground = ground(level, s.x, s.y + 0.3, s.z, 2);
+			Vec3 here = new Vec3(s.x, (ground != null ? ground : s.y) + 0.02, s.z);
+			Vec3 last = s.thread.peekLast();
+			if (last == null || last.distanceToSqr(here) > 0.3 * 0.3) {
+				s.thread.addLast(here);
+				if (s.thread.size() > THREAD) {
+					s.thread.removeFirst();
+				}
+			}
+		} else if (!s.thread.isEmpty() && s.age % 2 == 0) {
+			s.thread.removeFirst();
+			s.walk += 0.35f;
+		}
+		s.wear = s.thread.size() / (float) THREAD;
+	}
+
+	/**
+	 * A whirlwind's swirl: whatever it passes over (the ground, grass, flowers, snow) whirled up and spun round it, its own
+	 * leaves (sand, flakes) flying off, and gusts sweeping off it when it races after a sprinting player.
+	 */
+	private void windDust(ClientLevel level, State s) {
+		BlockState under = level.getBlockState(BlockPos.containing(s.x, s.y - 0.1, s.z));
+		BlockState at = level.getBlockState(BlockPos.containing(s.x, s.y + 0.1, s.z));
+		float gust = s.dash;
+		if (random.nextInt(s.speed > 0.04 || gust > 0.3 ? 2 : 10) == 0) {
+			BlockState what = !at.isAir() && at.getFluidState().isEmpty() ? at : under;
+			if (!what.isAir()) {
+				double a = random.nextDouble() * Mth.TWO_PI, r = 0.25 + 0.15 * gust;
+				level.addParticle(new BlockParticleOption(ParticleTypes.BLOCK, what), s.x + Math.cos(a) * r, s.y + 0.05 + random.nextDouble() * 0.3,
+						s.z + Math.sin(a) * r, -Math.sin(a) * 0.15, 0.08 + 0.1 * gust, Math.cos(a) * 0.15);
+			}
+		}
+		if (random.nextInt(gust > 0.5f ? 3 : 25) == 0) {
+			ParticleOptions own = switch (s.look.companion()) {
+				case WIND_AUTUMN -> random.nextBoolean() ? ParticleTypes.ORANGE_POPLAR_LEAVES : ParticleTypes.RED_POPLAR_LEAVES;
+				case WIND_SNOW -> ParticleTypes.SNOWFLAKE;
+				case WIND_DUST -> ParticleTypes.DUST_PLUME;
+				default -> ColorParticleOption.create(ParticleTypes.TINTED_LEAVES, s.look.companion().third);
+			};
+			double a = random.nextDouble() * Mth.TWO_PI;
+			level.addParticle(own, s.x + Math.cos(a) * 0.35, s.y + 0.2 + random.nextDouble() * 0.5, s.z + Math.sin(a) * 0.35,
+					-Math.sin(a) * 0.1, 0.03, Math.cos(a) * 0.1);
+		}
+		if (gust > 0.5f && random.nextInt(5) == 0) {
+			level.addParticle(ParticleTypes.SMALL_GUST, s.x + (random.nextDouble() - 0.5) * 0.8, s.y + 0.2 + random.nextDouble() * 0.6,
+					s.z + (random.nextDouble() - 0.5) * 0.8, 0, 0, 0);
+		}
+	}
+
+	/** Where the nearest ball of yarn (another player's companion) is, within {@code range} of this one; null if none. */
+	private Vec3 yarnNear(State s, double range) {
+		Vec3 best = null;
+		double bestDistance = range * range;
+		for (State other : states.values()) {
+			if (other != s && !other.hidden && other.look.companion().style == Companion.Style.YARN) {
+				double d = s.distanceSq(new Vec3(other.x, other.y, other.z));
+				if (d < bestDistance) {
+					bestDistance = d;
+					best = new Vec3(other.x, other.y + 0.15, other.z);
+				}
+			}
+		}
+		return best;
+	}
+
+	/**
+	 * Cats and ocelots near a ball of yarn can't take their eyes off it: they turn their heads after it (only as drawn
+	 * here; the game's own looking about takes over again when it rolls away).
+	 */
+	private void catsWatch(ClientLevel level) {
+		for (State s : states.values()) {
+			if (s.hidden || s.look.companion().style != Companion.Style.YARN) {
+				continue;
+			}
+			Vec3 ball = new Vec3(s.x, s.y + 0.15, s.z);
+			for (LivingEntity cat : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(ball, ball).inflate(6, 2, 6),
+					e -> e instanceof Cat || e instanceof Ocelot)) {
+				if (cat instanceof Cat sleeping && sleeping.isLying()) {
+					continue;
+				}
+				double dx = ball.x - cat.getX(), dz = ball.z - cat.getZ(), dy = ball.y - cat.getEyeY();
+				float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90;
+				float pitch = (float) -(Mth.atan2(dy, Math.hypot(dx, dz)) * Mth.RAD_TO_DEG);
+				cat.setYHeadRot(Mth.approachDegrees(cat.getYHeadRot(), yaw, 20));
+				cat.setXRot(Mth.approachDegrees(cat.getXRot(), Mth.clamp(pitch, -40, 40), 10));
+			}
+		}
+	}
+
+	/** A ball of yarn's thread lying on the ground behind it, from its far end up to the ball. */
+	private static void drawThread(LevelRenderContext context, ClientLevel level, State s, double x, double y, double z, Vec3 eye) {
+		List<Vec3> points = new ArrayList<>(s.thread);
+		points.add(new Vec3(x, y + 0.03, z));
+		int n = points.size() - 1;
+		float[] at = new float[n * 3];
+		float[] turn = new float[n * 2];
+		float[] length = new float[n];
+		int[] lights = new int[n];
+		for (int i = 0; i < n; i++) {
+			Vec3 a = points.get(i), b = points.get(i + 1);
+			double dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+			double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			at[i * 3] = (float) (a.x - eye.x);
+			at[i * 3 + 1] = (float) (a.y - eye.y);
+			at[i * 3 + 2] = (float) (a.z - eye.z);
+			turn[i * 2] = (float) Math.atan2(dx, dz);
+			turn[i * 2 + 1] = len > 1.0E-4 ? (float) -Math.asin(Mth.clamp(dy / len, -1, 1)) : 0;
+			length[i] = (float) len;
+			lights[i] = LightCoordsUtil.getLightCoords(level, BlockPos.containing(a.x, a.y + 0.1, a.z));
+		}
+		int color = s.look.companion().main;
+		context.submitNodeCollector().submitCustomGeometry(context.poseStack(), CompanionTexture.type(), (p, vc) -> {
+			for (int i = 0; i < n; i++) {
+				if (length[i] < 1.0E-3f) {
+					continue;
+				}
+				PoseStack.Pose q = p.copy();
+				q.translate(at[i * 3], at[i * 3 + 1], at[i * 3 + 2]);
+				q.rotate(com.mojang.math.Axis.YP, turn[i * 2]);
+				q.rotate(com.mojang.math.Axis.XP, turn[i * 2 + 1]);
+				CompanionTexture.box(vc, q, -0.025f, 0, -0.01f, 0.025f, 0.045f, length[i] + 0.01f, color, lights[i],
+						CompanionTexture.Material.PLAIN, 0);
+			}
+		});
+	}
 	// ---------------------------------------------------------------- drawing
 
 	void render(LevelRenderContext context, Minecraft mc, float partial) {
@@ -1301,9 +1881,26 @@ final class Companions {
 			}
 			float yaw = Mth.rotLerp(partial, s.yawO * Mth.RAD_TO_DEG, s.yaw * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
 			CompanionModel.Pose pose = s.pose(partial);
-			int light = LightCoordsUtil.getLightCoords(mc.level, BlockPos.containing(x, y + 0.3, z));
+			// Inside a wall (a wisp gliding through) the light of the blocks round it.
+			BlockPos at = BlockPos.containing(x, y + 0.3, z);
+			int around = LightCoordsUtil.getLightCoords(mc.level, at);
+			if (!free(mc.level, x, y + 0.3, z)) {
+				for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+					around = LightCoordsUtil.max(around, LightCoordsUtil.getLightCoords(mc.level, at.relative(direction)));
+				}
+			}
 			Companion.Look look = s.look;
+			// A lantern spirit is lit by its own flame, and lights the ground under it.
+			boolean lantern = look.companion().style == Companion.Style.LANTERN;
+			int light = lantern ? LightCoordsUtil.pack(Math.max(LightCoordsUtil.block(around),
+					Math.round(6 + 9 * Math.min(1, CompanionModel.lanternBright(pose)))), LightCoordsUtil.sky(around)) : around;
 			PoseStack poseStack = context.poseStack();
+			if (lantern) {
+				lightPool(context, s, pose, x - eye.x, y, z - eye.z, eye.y);
+			}
+			if (look.companion().style == Companion.Style.YARN && !s.thread.isEmpty()) {
+				drawThread(context, mc.level, s, x, y, z, eye);
+			}
 			poseStack.pushPose();
 			poseStack.translate(dx, dy, dz);
 			poseStack.mulPose(new org.joml.Matrix4f().rotationY(yaw));
@@ -1315,7 +1912,8 @@ final class Companions {
 				poseStack.mulPose(new org.joml.Matrix4f().rotationX(pitch));
 				poseStack.translate(0, -middle, 0);
 			}
-			context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.type(),
+			context.submitNodeCollector().submitCustomGeometry(poseStack,
+					CompanionModel.seeThrough(look.companion().style) ? CompanionTexture.ghostType() : CompanionTexture.type(),
 					(p, vc) -> CompanionModel.draw(vc, p, look, pose, light));
 			if (CompanionModel.glows(look.companion().style)) {
 				context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.glowType(),
@@ -1334,6 +1932,35 @@ final class Companions {
 			}
 		}
 		names.forEach(Runnable::run);
+	}
+
+	/**
+	 * The soft light a lantern spirit casts on the ground under it: a few see-through layers, turned against each other,
+	 * brightest in the middle; stronger in the dark, fading the higher it floats.
+	 */
+	private static void lightPool(LevelRenderContext context, State s, CompanionModel.Pose pose, double dx, double y, double dz, double eyeY) {
+		if (Double.isNaN(s.floor)) {
+			return;
+		}
+		double above = y - s.floor;
+		float strength = (float) ((0.05 + 0.3 * pose.shade()) * Math.min(1, CompanionModel.lanternBright(pose)) * Mth.clamp(1 - above / 3, 0, 1));
+		if (strength < 0.02f) {
+			return;
+		}
+		int accent = s.look.companion().accent;
+		int color = ARGB.color(Math.round(strength * 255 * 0.2f), ARGB.red(accent), ARGB.green(accent), ARGB.blue(accent));
+		PoseStack poseStack = context.poseStack();
+		float[] radii = {1.45f, 1.25f, 1.05f, 0.85f, 0.65f, 0.45f};
+		for (int i = 0; i < radii.length; i++) {
+			float r = radii[i], lift = 0.015f + i * 0.003f;
+			poseStack.pushPose();
+			poseStack.translate(dx, s.floor - eyeY, dz);
+			poseStack.mulPose(new org.joml.Matrix4f().rotationY(i * 0.52f + 0.26f));
+			context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.glowType(),
+					(p, vc) -> CompanionTexture.box(vc, p, -r, lift, -r, r, lift + 0.002f, r, color, Voxels.FULL_BRIGHT,
+							CompanionTexture.Material.PLAIN, 0));
+			poseStack.popPose();
+		}
 	}
 
 	// ---------------------------------------------------------------- state
@@ -1384,8 +2011,30 @@ final class Companions {
 		Vec3 curious;
 		ItemEntity curiousItem;
 		int curiousAge, sniff, curiosityCooldown = 200;
+		/** A wisp slipping into a wall nearby to peek out of it: where, for how long so far, and until the next time. */
+		Vec3 haunt;
+		int hauntAge, hauntCooldown = 300;
+		/** Another player it is about to give a fright (boo), and until it may do so again. */
+		Player booVictim;
+		int booCooldown = 200;
+		/** The butterfly it watches now, or null. */
+		Vec3 butterfly;
+		/** How wet it is (0 to 1), and whether it has been swimming and is still to shake itself off. */
+		float wet;
+		boolean soaked;
+		/** A ball of yarn's thread on the ground behind it, the far end first. */
+		final java.util.ArrayDeque<Vec3> thread = new java.util.ArrayDeque<>();
 		/** Bounding after its sprinting player. */
 		boolean galloping;
+		/**
+		 * A lantern spirit: how frightened (0 to 1) and how dimmed it is, how close the nearest monster is (1: a creeper
+		 * hissing), whether a creeper hisses or a warden is near, whether it keeps close to its player, how far down in a
+		 * cave (0 to 1), where it is on its circle round its player (radians), and the ground under it (NaN none).
+		 */
+		float fear, dim, threat;
+		boolean hiss, dread, close;
+		float cave;
+		double orbit, floor = Double.NaN;
 		int ownerStill;
 
 		State(Companion.Look look, Player owner) {
@@ -1424,7 +2073,7 @@ final class Companions {
 					Mth.lerp(partial, sitO, sit), Mth.lerp(partial, sleepO, sleep), Mth.lerp(partial, flyO, fly),
 					Mth.lerp(partial, flapO, flap), Mth.lerp(partial, headYawO, headYaw),
 					Mth.lerp(partial, headPitchO, headPitch), happy, Mth.lerp(partial, squashO, squash), age + partial, action,
-					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade, wear, Mth.lerp(partial, dashO, dash));
+					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade, wear, Mth.lerp(partial, dashO, dash), fear, dim);
 		}
 
 		/** How much of the action shows: easing in over its first half second and out over its last. */

@@ -13,12 +13,26 @@ public class AtmosphereConfig extends FeatureConfig {
 	// Water
 	/** Rings and splashes where players and mobs wade through shallow water. */
 	public boolean splashes = true;
+	/** Water dripping off wet players and companions, and from leaves and roof edges after the rain. */
+	public boolean drips = true;
+	/** Dust where players and mobs land after a fall. */
+	public boolean landingDust = true;
 
 	// Fireflies
 	/** Fireflies on warm nights in swamps, meadows, flower forests and cherry groves. */
 	public boolean fireflies = true;
 	/** How many fireflies at most around you. */
 	public int fireflyCount = 24;
+
+	// Butterflies and dragonflies
+	/** Butterflies by day wherever flowers grow under the open sky (tropical ones in the jungle). */
+	public boolean butterflies = true;
+	/** How many butterflies at most around you. */
+	public int butterflyCount = 12;
+	/** Dragonflies by day over water. */
+	public boolean dragonflies = true;
+	/** How many dragonflies at most around you. */
+	public int dragonflyCount = 6;
 
 	// Birds
 	/** Birds flying over now and then, the kind depending on the biome. */

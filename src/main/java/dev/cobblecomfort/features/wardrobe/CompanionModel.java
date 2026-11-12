@@ -28,7 +28,11 @@ final class CompanionModel {
 	 * What a companion does by itself now and then: nothing, rear up, nibble a snack, groom (red panda), hide, yawn (turtle),
 	 * hop out of its box (kitten), howl, bow down to play, vanish into smoke and step out elsewhere (shadow wolf), sniff
 	 * the ground (hedgehog), shake itself fluffy (penguin; STAND: flap its flippers; for the mech: let off steam), fire its
-	 * rocket boots and hover, scan round with a beam of light (mech), bask (salamander).
+	 * rocket boots and hover, scan round with a beam of light (mech), bask (salamander). A lantern spirit flares up (STAND),
+	 * yawns its flame low (YAWN) and twirls round (SHAKE). A wisp loops the loop (SHAKE), yawns and ducks into its tail to
+	 * pop out again (HIDE). A whirlwind spins itself up (STAND) and dies down to yawn (YAWN); a ball of yarn bounces
+	 * (STAND) and wobbles (SHAKE). A baby panda munches bamboo (SNACK), turns a somersault (SHAKE), lies on its back
+	 * (BASK), sneezes (GROOM) and yawns.
 	 */
 	static final int NONE = 0, STAND = 1, SNACK = 2, GROOM = 3, HIDE = 4, YAWN = 5, OUT = 6, HOWL = 7, PLAYBOW = 8, VANISH = 9,
 			SNIFF = 10, SHAKE = 11, ROCKET = 12, SCAN = 13, BASK = 14;
@@ -42,27 +46,42 @@ final class CompanionModel {
 	 * head looks (radians, from the body); {@code happy} 0 to 1 after being petted; {@code squash} positive when landing,
 	 * negative when stretched in a jump; {@code time} in ticks; {@code action} something it does by itself now and then
 	 * (see {@link #STAND}), how far along it is (0 to 1) and how much it shows (easing in and out); {@code shade} how dark
-	 * it is around it (0 bright to 1 dark: night, caves); {@code wear} how weathered it is (0 new to 1: copper all green).
+	 * it is around it (0 bright to 1 dark: night, caves); {@code wear} how weathered it is (0 new to 1: copper all green;
+	 * a ball of yarn: how far unwound);
+	 * {@code dash} how far into a chase behind a player on elytra (a whirlwind: how wild); {@code fear} how frightened (a lantern's flame guttering) and
+	 * {@code dim} how dimmed (its player badly hurt, a warden near).
 	 */
 	record Pose(float walk, float walking, float sit, float sleep, float fly, float flap, float headYaw, float headPitch,
-			float happy, float squash, float time, int action, float actionTime, float actionBlend, float shade, float wear, float dash) {
+			float happy, float squash, float time, int action, float actionTime, float actionBlend, float shade, float wear, float dash,
+			float fear, float dim) {
+		/** Unafraid and fully bright. */
+		Pose(float walk, float walking, float sit, float sleep, float fly, float flap, float headYaw, float headPitch,
+				float happy, float squash, float time, int action, float actionTime, float actionBlend, float shade, float wear, float dash) {
+			this(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash, 0, 0);
+		}
+
 		static Pose idle(float time) {
 			return new Pose(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, time, NONE, 0, 0, 0, 0, 0);
 		}
 
 		/** The same pose doing {@code action}, {@code time} of the way through, fully shown. */
 		Pose doing(int action, float time) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, this.time, action, time, 1, shade, wear, dash);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, this.time, action, time, 1, shade, wear, dash, fear, dim);
 		}
 
 		/** The same pose in the dark ({@code shade} 0 to 1). */
 		Pose inShade(float shade) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash, fear, dim);
 		}
 
 		/** The same pose this worn ({@code wear} 0 to 1: how far the copper has gone green). */
 		Pose worn(float wear) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash, fear, dim);
+		}
+
+		/** The same pose afraid ({@code fear} 0 to 1: a lantern's flame guttering) and dimmed ({@code dim} 0 to 1). */
+		Pose afraid(float fear, float dim) {
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash, fear, dim);
 		}
 	}
 
@@ -85,12 +104,23 @@ final class CompanionModel {
 			case PENGUIN -> 10.2f / 16f;
 			case MECH -> 12.6f / 16f;
 			case SALAMANDER -> 6.2f / 16f;
+			case LANTERN -> 11.2f / 16f;
+			case WISP -> 11.4f / 16f;
+			case WIND -> 11.6f / 16f;
+			case YARN -> 9.2f / 16f;
+			case PANDA -> 9.0f / 16f;
 		};
 	}
 
 	/** Whether a kind has things that glow on top (lava cracks, light beams), drawn in a second pass. */
 	static boolean glows(Companion.Style style) {
-		return style == Companion.Style.MECH || style == Companion.Style.SALAMANDER;
+		return style == Companion.Style.MECH || style == Companion.Style.SALAMANDER || style == Companion.Style.LANTERN
+				|| style == Companion.Style.WISP;
+	}
+
+	/** Whether a kind is see-through itself (a wisp), drawn with {@link CompanionTexture#ghostType()}. */
+	static boolean seeThrough(Companion.Style style) {
+		return style == Companion.Style.WISP || style == Companion.Style.WIND;
 	}
 
 	static void draw(VertexConsumer vc, PoseStack.Pose base, Companion.Look look, Pose pose, int light) {
@@ -125,6 +155,11 @@ final class CompanionModel {
 			case PENGUIN -> penguin(p, c, look, pose);
 			case MECH -> mech(p, c, look, pose);
 			case SALAMANDER -> salamander(p, c, look, pose);
+			case LANTERN -> lantern(p, c, look, pose);
+			case WISP -> wisp(p, c, look, pose);
+			case WIND -> wind(p, c, look, pose);
+			case YARN -> yarn(p, c, look, pose);
+			case PANDA -> panda(p, c, look, pose);
 		}
 	}
 
@@ -2670,6 +2705,527 @@ final class CompanionModel {
 			}
 			p.pop();
 		}
+	}
+
+	/**
+	 * How brightly a lantern spirit's flame burns (about 0.1 to 1.15): brighter in the dark, after being petted and as it
+	 * flares up, low asleep, dimmed when its player is badly hurt or something dreadful is near, guttering when afraid.
+	 */
+	static float lanternBright(Pose pose) {
+		float t = pose.time;
+		float flare = pose.action == STAND ? pose.actionBlend * Mth.sin(pose.actionTime * Mth.PI) : 0;
+		float gutter = pose.fear * (0.5f + 0.5f * Mth.sin(t * 2.3f) * Mth.sin(t * 1.37f + 1.1f));
+		// Now and then, badly frightened, it all but goes out for a moment.
+		float drop = pose.fear > 0.6f && t % 13 < 2 ? 0.45f : 0;
+		float bright = (0.72f + 0.28f * pose.shade + 0.15f * pose.happy + 0.3f * flare) * (1 - 0.65f * pose.dim) * (1 - 0.35f * pose.sleep);
+		return Mth.clamp(bright - gutter * 0.45f - drop, 0.1f, 1.15f);
+	}
+
+	/**
+	 * A lantern spirit: a little lantern floating along by itself, the flame inside it the spirit, with a face. A metal
+	 * frame (copper going green, amethyst with crystals growing on it), glass that glows with the flame, a cap with a
+	 * handle that flops as it glides. It hangs and swings as if carried, leans back when it moves, and burns brighter in
+	 * the dark. Afraid, its flame gutters and it shivers, wide-eyed; dimmed, the flame sinks low. It flares up, yawns its
+	 * flame low and twirls round; asleep, the flame is a small glow with its eyes shut.
+	 */
+	private static void lantern(Painter p, Companion c, Companion.Look look, Pose pose) {
+		float t = pose.time;
+		float fear = pose.fear;
+		float flare = pose.action == STAND ? pose.actionBlend * Mth.sin(pose.actionTime * Mth.PI) : 0;
+		float yawn = pose.action == YAWN ? pose.actionBlend * Mth.sin(pose.actionTime * Mth.PI) : 0;
+		float twirl = pose.action == SHAKE ? smooth(pose.actionTime) * Mth.TWO_PI : 0;
+		boolean copper = c == Companion.LANTERN_COPPER, amethyst = c == Companion.LANTERN_AMETHYST;
+		int frame = copper ? patina(c.main, pose.wear) : c.main;
+		int dark = copper ? ARGB.scaleRGB(frame, 0.7f) : c.second;
+		CompanionTexture.Material metal = copper ? pose.wear > 0.55f ? CompanionTexture.Material.PATINA : CompanionTexture.Material.COPPER
+				: amethyst ? CompanionTexture.Material.PLAIN : CompanionTexture.Material.METAL;
+		float bright = lanternBright(pose);
+		float gutter = fear * (0.5f + 0.5f * Mth.sin(t * 2.3f) * Mth.sin(t * 1.37f + 1.1f));
+		// The flame's colours: a little of its white-hot heart in it, never muddy, faint only when dimmed or guttering.
+		float burn = Mth.clamp(0.45f + 0.55f * bright, 0.3f, 1);
+		int flame = ARGB.scaleRGB(ARGB.srgbLerp(0.2f, c.accent, c.third), burn);
+		int core = ARGB.scaleRGB(c.third, Math.min(1, burn + 0.1f));
+
+		p.push();
+		p.material(metal);
+		float bob = Mth.sin(t * 0.1f) * 0.45f * (1 - pose.sleep);
+		p.translate(0, 1.4f + bob - pose.sleep * 1.3f - pose.sit * 0.3f, 0);
+		if (fear > 0) {
+			// Shivering.
+			p.translate(Mth.sin(t * 3.1f) * 0.14f * fear, 0, Mth.sin(t * 2.6f + 1) * 0.1f * fear);
+		}
+		p.rotateY(pose.headYaw * 0.5f + twirl);
+		// Hanging from its handle: leaning back as it glides along, a slow sway, a happy rock.
+		p.translate(0, 9.2f, 0);
+		p.rotateX(pose.walking * 0.22f + pose.headPitch * 0.15f + Mth.sin(t * 0.07f) * 0.04f);
+		p.rotateZ(Mth.sin(t * 0.055f) * 0.06f + Mth.sin(t * 0.9f) * 0.12f * pose.happy + Mth.sin(t * 2.9f) * 0.06f * fear);
+		p.translate(0, -9.2f, 0);
+
+		// The base and its foot.
+		p.round(-2.7f, 0, -2.7f, 2.7f, 0.9f, 2.7f, dark, 0.3f);
+		p.round(-1.7f, -0.45f, -1.7f, 1.7f, 0.05f, 1.7f, dark, 0.2f);
+		// Corner posts.
+		for (int sx = -1; sx <= 1; sx += 2) {
+			for (int sz = -1; sz <= 1; sz += 2) {
+				p.round(Math.min(sx * 2.0f, sx * 2.6f), 0.9f, Math.min(sz * 2.0f, sz * 2.6f), Math.max(sx * 2.0f, sx * 2.6f), 6.0f,
+						Math.max(sz * 2.0f, sz * 2.6f), frame, 0.15f);
+			}
+		}
+		// The cap, stepped, with a knob and a shine.
+		p.round(-2.85f, 6.0f, -2.85f, 2.85f, 6.8f, 2.85f, dark, 0.3f);
+		p.round(-2.0f, 6.8f, -2.0f, 2.0f, 7.6f, 2.0f, frame, 0.35f);
+		p.round(-1.0f, 7.6f, -1.0f, 1.0f, 8.2f, 1.0f, dark, 0.25f);
+		p.box(-1.5f, 7.6f, 1.2f, -0.6f, 7.65f, 1.7f, lighter(frame, 45));
+		if (amethyst) {
+			// Crystals grown on its corners, their tips catching the light.
+			for (int sx = -1; sx <= 1; sx += 2) {
+				for (int sz = -1; sz <= 1; sz += 2) {
+					float h = 1.3f + 0.4f * ((sx + 2 * sz + 3) % 3);
+					p.push();
+					p.translate(sx * 2.3f, 6.5f, sz * 2.3f);
+					p.rotateZ(-sx * 0.45f);
+					p.rotateX(sz * 0.45f);
+					p.round(-0.4f, 0, -0.4f, 0.4f, h, 0.4f, lighter(frame, 25), 0.15f);
+					p.glow(-0.2f, h, -0.2f, 0.2f, h + 0.45f, 0.2f, c.third);
+					p.pop();
+				}
+			}
+			p.push();
+			p.translate(-1.9f, 0.4f, 2.4f);
+			p.rotateX(0.7f);
+			p.rotateZ(0.5f);
+			p.round(-0.3f, 0, -0.3f, 0.3f, 1.1f, 0.3f, lighter(frame, 25), 0.12f);
+			p.pop();
+		}
+		// The handle, flopping back as it glides and swinging on its own.
+		p.push();
+		p.translate(0, 8.0f, 0);
+		p.rotateX(-pose.walking * 0.5f + Mth.sin(t * 0.07f + 1.2f) * 0.12f + Mth.sin(t * 3.3f) * 0.15f * fear);
+		p.box(-1.55f, 0, -0.18f, -1.2f, 1.6f, 0.18f, dark);
+		p.box(1.2f, 0, -0.18f, 1.55f, 1.6f, 0.18f, dark);
+		p.round(-1.55f, 1.3f, -0.2f, 1.55f, 1.7f, 0.2f, dark, 0.1f);
+		p.pop();
+		headWear(p, look, -0.6f, 8.2f, 0);
+
+		// Glass on all four sides, glowing with the flame.
+		int glass = ARGB.scaleRGB(c.accent, 0.22f * Math.min(1, bright));
+		p.beam(-2.0f, 0.9f, 2.3f, 2.0f, 6.0f, 2.4f, glass);
+		p.beam(-2.0f, 0.9f, -2.4f, 2.0f, 6.0f, -2.3f, glass);
+		p.beam(2.3f, 0.9f, -2.0f, 2.4f, 6.0f, 2.0f, glass);
+		p.beam(-2.4f, 0.9f, -2.0f, -2.3f, 6.0f, 2.0f, glass);
+
+		// The flame, which is the spirit: white-hot below, its tip licking up and wavering.
+		float size = Mth.clamp((0.88f + 0.12f * pose.shade + 0.12f * flare - 0.3f * yawn) * (1 - 0.5f * pose.sleep) * (1 - 0.3f * pose.dim)
+				* (1 - 0.2f * gutter), 0.35f, 1.0f);
+		float wide = 0.8f + 0.2f * size + 0.12f * flare;
+		p.push();
+		p.translate(0, 1.0f, 0);
+		p.scale3(wide, size, wide);
+		p.glow(-1.7f, 0, -1.4f, 1.7f, 2.9f, 1.4f, flame);
+		p.glow(-1.75f, 0, -1.45f, 1.75f, 0.6f, 1.45f, core);
+		float[][] tips = {{1.3f, 1.05f, 2.9f, 3.7f}, {0.85f, 0.7f, 3.7f, 4.4f}, {0.4f, 0.35f, 4.4f, 4.9f}};
+		for (int i = 0; i < tips.length; i++) {
+			float[] tip = tips[i];
+			float wx = Mth.sin(t * 0.35f + i * 1.3f) * 0.18f * (i + 1) * (1 + gutter * 2.5f);
+			p.glow(wx - tip[0], tip[2], -tip[1], wx + tip[0], tip[3], tip[1], i == 2 ? core : flame);
+		}
+		lanternFace(p, 1.4f, 1.65f, pose, fear, yawn);
+		p.pop();
+		p.pop();
+	}
+
+	/**
+	 * The face on a lantern spirit's flame: big dark eyes with a shine, a small smile (open when happy), shut asleep;
+	 * frightened, wide eyes with tiny pupils and a trembling little round mouth; a round mouth yawning.
+	 */
+	private static void lanternFace(Painter p, float z, float y, Pose pose, float fear, float yawn) {
+		p.push();
+		p.material(CompanionTexture.Material.PLAIN);
+		int ink = 0xFF3A1A0A;
+		Eye state = eye(pose, 13);
+		boolean scared = fear > 0.5f && pose.sleep < 0.5f;
+		for (int side = -1; side <= 1; side += 2) {
+			float x = side * 0.8f;
+			if (scared) {
+				p.box(x - 0.42f, y - 0.7f, z, x + 0.42f, y + 0.7f, z + 0.12f, WHITE);
+				p.box(x - 0.14f, y - 0.2f, z + 0.12f, x + 0.14f, y + 0.12f, z + 0.16f, ink);
+			} else if (state == Eye.OPEN) {
+				p.box(x - 0.38f, y - 0.55f, z, x + 0.38f, y + 0.55f, z + 0.12f, ink);
+				p.glow(x - 0.3f, y + 0.12f, z + 0.12f, x - 0.06f, y + 0.4f, z + 0.17f, WHITE);
+			} else {
+				closedEye(p, x, y, z, 0.9f, state, ink);
+			}
+			blush(p, side * 1.3f, y - 0.65f, z, pose);
+		}
+		float my = y - 1.0f;
+		if (scared || yawn > 0.25f) {
+			float s = scared ? 0.22f + 0.06f * Mth.sin(pose.time * 3.4f) : 0.45f * yawn;
+			p.box(-s, my - s, z, s, my + s, z + 0.12f, ink);
+		} else if (pose.happy > 0.4f) {
+			p.box(-0.5f, my - 0.35f, z, 0.5f, my + 0.05f, z + 0.12f, ink);
+		} else {
+			p.box(-0.28f, my - 0.15f, z, 0.28f, my, z + 0.1f, ink);
+			p.box(-0.5f, my, z, -0.28f, my + 0.15f, z + 0.1f, ink);
+			p.box(0.28f, my, z, 0.5f, my + 0.15f, z + 0.1f, ink);
+		}
+		p.pop();
+	}
+
+	/** A colour at this opacity (0 to 1), for what is drawn see-through. */
+	private static int fade(int color, float alpha) {
+		return Math.round(Mth.clamp(alpha, 0, 1) * 255) << 24 | color & 0xFFFFFF;
+	}
+
+	/**
+	 * A shadow wisp: a little ghost of smoke, round on top and trailing off into a curling tail that sways as it glides,
+	 * with stubby arms and big glowing eyes. See-through in the light, nearly solid in the dark; in the Nether it
+	 * flickers ({@code fear}), now there, now almost gone. It loops the loop, yawns, and ducks into its tail to pop out
+	 * again with its arms up: boo.
+	 */
+	private static void wisp(Painter p, Companion c, Companion.Look look, Pose pose) {
+		float t = pose.time;
+		float flicker = pose.fear;
+		float boo = pose.action == HIDE ? pose.actionBlend : 0;
+		float at = pose.actionTime;
+		// Ducked into its tail for the first part, then out with its arms up.
+		float duck = pose.action == HIDE ? (at < 0.6f ? Mth.clamp(at / 0.15f, 0, 1) : Mth.clamp(1 - (at - 0.6f) / 0.06f, 0, 1)) : 0;
+		float pop = pose.action == HIDE && at >= 0.6f ? Mth.sin((at - 0.6f) / 0.4f * Mth.PI) : 0;
+		float loop = pose.action == SHAKE ? smooth(at) * Mth.TWO_PI : 0;
+		float yawn = pose.action == YAWN ? pose.actionBlend * Mth.sin(at * Mth.PI) : 0;
+		// How solid it is: faint in the light, nearly solid in the dark, flickering in the Nether.
+		float solid = Mth.lerp(pose.shade, 0.4f, 0.9f);
+		if (flicker > 0) {
+			float n = 0.5f + 0.5f * Mth.sin(t * 1.9f) * Mth.sin(t * 0.73f + 2);
+			solid *= 1 - flicker * (0.55f * n + (t % 23 < 2 ? 0.35f : 0));
+		}
+		solid = Mth.clamp(solid * (1 - 0.5f * duck * boo), 0.08f, 1);
+		int body = fade(c.main, solid), dark = fade(c.second, solid), smoke = fade(c.third, solid * 0.75f);
+		int eyes = fade(c.accent, Math.max(solid, 0.65f));
+
+		p.push();
+		p.material(CompanionTexture.Material.SMOKE);
+		p.translate(0, 2.4f + Mth.sin(t * 0.08f) * 0.6f * (1 - pose.sleep) - pose.sleep * 1.2f, 0);
+		if (flicker > 0) {
+			p.translate(Mth.sin(t * 4.1f) * 0.2f * flicker, 0, Mth.sin(t * 3.3f + 1) * 0.12f * flicker);
+		}
+		if (loop != 0) {
+			// Looping the loop round its middle.
+			p.translate(0, 5, 0);
+			p.rotateX(-loop);
+			p.translate(0, -5, 0);
+		}
+		p.rotateY(pose.headYaw * 0.4f);
+		// Leaning into its glide, swaying a little.
+		p.rotateX(pose.walking * 0.3f + pose.headPitch * 0.1f);
+		p.rotateZ(Mth.sin(t * 0.05f) * 0.06f + Mth.sin(t * 0.9f) * 0.1f * pose.happy);
+
+		// The tail, curling back and down, swaying in a wave (drawn first: the body is in front of it).
+		p.push();
+		p.translate(0, 3.4f, -0.3f);
+		float[] widths = {2.4f, 1.8f, 1.25f, 0.8f, 0.42f};
+		for (int i = 0; i < widths.length; i++) {
+			float w = widths[i];
+			p.rotateX(0.16f + pose.walking * 0.22f + pose.sleep * 0.2f);
+			p.rotateZ(Mth.sin(t * 0.13f - i * 0.9f) * 0.22f * (1 + pose.walking));
+			p.translate(0, -1.05f, 0);
+			p.round(-w, -0.2f, -w * 0.85f, w, 1.3f, w * 0.85f, i % 2 == 0 ? body : dark, w * 0.5f);
+		}
+		p.pop();
+		wisps(p, 0, 1.5f, -1.2f, 1.6f, 4, t, 3, smoke, 0.55f);
+
+		// The body: round on top, with a little curl of smoke.
+		p.push();
+		p.scale3(1 + 0.1f * pose.sleep, 1 - 0.15f * pose.sleep - 0.3f * duck * boo, 1 + 0.1f * pose.sleep);
+		p.round(-2.8f, 2.6f, -2.5f, 2.8f, 7.6f, 2.5f, body, 1.1f);
+		p.round(-2.2f, 7.4f, -2.0f, 2.2f, 8.6f, 2.0f, body, 0.7f);
+		// A ragged hem round the bottom, rippling.
+		for (int i = 0; i < 4; i++) {
+			float hx = -2.1f + i * 1.4f, dip = Mth.sin(t * 0.2f + i * 1.6f) * 0.35f;
+			for (int end = -1; end <= 1; end += 2) {
+				p.round(hx - 0.65f, 1.7f + dip, end > 0 ? 1.2f : -2.4f, hx + 0.65f, 2.9f, end > 0 ? 2.4f : -1.2f, i % 2 == 0 ? body : dark, 0.3f);
+			}
+		}
+		p.push();
+		p.translate(-0.2f, 8.4f, -0.3f);
+		p.rotateZ(0.5f + Mth.sin(t * 0.1f) * 0.2f);
+		p.round(-0.45f, 0, -0.45f, 0.45f, 1.1f, 0.45f, smoke, 0.2f);
+		p.translate(0, 1.0f, 0);
+		p.rotateZ(-0.9f);
+		p.round(-0.3f, 0, -0.3f, 0.3f, 0.8f, 0.3f, smoke, 0.15f);
+		p.pop();
+		// Stubby arms, drifting; up for the boo, a wave when happy.
+		for (int side = -1; side <= 1; side += 2) {
+			float wave = side > 0 ? pose.happy * (1.6f + Mth.sin(t * 0.8f) * 0.4f) : 0;
+			p.push();
+			p.translate(side * 2.6f, 5.0f, 0.4f);
+			p.rotateZ(side * (-0.6f + Mth.sin(t * 0.12f + side) * 0.25f + 2.0f * pop + wave - pose.sleep * 0.3f));
+			p.round(Math.min(0, side * 1.5f), -0.45f, -0.45f, Math.max(0, side * 1.5f), 0.45f, 0.45f, body, 0.3f);
+			p.pop();
+		}
+		// Big glowing eyes (hidden while it is ducked away), a round mouth for the boo and the yawn.
+		if (duck * boo < 0.5f) {
+			Eye state = eye(pose, 29);
+			float ez = 2.5f;
+			for (int side = -1; side <= 1; side += 2) {
+				float x = side * 1.05f, y = 5.9f;
+				if (state == Eye.OPEN) {
+					float h = 1.5f + 0.4f * pop;
+					p.glow(x - 0.42f, y - h / 2, ez, x + 0.42f, y + h / 2, ez + 0.1f, eyes);
+					// Shining in the dark.
+					p.beam(x - 0.7f, y - h / 2 - 0.3f, ez + 0.1f, x + 0.7f, y + h / 2 + 0.3f, ez + 0.5f, ARGB.scaleRGB(c.accent, 0.15f + 0.3f * pose.shade));
+				} else {
+					closedEye(p, x, y, ez, 0.95f, state, eyes);
+				}
+			}
+			float s = Math.max(pop * 0.5f, yawn * 0.45f);
+			int mouth = fade(0xFF120E18, Math.max(solid, 0.6f));
+			if (s > 0.1f) {
+				p.box(-s, 4.3f - s, ez, s, 4.3f + s, ez + 0.1f, mouth);
+			} else if (pose.happy > 0.4f) {
+				p.box(-0.45f, 4.2f, ez, 0.45f, 4.5f, ez + 0.1f, mouth);
+			}
+		}
+		headWear(p, look, 0, 8.6f, 0);
+		neckWear(p, look, 3.8f, 0, 2.4f, 2.1f);
+		p.pop();
+		p.pop();
+	}
+
+	/**
+	 * A little whirlwind: a funnel of air (see-through rings, each spinning at its own speed, the top swaying), leaves
+	 * and blades of grass (sand, snowflakes) whirling round it, and a small face in the middle. It leans into its way,
+	 * grows tall and wild when its player sprints ({@code dash}), spins itself up now and then and dies down to a breath
+	 * to yawn; asleep, a low lazy swirl. Its spin ({@code flap}) is wound up by the companion as it goes.
+	 */
+	private static void wind(Painter p, Companion c, Companion.Look look, Pose pose) {
+		float t = pose.time;
+		float gust = Math.max(pose.dash, pose.action == STAND ? pose.actionBlend * Mth.sin(pose.actionTime * Mth.PI) : 0);
+		float calm = Math.max(pose.sleep * 0.7f, pose.action == YAWN ? pose.actionBlend * Mth.sin(pose.actionTime * Mth.PI) * 0.6f : 0);
+		float spin = pose.flap * 0.6f;
+		p.push();
+		p.material(CompanionTexture.Material.SMOKE);
+		p.scale3(1 + 0.25f * gust, 1 + 0.35f * gust - 0.35f * calm, 1 + 0.25f * gust);
+		p.rotateX(pose.walking * 0.25f);
+		// The funnel: rings, narrow at the ground and wide at the top, every other one a little darker.
+		float[] sway = new float[8];
+		for (int i = 0; i < sway.length; i++) {
+			sway[i] = Mth.sin(t * 0.09f + i * 0.45f) * 0.2f * i * (1 + gust);
+			float y = 0.3f + i * 1.3f;
+			float r = (0.9f + i * 0.42f) * (1 + 0.15f * gust);
+			int color = fade(i % 2 == 0 ? c.main : c.second, 0.5f);
+			p.push();
+			p.translate(sway[i], y, Mth.cos(t * 0.07f + i * 0.5f) * 0.1f * i);
+			p.rotateY(spin * (1.2f - i * 0.06f) + i * 0.7f);
+			float w = 0.5f, h = 1.0f;
+			p.box(-r, 0, -r, r, h, -r + w, color);
+			p.box(-r, 0, r - w, r, h, r, color);
+			p.box(-r, 0, -r + w, -r + w, h, r - w, color);
+			p.box(r - w, 0, -r + w, r, h, r - w, color);
+			p.pop();
+		}
+		// What it whirls round: leaves (and blades of grass), or grains of sand, or snowflakes.
+		boolean grains = c == Companion.WIND_DUST || c == Companion.WIND_SNOW;
+		int[] colors = c == Companion.WIND_AUTUMN ? new int[]{c.third, 0xFFC8402A, 0xFFE8B83A}
+				: new int[]{c.third, ARGB.scaleRGB(c.third, 0.8f), lighter(c.third, 25)};
+		for (int k = 0; k < 9; k++) {
+			float h = 0.8f + k * 1.15f;
+			float r = (1.3f + h * 0.33f) * (1 + 0.25f * gust) + 0.4f;
+			float a = spin * (1.4f - k * 0.05f) + k * 2.4f;
+			p.push();
+			p.translate(Mth.cos(a) * r + sway[Math.min(7, k)], h + Mth.sin(t * 0.2f + k) * 0.3f, Mth.sin(a) * r);
+			p.rotateY(-a);
+			p.rotateZ(Mth.sin(t * 0.3f + k) * 0.8f);
+			int color = colors[k % 3];
+			if (grains) {
+				float s = 0.2f + (k % 3) * 0.06f;
+				p.box(-s, -s, -s, s, s, s, color);
+			} else if (c == Companion.WIND_BREEZE && k % 3 == 2) {
+				p.box(-0.08f, -0.7f, -0.08f, 0.08f, 0.7f, 0.08f, 0xFF5EA83A);
+			} else {
+				p.box(-0.45f, -0.06f, -0.3f, 0.45f, 0.06f, 0.3f, color);
+				p.box(-0.06f, -0.06f, 0.3f, 0.06f, 0.06f, 0.55f, ARGB.scaleRGB(color, 0.7f));
+			}
+			p.pop();
+		}
+		// A small face in the middle of the funnel, looking where it goes.
+		p.push();
+		p.translate(sway[4], 0, 0);
+		p.rotateY(pose.headYaw * 0.6f);
+		face(p, 2.6f * 1.42f * (1 + 0.15f * gust) + 0.1f, 5.6f, 0.95f, 0.75f, 1.0f, c.accent, pose, 0);
+		p.pop();
+		headWear(p, look, sway[7], 10.6f, 0);
+		p.pop();
+	}
+
+	/**
+	 * A ball of yarn with knitting needles stuck in it, and a face that stays upright while the ball rolls under it.
+	 * It gets smaller as it unwinds ({@code wear}: how much of it trails behind as a thread) and plump again as it winds
+	 * itself up. It bounces and wobbles; asleep, it settles and its eyes shut.
+	 */
+	private static void yarn(Painter p, Companion c, Companion.Look look, Pose pose) {
+		float r = 3.4f * (1 - 0.4f * Mth.clamp(pose.wear, 0, 1));
+		float bounce = pose.action == STAND ? Math.abs(Mth.sin(pose.actionTime * Mth.PI * 3)) * 2.2f * pose.actionBlend : 0;
+		float wobble = pose.action == SHAKE ? Mth.sin(pose.actionTime * Mth.TWO_PI * 3) * 0.3f * pose.actionBlend : 0;
+		p.push();
+		p.material(CompanionTexture.Material.KNIT);
+		p.translate(0, r + bounce, 0);
+		p.rotateZ(wobble + Mth.sin(pose.time * 0.9f) * 0.1f * pose.happy);
+		p.push();
+		p.rotateX(pose.walk * 1.1f);
+		// The ball, round from slices, then strands wound round it every which way.
+		int slices = 7;
+		for (int k = 0; k < slices; k++) {
+			float y0 = -r + 2 * r * k / slices, y1 = -r + 2 * r * (k + 1) / slices, yc = (y0 + y1) / 2;
+			float h = (float) Math.sqrt(Math.max(0, r * r - yc * yc)) * 1.04f;
+			p.round(-h, y0, -h, h, y1, h, c.main, Math.min(h, (y1 - y0)) * 0.35f);
+		}
+		float[][] strands = {{0, 0}, {0.9f, 0.4f}, {-0.7f, 1.3f}, {1.5f, -0.6f}, {0.4f, 2.2f}, {-1.2f, -1.5f}, {2.3f, 0.9f}, {-2.0f, 2.8f},
+				{1.1f, 3.6f}, {-0.3f, -2.6f}};
+		for (float[] strand : strands) {
+			p.push();
+			p.rotateY(strand[1]);
+			p.rotateX(strand[0]);
+			p.box(-0.16f, r * 0.9f, -r * 0.62f, 0.16f, r * 0.9f + 0.28f, r * 0.62f, c.second);
+			p.pop();
+		}
+		// Knitting needles stuck in crosswise, a bead on each end.
+		for (int side = -1; side <= 1; side += 2) {
+			p.push();
+			p.rotateZ(side * 0.45f);
+			p.rotateX(side * 0.2f);
+			p.material(CompanionTexture.Material.WOOD);
+			p.box(-0.18f, -r * 0.3f, -0.18f, 0.18f, r + 2.4f, 0.18f, c.third);
+			p.round(-0.4f, r + 2.4f, -0.4f, 0.4f, r + 3.1f, 0.4f, ARGB.scaleRGB(c.third, 0.75f), 0.2f);
+			p.pop();
+		}
+		p.pop();
+		// The face, upright in front.
+		face(p, r + 0.01f, 0.4f, 1.05f, 0.8f, 1.1f, c.accent, pose, 0);
+		headWear(p, look, -0.8f, r - 0.2f, 0);
+		p.pop();
+	}
+
+	/**
+	 * A baby panda: round and fluffy, a big head with round dark ears, slanting dark eye patches with shiny eyes in them,
+	 * a pale muzzle with a little black nose, a dark band over its shoulders running down into its front legs, a stubby
+	 * tail. It waddles, sits up on its rump to munch a stalk of bamboo held in both paws (SNACK), turns a somersault
+	 * (SHAKE), flops onto its back and paddles its paws in the air (BASK), sneezes (GROOM) and yawns.
+	 */
+	private static void panda(Painter p, Companion c, Companion.Look look, Pose pose) {
+		p.material(CompanionTexture.Material.SOFT);
+		int fur = c.main, dark = c.second, muzzle = c.third;
+		float t = pose.time, at = pose.actionTime;
+		float snack = pose.action == SNACK ? pose.actionBlend : 0;
+		float yawn = pose.action == YAWN ? pose.actionBlend * Mth.sin(at * Mth.PI) : 0;
+		float back = pose.action == BASK ? pose.actionBlend : 0;
+		float flip = pose.action == SHAKE ? smooth(at) * Mth.TWO_PI : 0;
+		// A sneeze: head back, a twitch, then forward with a jerk.
+		float sneeze = pose.action == GROOM ? pose.actionBlend : 0;
+		float sneezeTilt = sneeze * (at < 0.6f ? -0.35f * Mth.clamp(at / 0.5f, 0, 1) + Mth.sin(t * 2.5f) * 0.04f
+				: at < 0.72f ? 0.5f : 0.5f * Mth.clamp(1 - (at - 0.72f) / 0.2f, 0, 1));
+		float sit = Math.max(pose.sit, snack);
+		float bob = Math.abs(Mth.sin(pose.walk)) * 0.5f * pose.walking;
+		float paddle = back * Mth.sin(t * 0.6f) * 0.5f;
+		p.push();
+		if (flip != 0) {
+			// A somersault round its middle.
+			p.translate(0, 3.6f, 0);
+			p.rotateX(flip);
+			p.translate(0, -3.6f, 0);
+		}
+		if (back > 0) {
+			// Rolled over onto its back.
+			p.translate(0, 3.0f, 0);
+			p.rotateZ(back * 2.9f);
+			p.translate(0, -3.0f, 0);
+		}
+		p.translate(0, bob - pose.sleep * 0.9f, 0);
+		// Hind legs at the hips: walking, pushed forward when it sits, tucked asleep, paddling on its back.
+		for (int side = -1; side <= 1; side += 2) {
+			float swing = Mth.sin(pose.walk + (side > 0 ? 0 : Mth.PI)) * 0.6f * pose.walking;
+			p.push();
+			p.translate(side * 1.6f, 1.8f, -1.6f);
+			p.rotateX(swing - sit * 1.3f + pose.sleep * 1.2f + paddle * side);
+			p.rotateZ(side * sit * 0.25f);
+			p.round(-0.95f, -1.8f, -0.95f, 0.95f, 0.3f, 0.95f, dark, 0.45f);
+			p.pop();
+		}
+		// The body, tipping up onto its rump to sit.
+		p.push();
+		p.translate(0, 1.7f, -2.4f);
+		p.rotateX(-sit * 0.95f);
+		p.translate(0, -1.7f, 2.4f);
+		p.round(-2.6f, 1.5f, -2.8f, 2.6f, 5.8f, 2.4f, fur, 1.0f);
+		p.round(-2.7f, 3.0f, 0.3f, 2.7f, 5.95f, 1.9f, dark, 0.6f);
+		p.round(-0.65f, 3.9f, -3.3f, 0.65f, 5.0f, -2.6f, fur, 0.3f);
+		// Front legs at the shoulders: walking, held to the mouth with the bamboo, paddling.
+		for (int side = -1; side <= 1; side += 2) {
+			float swing = Mth.sin(pose.walk + (side > 0 ? Mth.PI : 0)) * 0.6f * pose.walking;
+			p.push();
+			p.translate(side * 1.65f, 3.5f, 1.2f);
+			p.rotateX(swing - snack * 0.9f + pose.sleep * -1.2f - paddle * side);
+			p.rotateZ(side * snack * -0.35f);
+			p.round(-0.95f, -2.2f, -0.95f, 0.95f, 0.4f, 0.95f, dark, 0.45f);
+			p.pop();
+		}
+		neckWear(p, look, 4.5f, 1.4f, 2.3f, 1.4f);
+		// The head, kept level when it sits.
+		p.push();
+		p.translate(0, 5.0f, 2.0f);
+		p.rotateX(sit * 0.95f);
+		p.rotateY(pose.headYaw * 0.7f);
+		p.rotateX(pose.headPitch * 0.4f + pose.sleep * 0.35f + sneezeTilt - yawn * 0.2f + (snack > 0 ? Mth.sin(t * 0.7f) * 0.05f : 0));
+		p.rotateZ(Mth.sin(t * 0.9f) * 0.1f * pose.happy);
+		p.round(-3.0f, -1.2f, -1.8f, 3.0f, 3.8f, 3.0f, fur, 1.2f);
+		for (int side = -1; side <= 1; side += 2) {
+			p.round(side * 2.1f - 0.9f, 2.9f, -0.7f, side * 2.1f + 0.9f, 4.6f, 0.6f, dark, 0.45f);
+		}
+		p.round(-1.3f, -1.1f, 2.6f, 1.3f, 0.6f, 3.7f, muzzle, 0.45f);
+		p.material(CompanionTexture.Material.PLAIN);
+		p.round(-0.45f, 0.05f, 3.65f, 0.45f, 0.6f, 3.85f, dark, 0.15f);
+		float open = Math.max(yawn, snack > 0 ? Math.max(0, Mth.sin(t * 0.7f)) * 0.5f : 0)
+				+ (pose.action == GROOM && at > 0.6f && at < 0.75f ? 0.7f : 0);
+		if (open > 0.1f || pose.happy > 0.4f) {
+			float h = Math.max(open, pose.happy > 0.4f ? 0.35f : 0) * 0.7f;
+			p.box(-0.45f, -0.9f, 3.7f, 0.45f, -0.9f + h, 3.76f, 0xFF4A1E22);
+		}
+		// Eye patches, slanting down and out, a shiny eye in each.
+		Eye state = eye(pose, 17);
+		for (int side = -1; side <= 1; side += 2) {
+			p.push();
+			p.translate(side * 1.3f, 1.3f, 3.0f);
+			p.rotateZ(side * 0.5f);
+			p.round(-0.8f, -1.05f, 0, 0.8f, 0.95f, 0.1f, dark, 0.3f);
+			p.pop();
+			float x = side * 1.25f, y = 1.45f, z = 3.1f;
+			if (state == Eye.OPEN) {
+				p.box(x - 0.42f, y - 0.5f, z, x + 0.42f, y + 0.5f, z + 0.08f, c.accent);
+				p.glow(x - 0.32f + side * 0.05f, y + 0.08f, z + 0.08f, x - 0.02f + side * 0.05f, y + 0.38f, z + 0.12f, WHITE);
+				p.glow(x + 0.12f, y - 0.36f, z + 0.08f, x + 0.28f, y - 0.2f, z + 0.12f, WHITE);
+			} else {
+				closedEye(p, x, y, z, 0.85f, state, 0xFFE8E4DC);
+			}
+			blush(p, side * 2.1f, -0.1f, 2.98f, pose);
+		}
+		if (snack > 0) {
+			// A stalk of bamboo held up to its mouth, getting shorter as it munches.
+			float length = 4.6f * (1 - 0.6f * at);
+			p.push();
+			p.material(CompanionTexture.Material.WOOD);
+			p.translate(0.9f, -0.4f, 3.9f);
+			p.rotateZ(-0.35f);
+			int green = 0xFF7AB04A, node = 0xFF5A8A34;
+			p.box(-0.32f, -length + 1.4f, -0.32f, 0.32f, 1.4f, 0.32f, green);
+			for (float y = 1.0f; y > -length + 1.4f; y -= 1.5f) {
+				p.box(-0.36f, y, -0.36f, 0.36f, y + 0.22f, 0.36f, node);
+			}
+			p.box(0.25f, 0.8f, -0.1f, 1.5f, 0.95f, 0.5f, 0xFF6AA83A);
+			p.pop();
+		}
+		headWear(p, look, -0.4f, 3.8f, 0.4f);
+		p.pop();
+		p.pop();
+		p.pop();
 	}
 
 	// ---------------------------------------------------------------- faces

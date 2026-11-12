@@ -19,7 +19,8 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * Small touches of atmosphere: breath in the cold, rings where someone wades through water, fireflies on warm nights
+ * Small touches of atmosphere: breath in the cold, rings where someone wades through water, fireflies on warm nights,
+ * butterflies and dragonflies by day,
  * snow settling on players in snowfall and birds flying over. All of it only on this client.
  */
 public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
@@ -33,6 +34,9 @@ public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
 	private final Fireflies fireflies = new Fireflies();
 	private final SnowCover snow = new SnowCover();
 	private final Birds birds = new Birds();
+	private final Insects insects = new Insects();
+	private final Drips drips = new Drips();
+	private final LandingDust landingDust = new LandingDust();
 	private ClientLevel lastLevel;
 	private int ticks;
 
@@ -63,6 +67,9 @@ public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
 		motes.clear();
 		snow.clear();
 		birds.clear();
+		insects.clear();
+		drips.clear();
+		landingDust.clear();
 	}
 
 	private void tick(Minecraft mc) {
@@ -81,8 +88,11 @@ public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
 		ticks++;
 		motes.tick();
 		Vec3 camera = mc.gameRenderer.mainCamera().position();
-		if (config.breath || config.splashes) {
+		if (config.breath || config.splashes || config.landingDust) {
 			List<Movers.Mover> movers = Movers.around(level, camera, RANGE, true, true, false);
+			if (config.landingDust) {
+				landingDust.tick(level, movers, motes);
+			}
 			if (config.breath) {
 				breath.tick(mc, level, movers, motes, config, ticks);
 			}
@@ -90,8 +100,16 @@ public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
 				splashes.tick(level, movers, motes);
 			}
 		}
+		if (config.drips) {
+			drips.tick(level, camera, motes);
+		} else {
+			drips.clear();
+		}
 		if (config.fireflies) {
 			fireflies.tick(level, camera, motes, config);
+		}
+		if (config.butterflies || config.dragonflies || insects.count(Insects.Kind.BUTTERFLY) + insects.count(Insects.Kind.DRAGONFLY) > 0) {
+			insects.tick(level, camera, config, dev.cobblecomfort.features.wardrobe.WardrobeFeature.INSTANCE.companionPositions());
 		}
 		if (config.birds) {
 			birds.tick(level, camera, config);
@@ -111,10 +129,31 @@ public final class AtmosphereFeature extends Feature<AtmosphereConfig> {
 			return;
 		}
 		motes.render(context, mc.level, mc.gameRenderer.mainCamera(), mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
+		insects.render(context, mc.level, mc.gameRenderer.mainCamera().position(), mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
 		if (config.birds) {
 			birds.render(context, mc.level, mc.gameRenderer.mainCamera().position(),
 					mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
 		}
+	}
+
+	/** Whether water drips off what is wet (companions drip too). */
+	public boolean drips() {
+		return isEnabled() && config.drips;
+	}
+
+	/** How wet a player is, 0 to 1 (tests). */
+	public float wetness(int id) {
+		return drips() ? drips.wetness(id) : 0;
+	}
+
+	/** Where the butterflies around are (companions watch them and chase them). */
+	public List<Vec3> butterflies() {
+		return isEnabled() ? insects.butterflies() : List.of();
+	}
+
+	/** How many butterflies ({@code dragonflies} false) or dragonflies are about (tests). */
+	public int insects(boolean dragonflies) {
+		return insects.count(dragonflies ? Insects.Kind.DRAGONFLY : Insects.Kind.BUTTERFLY);
 	}
 
 	/** How many kinds of birds there are. */

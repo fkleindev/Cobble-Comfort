@@ -257,18 +257,29 @@ There is also a key for the HUD editor.
   separately for first person.
 - **Companion:** a wardrobe tab for a little voxel companion that follows you everywhere: a mushroomling, a cloud
   sheep, a mini dragon, an owl, a mini golem, a red panda, a sea turtle, a kitten in a box, a shadow wolf, a hedgehog,
-  a penguin chick, a mini mech and a lava salamander, each in several variants, plus a pumpkin imp in October and
-  November, a little snowman in December and January and an Easter bunny in April. Each is textured in its own
-  material (fur, wool, scales, feathers, stone, shell, cardboard, quills, down, brushed metal, copper, basalt...). It
-  walks, hops, floats or flies, follows you up stairs, swims, rides along, settles down near you when you stop (only
-  getting up once you walk off), strolls about now and then, sits and falls asleep after a while. Each has its own
-  things to do: the red panda rears up, nibbles bamboo and washes its face; the turtle hides in its shell, munches a
-  berry and yawns; the kitten ducks into its box, peeks out and hops out to stretch; the shadow wolf howls, bows down
-  to play, steps through the shadows to your other side and fades into the dark at night; the hedgehog sniffs about,
-  curls up shyly and rolls after you as a ball; the penguin chick waddles, flaps, shakes itself fluffy and slides on
-  its belly over snow and ice; the mini mech stomps with puffs of steam, scans with a beam of light, hovers on rocket
-  boots, lights a headlamp at night and its copper slowly turns green (petting polishes it); the lava salamander glows
-  in the cracks of its basalt scales, flicks its tongue, does push-ups, basks, yawns embers and steams in the rain.
+  a penguin chick, a mini mech, a lava salamander, a lantern spirit, a shadow wisp, a little whirlwind, a ball of yarn
+  and a baby panda, each in several variants, plus a pumpkin imp in October and November, a little snowman in December
+  and January and an Easter bunny in April. Each is textured in its own material (fur, wool, scales, feathers, stone,
+  shell, cardboard, quills, down, brushed metal, copper, basalt...). It walks, hops, floats or flies, follows you up
+  stairs, swims, rides along, settles down near you when you stop (only getting up once you walk off), strolls about
+  now and then, sits and falls asleep after a while. Each has its own things to do: the red panda rears up, nibbles
+  bamboo and washes its face; the turtle hides in its shell, munches a berry and yawns; the kitten ducks into its box,
+  peeks out and hops out to stretch; the shadow wolf howls, bows down to play, steps through the shadows to your other
+  side and fades into the dark at night; the hedgehog sniffs about, curls up shyly and rolls after you as a ball; the
+  penguin chick waddles, flaps, shakes itself fluffy and slides on its belly over snow and ice; the mini mech stomps
+  with puffs of steam, scans with a beam of light, hovers on rocket boots, lights a headlamp at night and its copper
+  slowly turns green (petting polishes it); the lava salamander glows in the cracks of its basalt scales, flicks its
+  tongue, does push-ups, basks, yawns embers and steams in the rain; the lantern spirit floats along with a face in
+  its flame, burns brighter at night, circles you at shoulder height in dark caves with a soft glow on the ground,
+  gutters at monsters nearby, flickers wildly at a hissing creeper, dims and stays close when you are badly hurt and
+  all but goes out near a warden (the copper one slowly turns green); the shadow wisp glides through air and walls
+  alike, faint in the light and nearly solid in the dark, peeks out of a wall next to you now and then, loops the
+  loop, ducks into its tail to pop out with a boo (right in front of other players who come close) and flickers in the
+  Nether; the little whirlwind spins along whirling leaves (sand, snowflakes) and whatever it passes over, and runs
+  tall and wild with gusts when you sprint; the ball of yarn rolls after you laying its thread out behind it,
+  shrinking as it unwinds, and winds itself up again when you stop (cats nearby can't take their eyes off it, and
+  kittens go and bat at it); the baby panda waddles, sits up to munch a stalk of bamboo (and trots over to any bamboo
+  nearby to do so), turns somersaults, flops onto its back paddling its paws and sneezes.
   The mini dragon and the owl keep a little more distance in the air and race along beside you when you glide on
   elytra, wings swept back, trailing streams of air.
   It warms itself by a lit campfire near you, gazing into the flames and dozing off sooner; begs in front of you while
@@ -301,12 +312,19 @@ There is also a key for the HUD editor.
   paws, hooves and bird claws, depending on who walked there. Sneaking leaves fainter ones, and rain or snowfall
   wears them away sooner. Coming out of the water, wet feet leave dark prints on any ground for a few steps.
 - **Atmosphere:** small clouds of breath in the cold (snowy biomes, high mountains), from players, animals and
-  villagers but not the undead; rings and splashes where someone wades through shallow water; fireflies blinking over
-  swamps, meadows, flower forests and cherry groves on clear nights, darting away from players; and snow settling on
-  players' heads and shoulders in snowfall, which they shake off by jumping and which melts under a roof. Birds fly
-  over now and then, suited to the biome: gulls over the sea, geese in a V, ducks and herons over swamps, songbirds over
-  forests, parrots in the jungle, ravens over the taiga, eagles and vultures circling over mountains and dry land; at
-  night owls and bats. Little voxel models that work with shaders, with quiet calls; how often is adjustable.
+  villagers but not the undead; rings and splashes where someone wades through shallow water; water dripping off
+  players and companions who come out of the water or stood in the rain (drying faster in the heat and steaming by a
+  fire, a jump shakes off a shower of drops, companions shake themselves), and from leaves and roof edges after the
+  rain, with rings where the drops fall into water; a cloud of dust where players and mobs land after a fall, bigger
+  the longer the fall; fireflies blinking over swamps, meadows, flower forests and cherry groves on clear nights,
+  darting away from players; by day butterflies fluttering from flower to flower wherever flowers grow under the open
+  sky (gardens and greenhouses too, big tropical ones in the jungle), settling on them and getting out of the way of
+  players and companions (who watch them and sometimes chase them), and dragonflies over water hanging in the air,
+  darting off in a zigzag and resting on lily pads and reeds; and snow settling on players' heads and shoulders in
+  snowfall, which they shake off by jumping and which melts under a roof. Birds fly over now and then, suited to the
+  biome: gulls over the sea, geese in a V, ducks and herons over swamps, songbirds over forests, parrots in the
+  jungle, ravens over the taiga, eagles and vultures circling over mountains and dry land; at night owls and bats.
+  Little voxel models that work with shaders, with quiet calls; how often is adjustable.
 - **Light overlay (F7):** red crosses on blocks where monsters can spawn at any time, yellow ones where they can only
   spawn at night, following the real spawn rules (no crosses on glass, slabs, carpets or in mushroom fields) and the
   light limits of each dimension. Optionally the block light as a number. Crosses fade out as you light up an area. The

@@ -24,6 +24,8 @@ final class CompanionTexture {
 	private static final RenderType TYPE = RenderTypes.entityCutout(ID);
 	/** What glows on top (lava cracks, light beams): see-through by its alpha, at full light. */
 	private static final RenderType GLOW = RenderTypes.entityTranslucentEmissive(ID);
+	/** For companions that are see-through themselves (a wisp): by the alpha of their colours, lit as usual. */
+	private static final RenderType GHOST = RenderTypes.entityTranslucentCull(ID);
 	private static final int TILE = 16, ATLAS = 64, ATLAS_H = 128;
 	/** Pixels per voxel, and how many voxels until a pattern repeats. */
 	private static final float DENSITY = 2f, PERIOD = TILE / DENSITY;
@@ -182,6 +184,12 @@ final class CompanionTexture {
 	static RenderType glowType() {
 		type();
 		return GLOW;
+	}
+
+	/** The render type for see-through companions (render thread; makes the atlas first if needed). */
+	static RenderType ghostType() {
+		type();
+		return GHOST;
 	}
 
 	private static float hash(int x, int y, int seed) {

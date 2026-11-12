@@ -1206,6 +1206,11 @@ public final class WardrobeFeature extends Feature<WardrobeConfig> {
 		return companions.count();
 	}
 
+	/** Where all the companions around are (butterflies get out of their way). */
+	public java.util.List<net.minecraft.world.phys.Vec3> companionPositions() {
+		return isEnabled() ? companions.positions() : java.util.List.of();
+	}
+
 	/** Where your own companion is, or null (tests). */
 	public net.minecraft.world.phys.Vec3 companionPosition() {
 		Minecraft mc = Minecraft.getInstance();

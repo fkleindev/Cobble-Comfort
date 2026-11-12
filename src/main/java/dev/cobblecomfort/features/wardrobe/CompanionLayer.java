@@ -50,7 +50,8 @@ final class CompanionLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			stance = new CompanionModel.Pose(0, 0, 1, 0, 0, 0, 0.3f, 0, 0, 0, time, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		}
 		CompanionModel.Pose pose1 = stance;
-		collector.submitCustomGeometry(pose, CompanionTexture.type(), (p, vc) -> CompanionModel.draw(vc, p, look, pose1, light));
+		collector.submitCustomGeometry(pose,
+				CompanionModel.seeThrough(look.companion().style) ? CompanionTexture.ghostType() : CompanionTexture.type(), (p, vc) -> CompanionModel.draw(vc, p, look, pose1, light));
 		if (CompanionModel.glows(look.companion().style)) {
 			collector.submitCustomGeometry(pose, CompanionTexture.glowType(), (p, vc) -> CompanionModel.draw(vc, p, look, pose1, light, true));
 		}

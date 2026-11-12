@@ -71,7 +71,26 @@ public enum Companion {
 	SALAMANDER_LAVA(Style.SALAMANDER, "magma_cream", 0xFF2C2828, 0xFF3E302A, 0xFF1C1818, 0xFFFF7A1A),
 	SALAMANDER_MAGMA(Style.SALAMANDER, "magma_block", 0xFF3A2422, 0xFF4A2A24, 0xFF241414, 0xFFFF3A1A),
 	SALAMANDER_SOUL(Style.SALAMANDER, "soul_soil", 0xFF2A3036, 0xFF343A40, 0xFF181C20, 0xFF4AE8F0),
-	SALAMANDER_GILDED(Style.SALAMANDER, "gilded_blackstone", 0xFF2E2A30, 0xFF3A343A, 0xFF1A181C, 0xFFF0C040);
+	SALAMANDER_GILDED(Style.SALAMANDER, "gilded_blackstone", 0xFF2E2A30, 0xFF3A343A, 0xFF1A181C, 0xFFF0C040),
+	LANTERN_CLASSIC(Style.LANTERN, "lantern", 0xFF4E525C, 0xFF2E3038, 0xFFFFF0B0, 0xFFFFA82A),
+	LANTERN_SOUL(Style.LANTERN, "soul_lantern", 0xFF3E4450, 0xFF22262E, 0xFFD8FFFA, 0xFF3AD8E8),
+	LANTERN_COPPER(Style.LANTERN, "copper_lantern", 0xFFC8743A, 0xFF9A5430, 0xFFE8FFD0, 0xFF5AE85A),
+	LANTERN_AMETHYST(Style.LANTERN, "amethyst_shard", 0xFF9A72D8, 0xFF5E3E96, 0xFFF4E0FF, 0xFFC27AFA),
+	WISP_SHADOW(Style.WISP, "phantom_membrane", 0xFF4A4464, 0xFF302A46, 0xFF726A94, 0xFFF4E88A),
+	WISP_SOUL(Style.WISP, "soul_sand", 0xFF325A62, 0xFF1E3C42, 0xFF529A9E, 0xFF6AF4F0),
+	WISP_PALE(Style.WISP, "ghast_tear", 0xFFE4EAF4, 0xFFC8D0E0, 0xFFF4F8FF, 0xFF2A2A3E),
+	WISP_VOID(Style.WISP, "ender_pearl", 0xFF3E2658, 0xFF26143A, 0xFF6A4A94, 0xFFE46AF8),
+	WIND_BREEZE(Style.WIND, "wind_charge", 0xFFDCEFF4, 0xFFB4D6E2, 0xFF6AB04A, 0xFF2A3A4A),
+	WIND_AUTUMN(Style.WIND, "dead_bush", 0xFFF2EADE, 0xFFD8C8B0, 0xFFE07A2A, 0xFF3A2A1A),
+	WIND_DUST(Style.WIND, "sand", 0xFFE8D6AC, 0xFFC8AE7A, 0xFFB08A58, 0xFF4A3420),
+	WIND_SNOW(Style.WIND, "powder_snow_bucket", 0xFFF4F8FF, 0xFFCEDCF0, 0xFFFFFFFF, 0xFF3A4A6A),
+	YARN_RED(Style.YARN, "red_wool", 0xFFD8443A, 0xFFA82E28, 0xFFE8D0A0, 0xFF2A1A1A),
+	YARN_BLUE(Style.YARN, "blue_wool", 0xFF4A7AD0, 0xFF34589E, 0xFFC8A070, 0xFF1A1A2A),
+	YARN_YELLOW(Style.YARN, "yellow_wool", 0xFFF2C84A, 0xFFC89A2A, 0xFF8A6040, 0xFF2A1E10),
+	YARN_MINT(Style.YARN, "lime_wool", 0xFF8AD8A8, 0xFF5AAA7E, 0xFFE8E0D0, 0xFF1A2A20),
+	PANDA_CLASSIC(Style.PANDA, "bamboo", 0xFFF4F2EC, 0xFF2A2A30, 0xFFFFFCF4, 0xFF141418),
+	PANDA_BROWN(Style.PANDA, "cocoa_beans", 0xFFEADCC8, 0xFF6A4632, 0xFFF8F0E2, 0xFF1E1410),
+	PANDA_SILVER(Style.PANDA, "light_gray_wool", 0xFFEEF0F4, 0xFF6E727E, 0xFFFFFFFF, 0xFF1A1C22);
 
 	/** The kind of companion, shown in the wardrobe as one tile that opens its variants. */
 	public enum Style {
@@ -81,7 +100,9 @@ public enum Companion {
 		TURTLE(Hat.Group.ALL_YEAR, Movement.WALK), KITTEN(Hat.Group.ALL_YEAR, Movement.HOP),
 		SHADOW_WOLF(Hat.Group.ALL_YEAR, Movement.WALK), HEDGEHOG(Hat.Group.ALL_YEAR, Movement.WALK),
 		PENGUIN(Hat.Group.ALL_YEAR, Movement.WALK), MECH(Hat.Group.ALL_YEAR, Movement.WALK),
-		SALAMANDER(Hat.Group.ALL_YEAR, Movement.WALK),
+		SALAMANDER(Hat.Group.ALL_YEAR, Movement.WALK), LANTERN(Hat.Group.ALL_YEAR, Movement.HOVER),
+		WISP(Hat.Group.ALL_YEAR, Movement.FLY), WIND(Hat.Group.ALL_YEAR, Movement.WALK), YARN(Hat.Group.ALL_YEAR, Movement.WALK),
+		PANDA(Hat.Group.ALL_YEAR, Movement.WALK),
 		PUMPKIN(Hat.Group.SEASON, Movement.WALK), SNOWMAN(Hat.Group.WINTER, Movement.HOP),
 		BUNNY(Hat.Group.EASTER, Movement.HOP);
 
@@ -153,6 +174,11 @@ public enum Companion {
 	 * Hedgehog: spines, face and belly, spine tips, what it carries (berry, flower, leaf). Penguin chick: down, head, face
 	 * mask, beak and feet. Mini mech: metal, copper (going green with time), visor light, paint and warning stripes.
 	 * Lava salamander: basalt scales, belly, crest, the glow in its cracks and eyes.
+	 * Lantern spirit: frame (copper going green with time), cap and base, the flame's white-hot heart, the flame.
+	 * Shadow wisp: body, darker smoke, light wisps, eyes.
+	 * Whirlwind: air, darker air, what it whirls round (leaves, sand, flakes), eyes. Ball of yarn: yarn, darker strands,
+	 * knitting needles, eyes.
+	 * Baby panda: fur, dark fur (ears, eye patches, legs, shoulders), muzzle, eyes.
 	 */
 	public final int main, second, third, accent;
 	private ItemStack stack;

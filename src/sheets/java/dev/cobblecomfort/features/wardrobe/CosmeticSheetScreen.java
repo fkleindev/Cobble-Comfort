@@ -301,6 +301,78 @@ public final class CosmeticSheetScreen extends Screen {
 		}
 		salamander.add(new Item(Component.literal("Side"), companion(Companion.SALAMANDER_LAVA, idle, 100f)));
 		sections.add(new Section(Component.literal("Lava salamander"), salamander));
+		// The lantern spirit: gliding, flaring up, yawning, twirling, happy, asleep, in the dark, frightened, dimmed, each
+		// variant at night, the copper one weathered.
+		List<Item> lantern = new ArrayList<>();
+		Object[][] lanternPoses = {{"Gliding", walking}, {"Flaring up", idle.doing(CompanionModel.STAND, 0.5f)},
+				{"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)}, {"Twirling", idle.doing(CompanionModel.SHAKE, 0.4f)},
+				{"Happy", happy}, {"Asleep", dozing}, {"Afraid", idle.afraid(1f, 0)}, {"Dimmed (hurt)", idle.afraid(0, 0.5f)},
+				{"Dread (warden)", idle.afraid(0.45f, 0.85f)}};
+		for (Object[] entry : lanternPoses) {
+			lantern.add(new Item(Component.literal((String) entry[0]), companion(Companion.LANTERN_CLASSIC, (CompanionModel.Pose) entry[1])));
+		}
+		lantern.add(new Item(Component.literal("Side"), companion(Companion.LANTERN_CLASSIC, idle, 100f)));
+		for (Companion variant : Companion.variants(Companion.Style.LANTERN)) {
+			lantern.add(new Item(Component.literal("At night"), companion(variant, idle.inShade(1f))));
+		}
+		lantern.add(new Item(Component.literal("Weathered 100%"), companion(Companion.LANTERN_COPPER, idle.worn(1f))));
+		sections.add(new Section(Component.literal("Lantern spirit"), lantern));
+		// The wisp: gliding, looping, yawning, ducked away, boo, happy, asleep, flickering in the Nether, side, each
+		// variant in the light (faint) and in the dark (nearly solid).
+		List<Item> wisp = new ArrayList<>();
+		Object[][] wispPoses = {{"Gliding", walking}, {"Looping", idle.doing(CompanionModel.SHAKE, 0.35f)},
+				{"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)}, {"Ducked away", idle.doing(CompanionModel.HIDE, 0.3f)},
+				{"Boo", idle.doing(CompanionModel.HIDE, 0.8f)}, {"Happy", happy}, {"Asleep", dozing},
+				{"Nether flicker", idle.inShade(0.6f).afraid(1f, 0)}};
+		for (Object[] entry : wispPoses) {
+			wisp.add(new Item(Component.literal((String) entry[0]), companion(Companion.WISP_SHADOW, ((CompanionModel.Pose) entry[1]).inShade(0.6f))));
+		}
+		wisp.add(new Item(Component.literal("Side"), companion(Companion.WISP_SHADOW, idle.inShade(0.6f), 100f)));
+		for (Companion variant : Companion.variants(Companion.Style.WISP)) {
+			wisp.add(new Item(Component.literal("In the light"), companion(variant, idle)));
+			wisp.add(new Item(Component.literal("In the dark"), companion(variant, idle.inShade(1f))));
+		}
+		sections.add(new Section(Component.literal("Shadow wisp"), wisp));
+		// The whirlwind: spinning along, wild (its player sprinting), spun up, dying down, happy, asleep, each variant.
+		List<Item> wind = new ArrayList<>();
+		CompanionModel.Pose wild = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 12f, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 1f);
+		Object[][] windPoses = {{"Spinning along", walking}, {"Wild (sprint)", wild}, {"Spinning up", idle.doing(CompanionModel.STAND, 0.5f)},
+				{"Dying down", idle.doing(CompanionModel.YAWN, 0.5f)}, {"Happy", happy}, {"Asleep", dozing}};
+		for (Object[] entry : windPoses) {
+			wind.add(new Item(Component.literal((String) entry[0]), companion(Companion.WIND_BREEZE, (CompanionModel.Pose) entry[1])));
+		}
+		for (Companion variant : Companion.variants(Companion.Style.WIND)) {
+			wind.add(new Item(variant.title(), companion(variant, idle)));
+		}
+		sections.add(new Section(Component.literal("Little whirlwind"), wind));
+		// The ball of yarn: rolling, half and all unwound, bouncing, wobbling, happy, asleep, side, each colour.
+		List<Item> yarn = new ArrayList<>();
+		Object[][] yarnPoses = {{"Rolling", walking}, {"Half unwound", idle.worn(0.5f)}, {"All unwound", idle.worn(1f)},
+				{"Bouncing", idle.doing(CompanionModel.STAND, 0.15f)}, {"Wobbling", idle.doing(CompanionModel.SHAKE, 0.1f)},
+				{"Happy", happy}, {"Asleep", dozing}};
+		for (Object[] entry : yarnPoses) {
+			yarn.add(new Item(Component.literal((String) entry[0]), companion(Companion.YARN_RED, (CompanionModel.Pose) entry[1])));
+		}
+		yarn.add(new Item(Component.literal("Side"), companion(Companion.YARN_RED, idle, 100f)));
+		for (Companion variant : Companion.variants(Companion.Style.YARN)) {
+			yarn.add(new Item(variant.title(), companion(variant, idle)));
+		}
+		sections.add(new Section(Component.literal("Ball of yarn"), yarn));
+		// The baby panda: waddling, sitting, munching bamboo, a somersault, on its back, sneezing, yawning, happy, asleep,
+		// side, each variant.
+		List<Item> panda = new ArrayList<>();
+		Object[][] pandaPoses = {{"Waddling", walking}, {"Sitting", sitting}, {"Bamboo", idle.doing(CompanionModel.SNACK, 0.3f)},
+				{"Somersault", idle.doing(CompanionModel.SHAKE, 0.4f)}, {"On its back", idle.doing(CompanionModel.BASK, 0.5f)},
+				{"Sneezing", idle.doing(CompanionModel.GROOM, 0.65f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
+				{"Happy", happy}, {"Asleep", dozing}};
+		for (Object[] entry : pandaPoses) {
+			panda.add(new Item(Component.literal((String) entry[0]), companion(Companion.PANDA_CLASSIC, (CompanionModel.Pose) entry[1])));
+		}
+		panda.add(new Item(Component.literal("Side"), companion(Companion.PANDA_CLASSIC, idle, 100f)));
+		for (Companion variant : Companion.variants(Companion.Style.PANDA)) {
+			panda.add(new Item(variant.title(), companion(variant, idle)));
+		}
+		sections.add(new Section(Component.literal("Baby panda"), panda));
 		// The fliers chasing a player on elytra: wings swept back, from the side and from behind.
 		List<Item> chase = new ArrayList<>();
 		for (Companion flier : new Companion[]{Companion.DRAGON_GREEN, Companion.OWL_BROWN}) {

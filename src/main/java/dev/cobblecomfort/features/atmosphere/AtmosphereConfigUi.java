@@ -23,9 +23,17 @@ public final class AtmosphereConfigUi {
 				.group(OptionGroup.createBuilder()
 						.name(Component.translatable("cobblecomfort.group.atmosphere.nature"))
 						.option(Opts.bool("atmosphere.splashes", d.splashes, () -> c(feature).splashes, v -> c(feature).splashes = v))
+						.option(Opts.bool("atmosphere.drips", d.drips, () -> c(feature).drips, v -> c(feature).drips = v))
+						.option(Opts.bool("atmosphere.landing_dust", d.landingDust, () -> c(feature).landingDust, v -> c(feature).landingDust = v))
 						.option(Opts.bool("atmosphere.fireflies", d.fireflies, () -> c(feature).fireflies, v -> c(feature).fireflies = v))
 						.option(Opts.intSlider("atmosphere.firefly_count", d.fireflyCount, 4, 64, 4,
 								() -> c(feature).fireflyCount, v -> c(feature).fireflyCount = v))
+						.option(Opts.bool("atmosphere.butterflies", d.butterflies, () -> c(feature).butterflies, v -> c(feature).butterflies = v))
+						.option(Opts.intSlider("atmosphere.butterfly_count", d.butterflyCount, 2, 32, 2,
+								() -> c(feature).butterflyCount, v -> c(feature).butterflyCount = v))
+						.option(Opts.bool("atmosphere.dragonflies", d.dragonflies, () -> c(feature).dragonflies, v -> c(feature).dragonflies = v))
+						.option(Opts.intSlider("atmosphere.dragonfly_count", d.dragonflyCount, 1, 16, 1,
+								() -> c(feature).dragonflyCount, v -> c(feature).dragonflyCount = v))
 						.option(Opts.bool("atmosphere.snow_cover", d.snowCover, () -> c(feature).snowCover, v -> c(feature).snowCover = v))
 						.build())
 				.group(OptionGroup.createBuilder()
