@@ -267,6 +267,8 @@ There is also a key for the HUD editor.
   its belly over snow and ice; the mini mech stomps with puffs of steam, scans with a beam of light, hovers on rocket
   boots, lights a headlamp at night and its copper slowly turns green (petting polishes it); the lava salamander glows
   in the cracks of its basalt scales, flicks its tongue, does push-ups, basks, yawns embers and steams in the rain.
+  The mini dragon and the owl keep a little more distance in the air and race along beside you when you glide on
+  elytra, wings swept back, trailing streams of air.
   Sneak up and look at it to pet it. Give it a name, a bow, collar, flower or crown. When two players with companions
   stand together, the companions walk up to each other, sniff, hop with hearts and sometimes play tag. It is only
   drawn: never in the way, and blocks can still be placed where it stands. Other players with the mod see it through

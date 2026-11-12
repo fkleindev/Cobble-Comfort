@@ -47,7 +47,7 @@ final class CompanionLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 			// At your right foot, a little in front, turned towards the viewer.
 			pose.translate(-0.62f, 0, 0.25f);
 			pose.mulPose(new Matrix4f().rotationY(-0.35f));
-			stance = new CompanionModel.Pose(0, 0, 1, 0, 0, 0, 0.3f, 0, 0, 0, time, CompanionModel.NONE, 0, 0, 0, 0);
+			stance = new CompanionModel.Pose(0, 0, 1, 0, 0, 0, 0.3f, 0, 0, 0, time, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		}
 		CompanionModel.Pose pose1 = stance;
 		collector.submitCustomGeometry(pose, CompanionTexture.type(), (p, vc) -> CompanionModel.draw(vc, p, look, pose1, light));

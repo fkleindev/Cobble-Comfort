@@ -45,24 +45,24 @@ final class CompanionModel {
 	 * it is around it (0 bright to 1 dark: night, caves); {@code wear} how weathered it is (0 new to 1: copper all green).
 	 */
 	record Pose(float walk, float walking, float sit, float sleep, float fly, float flap, float headYaw, float headPitch,
-			float happy, float squash, float time, int action, float actionTime, float actionBlend, float shade, float wear) {
+			float happy, float squash, float time, int action, float actionTime, float actionBlend, float shade, float wear, float dash) {
 		static Pose idle(float time) {
-			return new Pose(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, time, NONE, 0, 0, 0, 0);
+			return new Pose(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, time, NONE, 0, 0, 0, 0, 0);
 		}
 
 		/** The same pose doing {@code action}, {@code time} of the way through, fully shown. */
 		Pose doing(int action, float time) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, this.time, action, time, 1, shade, wear);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, this.time, action, time, 1, shade, wear, dash);
 		}
 
 		/** The same pose in the dark ({@code shade} 0 to 1). */
 		Pose inShade(float shade) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash);
 		}
 
 		/** The same pose this worn ({@code wear} 0 to 1: how far the copper has gone green). */
 		Pose worn(float wear) {
-			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear);
+			return new Pose(walk, walking, sit, sleep, fly, flap, headYaw, headPitch, happy, squash, time, action, actionTime, actionBlend, shade, wear, dash);
 		}
 	}
 
@@ -361,14 +361,16 @@ final class CompanionModel {
 		p.pop();
 		// Wings: an arm with three scalloped panels, then the hand with three more and a claw.
 		for (int side = -1; side <= 1; side += 2) {
-			float beat = Mth.sin(pose.flap) * 0.95f * lift;
+			// Chasing a player on elytra: swept back like a falcon's, quick shallow beats.
+			float beat = Mth.sin(pose.flap) * 0.95f * lift * (1 - pose.dash * 0.7f);
 			p.push();
 			p.translate(side * 2.2f, 3.3f, 0.5f);
-			p.rotateY(side * (1 - lift) * 1.05f);
+			p.rotateY(side * ((1 - lift) * 1.05f + pose.dash * 0.75f));
 			p.rotateZ(side * (beat + 0.4f * (1 - lift) + 0.08f + Mth.sin(pose.time * 0.1f) * 0.05f * (1 - lift)));
 			wingPart(p, side, 4f, 2.8f, c.main, c.third);
 			p.translate(side * 4f, 0, 0);
-			p.rotateZ(side * (Mth.sin(pose.flap - 0.7f) * 0.55f * lift - 0.25f * (1 - lift)));
+			p.rotateY(side * pose.dash * 0.5f);
+			p.rotateZ(side * (Mth.sin(pose.flap - 0.7f) * 0.55f * lift * (1 - pose.dash * 0.6f) - 0.25f * (1 - lift)));
 			wingPart(p, side, 3.4f, 2.3f, c.main, ARGB.scaleRGB(c.third, 0.92f));
 			p.box(side < 0 ? -3.9f : 3.4f, -0.2f, 0.1f, side < 0 ? -3.4f : 3.9f, 0.2f, 0.6f, claw);
 			p.pop();
@@ -488,8 +490,11 @@ final class CompanionModel {
 			float beat = Mth.sin(pose.flap) * 0.9f;
 			float rest = -1.42f + Mth.sin(pose.time * 0.6f) * 0.15f * pose.happy;
 			float angle = Mth.lerp(pose.fly, rest, beat);
+			// Chasing a player on elytra: wings half folded and swept back, beating fast and shallow.
+			angle = Mth.lerp(pose.dash, angle, -0.25f + Mth.sin(pose.flap) * 0.3f);
 			p.push();
 			p.translate(side * 2.9f, 5.0f, -0.1f);
+			p.rotateY(side * pose.dash * 0.7f);
 			p.rotateZ(side * angle);
 			p.round(side < 0 ? -3.4f : 0, -0.35f, -2.3f, side < 0 ? 0 : 3.4f, 0.35f, 2.0f, ARGB.scaleRGB(c.main, 0.86f), 0.3f);
 			p.box(side < 0 ? -2.4f : 0.3f, -0.42f, -2.1f, side < 0 ? -0.3f : 2.4f, 0.42f, 1.7f, c.main);

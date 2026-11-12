@@ -188,8 +188,8 @@ public final class CosmeticSheetScreen extends Screen {
 	private static List<Section> companions() {
 		List<Section> sections = new ArrayList<>(grouped(Companion.Style.values(), Companion.Style::title, Companion::variants,
 				Companion::title, companion -> companion(companion, null)));
-		CompanionModel.Pose happy = new CompanionModel.Pose(0, 0, 0, 0, 0, 0, 0.2f, 0, 1f, 0, 22f, CompanionModel.NONE, 0, 0, 0, 0);
-		CompanionModel.Pose dozing = new CompanionModel.Pose(0, 0, 0, 1f, 0, 0, 0, 0, 0, 0, 30f, CompanionModel.NONE, 0, 0, 0, 0);
+		CompanionModel.Pose happy = new CompanionModel.Pose(0, 0, 0, 0, 0, 0, 0.2f, 0, 1f, 0, 22f, CompanionModel.NONE, 0, 0, 0, 0, 0);
+		CompanionModel.Pose dozing = new CompanionModel.Pose(0, 0, 0, 1f, 0, 0, 0, 0, 0, 0, 30f, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		for (CompanionModel.Pose pose : new CompanionModel.Pose[]{happy, dozing}) {
 			List<Item> items = new ArrayList<>();
 			for (Companion.Style style : Companion.Style.values()) {
@@ -212,8 +212,8 @@ public final class CosmeticSheetScreen extends Screen {
 		sections.add(new Section(Component.literal("Red panda"), items));
 		// The turtle: walking, swimming, hiding (peeking out), munching a berry, yawning, asleep.
 		List<Item> turtle = new ArrayList<>();
-		CompanionModel.Pose walking = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0);
-		CompanionModel.Pose swimming = new CompanionModel.Pose(0, 0, 0, 0, 1f, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0);
+		CompanionModel.Pose walking = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 0);
+		CompanionModel.Pose swimming = new CompanionModel.Pose(0, 0, 0, 0, 1f, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		Object[][] turtlePoses = {{"Walking", walking}, {"Swimming", swimming}, {"Hiding", idle.doing(CompanionModel.HIDE, 0.5f)},
 				{"Snack", idle.doing(CompanionModel.SNACK, 0.2f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
 				{"Asleep", dozing}, {"Happy", happy}};
@@ -226,7 +226,7 @@ public final class CosmeticSheetScreen extends Screen {
 		// The kitten: hopping, ducking and peeking out, out of the box (jumping, stretching, washing), licking a paw in the
 		// box, yawning, asleep, happy, afloat.
 		List<Item> kitten = new ArrayList<>();
-		CompanionModel.Pose hopping = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, -0.5f, 18f, CompanionModel.NONE, 0, 0, 0, 0);
+		CompanionModel.Pose hopping = new CompanionModel.Pose(0.8f, 1f, 0, 0, 0, 0, 0, 0, 0, -0.5f, 18f, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		Object[][] kittenPoses = {{"Hopping", hopping}, {"Ducked", idle.doing(CompanionModel.HIDE, 0.4f)},
 				{"Peeking", idle.doing(CompanionModel.HIDE, 0.85f)}, {"Jumping out", idle.doing(CompanionModel.OUT, 0.06f)},
 				{"Stretching", idle.doing(CompanionModel.OUT, 0.3f)}, {"Washing outside", idle.doing(CompanionModel.OUT, 0.66f)},
@@ -239,7 +239,7 @@ public final class CosmeticSheetScreen extends Screen {
 		// The shadow wolf: trotting, sitting, howling, bowing to play, vanishing into smoke, yawning, asleep, happy; and
 		// every variant in the dark (fading into the shadows).
 		List<Item> wolf = new ArrayList<>();
-		CompanionModel.Pose sitting = new CompanionModel.Pose(0, 0, 1f, 0, 0, 0, 0.3f, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0);
+		CompanionModel.Pose sitting = new CompanionModel.Pose(0, 0, 1f, 0, 0, 0, 0.3f, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		Object[][] wolfPoses = {{"Trotting", walking}, {"Sitting", sitting}, {"Howling", idle.doing(CompanionModel.HOWL, 0.5f)},
 				{"Play bow", idle.doing(CompanionModel.PLAYBOW, 0.5f)}, {"Vanishing", idle.doing(CompanionModel.VANISH, 0.3f)},
 				{"Smoke", idle.doing(CompanionModel.VANISH, 0.5f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
@@ -257,7 +257,7 @@ public final class CosmeticSheetScreen extends Screen {
 		sections.add(new Section(Component.literal("Shadow wolf"), wolf));
 		// The hedgehog: scurrying, rolled up, curled (and peeking), sniffing, a berry, yawning, asleep, happy, side.
 		List<Item> hedgehog = new ArrayList<>();
-		CompanionModel.Pose rolling = new CompanionModel.Pose(1.3f, 1f, 0, 0, 1f, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0);
+		CompanionModel.Pose rolling = new CompanionModel.Pose(1.3f, 1f, 0, 0, 1f, 0, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 0);
 		Object[][] hedgehogPoses = {{"Scurrying", walking}, {"Rolling", rolling}, {"Curled up", idle.doing(CompanionModel.HIDE, 0.3f)},
 				{"Peeking", idle.doing(CompanionModel.HIDE, 0.65f)}, {"Sniffing", idle.doing(CompanionModel.SNIFF, 0.5f)},
 				{"Snack", idle.doing(CompanionModel.SNACK, 0.3f)}, {"Yawning", idle.doing(CompanionModel.YAWN, 0.5f)},
@@ -301,6 +301,17 @@ public final class CosmeticSheetScreen extends Screen {
 		}
 		salamander.add(new Item(Component.literal("Side"), companion(Companion.SALAMANDER_LAVA, idle, 100f)));
 		sections.add(new Section(Component.literal("Lava salamander"), salamander));
+		// The fliers chasing a player on elytra: wings swept back, from the side and from behind.
+		List<Item> chase = new ArrayList<>();
+		for (Companion flier : new Companion[]{Companion.DRAGON_GREEN, Companion.OWL_BROWN}) {
+			for (float flap : new float[]{0f, 1.6f}) {
+				CompanionModel.Pose dash = new CompanionModel.Pose(0, 0, 0, 0, 1f, flap, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 1f);
+				chase.add(new Item(Component.literal("Chasing " + flap), companion(flier, dash)));
+			}
+			chase.add(new Item(Component.literal("From behind"), companion(flier,
+					new CompanionModel.Pose(0, 0, 0, 0, 1f, 0.8f, 0, 0, 0, 0, 18f, CompanionModel.NONE, 0, 0, 0, 0, 1f), 200f)));
+		}
+		sections.add(new Section(Component.literal("Elytra chase"), chase));
 		return sections;
 	}
 

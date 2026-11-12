@@ -265,8 +265,20 @@ final class Companions {
 		Companion.Style style = s.look.companion().style;
 		double ownerSpeed = Math.hypot(owner.getX() - owner.xOld, owner.getZ() - owner.zOld);
 		boolean riding = owner.isPassenger();
-		boolean away = owner.isSpectator() || owner.isInvisible() || owner.isFallFlying()
-				|| !riding && ownerSpeed > TOO_FAST;
+		// Those with wings keep up with a player on elytra; the rest wait out of sight.
+		boolean chasing = style.movement == Companion.Movement.FLY && owner.isFallFlying() && !owner.isSpectator()
+				&& !owner.isInvisible();
+		boolean away = !chasing && (owner.isSpectator() || owner.isInvisible() || owner.isFallFlying()
+				|| !riding && ownerSpeed > TOO_FAST);
+		if (chasing && s.hidden) {
+			s.hidden = false;
+			Vec3 spot = chaseSpot(s, owner);
+			s.x = spot.x;
+			s.y = spot.y;
+			s.z = spot.z;
+			s.save();
+			puff(level, s.x, s.y + 0.3, s.z);
+		}
 		if (away) {
 			if (!s.hidden) {
 				if (!owner.isSpectator()) {
@@ -313,7 +325,9 @@ final class Companions {
 		boolean wasOnGround = s.onGround;
 		s.swimming = false;
 		double fallSpeed = s.vy;
-		if (riding) {
+		if (chasing) {
+			chase(level, s, owner);
+		} else if (riding) {
 			ride(s, owner);
 		} else if (style == Companion.Style.OWL && s.idle > 60 && !owner.isInWater() && s.meeting == null) {
 			perch(s, owner);
@@ -338,7 +352,11 @@ final class Companions {
 		s.fly = approach(s.fly, s.mode == Mode.FLYING || s.swimming || s.rolling ? 1 : 0, s.rolling ? 0.2f : 0.12f);
 		s.walking = approach(s.walking, Mth.clamp((float) s.speed * 8f, 0, 1), 0.25f);
 		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM || style == Companion.Style.MECH ? 3.2f : style == Companion.Style.SALAMANDER ? 5.5f : 4.5f);
-		s.flap += 0.5f + s.fly * 0.3f;
+		s.dash = approach(s.dash, chasing ? 1 : 0, 0.08f);
+		if (!chasing) {
+			s.pitch = approach(s.pitch, 0, 0.1f);
+		}
+		s.flap += 0.5f + s.fly * 0.3f + s.dash * 0.7f;
 
 		// Squash on landing, stretch while rising.
 		if (!wasOnGround && s.onGround) {
@@ -430,11 +448,11 @@ final class Companions {
 		s.yaw = turnTo(s.yaw, heading(owner), 0.4f);
 	}
 
-	/** Flies beside the player's shoulder, a little behind, bobbing. */
+	/** Flies off to the player's side, behind and below head height, bobbing; out of the way of their view. */
 	private void fly(ClientLevel level, State s, Player owner, double ownerSpeed) {
 		s.mode = Mode.FLYING;
-		Vec3 spot = spot(owner, 1.0, -0.6);
-		double ty = owner.getY() + 1.5 + Mth.sin(s.age * 0.08f) * 0.15;
+		Vec3 spot = spot(owner, 1.7, -1.2);
+		double ty = owner.getY() + 1.2 + Mth.sin(s.age * 0.08f) * 0.15;
 		double dx = spot.x - s.x, dy = ty - s.y, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
 		double max = Math.max(ownerSpeed * 1.2, 0.08) + (dist > 3 ? 0.3 : 0);
@@ -458,6 +476,48 @@ final class Companions {
 		s.speed = Math.hypot(s.vx, s.vz);
 		s.yaw = s.speed > 0.03 ? turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.25f) : turnTo(s.yaw, heading(owner), 0.1f);
 		s.onGround = false;
+	}
+
+	/** Where it races along beside a player on elytra: off to the side, now falling behind, now pulling up level. */
+	private static Vec3 chaseSpot(State s, Player owner) {
+		Vec3 dir = new Vec3(owner.getX() - owner.xOld, owner.getY() - owner.yOld, owner.getZ() - owner.zOld);
+		dir = dir.lengthSqr() > 1.0E-4 ? dir.normalize() : owner.getLookAngle();
+		Vec3 right = new Vec3(-dir.z, 0, dir.x);
+		right = right.lengthSqr() > 1.0E-4 ? right.normalize().scale(s.side) : new Vec3(s.side, 0, 0);
+		double back = 1.6 + Mth.sin(s.age * 0.045f) * 1.2;
+		double up = 0.4 + Mth.sin(s.age * 0.07f) * 0.35;
+		return owner.position().add(right.scale(1.9)).subtract(dir.scale(back)).add(0, up, 0);
+	}
+
+	/** Races after its player on elytra: carried along at their speed, closing in on its place beside them, tipped into the dive. */
+	private void chase(ClientLevel level, State s, Player owner) {
+		s.mode = Mode.FLYING;
+		Vec3 spot = chaseSpot(s, owner);
+		double ox = owner.getX() - owner.xOld, oy = owner.getY() - owner.yOld, oz = owner.getZ() - owner.zOld;
+		double vx = ox + (spot.x - s.x) * 0.22, vy = oy + (spot.y - s.y) * 0.22, vz = oz + (spot.z - s.z) * 0.22;
+		s.vx = Mth.lerp(0.6, s.vx, vx);
+		s.vy = Mth.lerp(0.6, s.vy, vy);
+		s.vz = Mth.lerp(0.6, s.vz, vz);
+		s.x += s.vx;
+		s.y += s.vy;
+		s.z += s.vz;
+		s.speed = Math.hypot(s.vx, s.vz);
+		s.stuck = 0;
+		s.onGround = false;
+		if (s.speed > 0.05) {
+			s.yaw = turnTo(s.yaw, (float) Math.atan2(s.vx, s.vz), 0.35f);
+		}
+		// Nose down into a dive, up when climbing.
+		float tip = (float) Mth.clamp(Math.atan2(-s.vy, Math.max(s.speed, 0.05)), -0.9, 0.9);
+		s.pitch = s.pitch + (tip - s.pitch) * 0.25f;
+		// Air streaming off its wing tips.
+		if (s.dash > 0.5f && s.age % 2 == 0) {
+			double cos = Mth.cos(s.yaw), sin = Mth.sin(s.yaw);
+			double span = s.look.companion().style == Companion.Style.DRAGON ? 0.45 : 0.4;
+			for (int side = -1; side <= 1; side += 2) {
+				level.addParticle(ParticleTypes.CLOUD, s.x + cos * span * side, s.y + 0.35, s.z - sin * span * side, 0, 0, 0);
+			}
+		}
 	}
 
 	/** Walks (or hops, or floats) after the player on the ground; steps up, falls down, swims, stops at walls. */
@@ -1002,6 +1062,14 @@ final class Companions {
 			poseStack.pushPose();
 			poseStack.translate(dx, dy, dz);
 			poseStack.mulPose(new org.joml.Matrix4f().rotationY(yaw));
+			float pitch = Mth.lerp(partial, s.pitchO, s.pitch);
+			if (Math.abs(pitch) > 0.001f) {
+				// Tipped round its middle.
+				float middle = CompanionModel.height(look.companion().style) * 0.45f;
+				poseStack.translate(0, middle, 0);
+				poseStack.mulPose(new org.joml.Matrix4f().rotationX(pitch));
+				poseStack.translate(0, -middle, 0);
+			}
 			context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.type(),
 					(p, vc) -> CompanionModel.draw(vc, p, look, pose, light));
 			if (CompanionModel.glows(look.companion().style)) {
@@ -1036,6 +1104,8 @@ final class Companions {
 		double x, y, z, xo, yo, zo, vx, vy, vz, speed;
 		float yaw, yawO, headYaw, headYawO, headPitch, headPitchO;
 		float walk, walkO, walking, walkingO, sit, sitO, sleep, sleepO, fly, flyO, flap, flapO, happy, squash, squashO;
+		/** Chasing its player through the air on their elytra (0 to 1), and how far its body tips nose down (radians). */
+		float dash, dashO, pitch, pitchO;
 		boolean onGround = true, hidden, swimming;
 		/** Rolling along as a ball (hedgehog) or sliding on its belly (penguin). */
 		boolean rolling;
@@ -1083,6 +1153,8 @@ final class Companions {
 			flyO = fly;
 			flapO = flap;
 			squashO = squash;
+			dashO = dash;
+			pitchO = pitch;
 		}
 
 		double distanceSq(Vec3 to) {
@@ -1095,7 +1167,7 @@ final class Companions {
 					Mth.lerp(partial, sitO, sit), Mth.lerp(partial, sleepO, sleep), Mth.lerp(partial, flyO, fly),
 					Mth.lerp(partial, flapO, flap), Mth.lerp(partial, headYawO, headYaw),
 					Mth.lerp(partial, headPitchO, headPitch), happy, Mth.lerp(partial, squashO, squash), age + partial, action,
-					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade, wear);
+					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade, wear, Mth.lerp(partial, dashO, dash));
 		}
 
 		/** How much of the action shows: easing in over its first half second and out over its last. */
