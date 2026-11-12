@@ -49,6 +49,8 @@ public class WardrobeConfig extends FeatureConfig {
 	public String companionName = "";
 	public String companionAccessory = "none";
 	public int companionColor = 14;
+	/** How weathered your mini mech is (0 to 1: its copper going green), kept between sessions. */
+	public float companionWear = 0;
 	/** The companions of other players with the mod (needs the Cobble Comfort Sync plugin on the server). */
 	public boolean showOtherCompanions = true;
 	/** What has been earned, per world (singleplayer) or server (multiplayer); it stays earned there. */

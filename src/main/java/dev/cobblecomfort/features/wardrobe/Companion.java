@@ -55,7 +55,23 @@ public enum Companion {
 	SHADOW_WOLF_NIGHT(Style.SHADOW_WOLF, "echo_shard", 0xFF424052, 0xFF262532, 0xFF726E8C, 0xFFF4E89A),
 	SHADOW_WOLF_VOID(Style.SHADOW_WOLF, "ender_eye", 0xFF3E3050, 0xFF20182C, 0xFF7E50AA, 0xFFE85AF8),
 	SHADOW_WOLF_EMBER(Style.SHADOW_WOLF, "blaze_powder", 0xFF463630, 0xFF241A16, 0xFF8E5638, 0xFFFF8A2A),
-	SHADOW_WOLF_SOUL(Style.SHADOW_WOLF, "soul_torch", 0xFF32464E, 0xFF18282E, 0xFF50868E, 0xFF5AF0E0);
+	SHADOW_WOLF_SOUL(Style.SHADOW_WOLF, "soul_torch", 0xFF32464E, 0xFF18282E, 0xFF50868E, 0xFF5AF0E0),
+	HEDGEHOG_BROWN(Style.HEDGEHOG, "sweet_berries", 0xFF8A6A4A, 0xFFE8D4B4, 0xFF3A2A1E, 0xFFD8302A),
+	HEDGEHOG_SNOW(Style.HEDGEHOG, "white_wool", 0xFFEEE6DA, 0xFFFFF6EE, 0xFFC4B8A8, 0xFF6AB0E8),
+	HEDGEHOG_DARK(Style.HEDGEHOG, "coal", 0xFF4E423A, 0xFFCBB79C, 0xFF1E1814, 0xFF6AA83A),
+	HEDGEHOG_AUTUMN(Style.HEDGEHOG, "apple", 0xFFB07A48, 0xFFF0DCC0, 0xFF5A3A20, 0xFFE87A2A),
+	PENGUIN_EMPEROR(Style.PENGUIN, "ice", 0xFFA8ACB6, 0xFF26262C, 0xFFF6F6F8, 0xFF3A3A42),
+	PENGUIN_KING(Style.PENGUIN, "brown_wool", 0xFF8A6A52, 0xFF4A3A2E, 0xFFE6D8C2, 0xFF2E2A28),
+	PENGUIN_ADELIE(Style.PENGUIN, "gray_wool", 0xFF6C6C76, 0xFF34343C, 0xFFDCDCE2, 0xFFE89AA8),
+	PENGUIN_FAIRY(Style.PENGUIN, "blue_ice", 0xFF7C9CBC, 0xFF4A6A8E, 0xFFF0F4F8, 0xFF2E2E36),
+	MECH_STEEL(Style.MECH, "iron_ingot", 0xFFB8BCC4, 0xFFC8743A, 0xFF5AE6F4, 0xFFF0C030),
+	MECH_GUNMETAL(Style.MECH, "netherite_scrap", 0xFF5C6068, 0xFFC8743A, 0xFFFF4A3A, 0xFFF08A2A),
+	MECH_ARCTIC(Style.MECH, "quartz", 0xFFE4E7EC, 0xFFC8743A, 0xFF8AF06A, 0xFF3A8AE8),
+	MECH_COPPER(Style.MECH, "copper_ingot", 0xFFC8743A, 0xFFB0603A, 0xFFF0C84A, 0xFF2E2E34),
+	SALAMANDER_LAVA(Style.SALAMANDER, "magma_cream", 0xFF2C2828, 0xFF3E302A, 0xFF1C1818, 0xFFFF7A1A),
+	SALAMANDER_MAGMA(Style.SALAMANDER, "magma_block", 0xFF3A2422, 0xFF4A2A24, 0xFF241414, 0xFFFF3A1A),
+	SALAMANDER_SOUL(Style.SALAMANDER, "soul_soil", 0xFF2A3036, 0xFF343A40, 0xFF181C20, 0xFF4AE8F0),
+	SALAMANDER_GILDED(Style.SALAMANDER, "gilded_blackstone", 0xFF2E2A30, 0xFF3A343A, 0xFF1A181C, 0xFFF0C040);
 
 	/** The kind of companion, shown in the wardrobe as one tile that opens its variants. */
 	public enum Style {
@@ -63,7 +79,9 @@ public enum Companion {
 		DRAGON(Hat.Group.ALL_YEAR, Movement.FLY), OWL(Hat.Group.ALL_YEAR, Movement.FLY),
 		GOLEM(Hat.Group.ALL_YEAR, Movement.WALK), RED_PANDA(Hat.Group.ALL_YEAR, Movement.WALK),
 		TURTLE(Hat.Group.ALL_YEAR, Movement.WALK), KITTEN(Hat.Group.ALL_YEAR, Movement.HOP),
-		SHADOW_WOLF(Hat.Group.ALL_YEAR, Movement.WALK),
+		SHADOW_WOLF(Hat.Group.ALL_YEAR, Movement.WALK), HEDGEHOG(Hat.Group.ALL_YEAR, Movement.WALK),
+		PENGUIN(Hat.Group.ALL_YEAR, Movement.WALK), MECH(Hat.Group.ALL_YEAR, Movement.WALK),
+		SALAMANDER(Hat.Group.ALL_YEAR, Movement.WALK),
 		PUMPKIN(Hat.Group.SEASON, Movement.WALK), SNOWMAN(Hat.Group.WINTER, Movement.HOP),
 		BUNNY(Hat.Group.EASTER, Movement.HOP);
 
@@ -132,6 +150,9 @@ public enum Companion {
 	 * belly, mask, tail rings. Turtle: skin, shell, shell plates, belly.
 	 * Kitten: fur, stripes (calico: orange patch), muzzle and paws (calico: black patch), eyes.
 	 * Shadow wolf: fur, dark fur, smoke, eyes and glowing marks.
+	 * Hedgehog: spines, face and belly, spine tips, what it carries (berry, flower, leaf). Penguin chick: down, head, face
+	 * mask, beak and feet. Mini mech: metal, copper (going green with time), visor light, paint and warning stripes.
+	 * Lava salamander: basalt scales, belly, crest, the glow in its cracks and eyes.
 	 */
 	public final int main, second, third, accent;
 	private ItemStack stack;

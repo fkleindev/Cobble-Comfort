@@ -58,7 +58,11 @@ final class Companions {
 		return states.get(player);
 	}
 
+	/** Where the settings are (your mech's weathering is kept there). */
+	private WardrobeFeature wardrobe;
+
 	void tick(Minecraft mc, ClientLevel level, WardrobeFeature wardrobe) {
+		this.wardrobe = wardrobe;
 		Map<UUID, Player> present = new HashMap<>();
 		for (Player player : level.players()) {
 			present.put(player.getUUID(), player);
@@ -301,6 +305,9 @@ final class Companions {
 		s.happy = Math.max(0, s.happy - 0.02f);
 		float dark = 1 - level.getMaxLocalRawBrightness(BlockPos.containing(s.x, s.y + 0.5, s.z)) / 15f;
 		s.shade = approach(s.shade, dark, 0.01f);
+		if (style == Companion.Style.MECH) {
+			weather(level, s, owner == mc.player);
+		}
 		s.meetCooldown--;
 
 		boolean wasOnGround = s.onGround;
@@ -328,9 +335,9 @@ final class Companions {
 		s.sit = approach(s.sit, sleeping ? 0 : sitTarget, 0.1f);
 		s.sleep = approach(s.sleep, sleeping && s.mode != Mode.FLYING ? 1 : 0, sleeping ? 0.03f : 0.2f);
 		// Wings out when flying; for those that walk, how much they swim.
-		s.fly = approach(s.fly, s.mode == Mode.FLYING || s.swimming ? 1 : 0, 0.12f);
+		s.fly = approach(s.fly, s.mode == Mode.FLYING || s.swimming || s.rolling ? 1 : 0, s.rolling ? 0.2f : 0.12f);
 		s.walking = approach(s.walking, Mth.clamp((float) s.speed * 8f, 0, 1), 0.25f);
-		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM ? 3.2f : 4.5f);
+		s.walk += (float) Math.min(s.speed, 0.4) * (style == Companion.Style.GOLEM || style == Companion.Style.MECH ? 3.2f : style == Companion.Style.SALAMANDER ? 5.5f : 4.5f);
 		s.flap += 0.5f + s.fly * 0.3f;
 
 		// Squash on landing, stretch while rising.
@@ -489,6 +496,14 @@ final class Companions {
 		double dx = spot.x - s.x, dz = spot.z - s.z;
 		double dist = Math.sqrt(dx * dx + dz * dz);
 		double max = Math.max(ownerSpeed * 1.15, s.target != null ? 0.15 : strolling && dist < 4 ? 0.07 : 0.13) + (dist > 4 ? 0.25 : 0);
+		// A hedgehog far behind curls up and rolls after you; a penguin slides on its belly over snow and ice.
+		Companion.Style kind = s.look.companion().style;
+		boolean canRoll = s.target == null && !strolling && s.onGround && !s.swimming
+				&& (kind == Companion.Style.HEDGEHOG || kind == Companion.Style.PENGUIN && slippery(level, s));
+		s.rolling = canRoll && (s.rolling ? dist > 0.9 : dist > 2.6);
+		if (s.rolling) {
+			max *= 1.35;
+		}
 		double speed = dist > 0.35 ? Math.min(dist * 0.4, max) : 0;
 		// Hoppers only move while in the air.
 		if (movement == Companion.Movement.HOP && s.onGround && speed > 0.02) {
@@ -590,7 +605,8 @@ final class Companions {
 	private void act(ClientLevel level, State s, Player owner) {
 		Companion.Style style = s.look.companion().style;
 		if (style != Companion.Style.RED_PANDA && style != Companion.Style.TURTLE && style != Companion.Style.KITTEN
-				&& style != Companion.Style.SHADOW_WOLF) {
+				&& style != Companion.Style.SHADOW_WOLF && style != Companion.Style.HEDGEHOG && style != Companion.Style.PENGUIN
+				&& style != Companion.Style.MECH && style != Companion.Style.SALAMANDER) {
 			s.action = CompanionModel.NONE;
 			return;
 		}
@@ -602,7 +618,15 @@ final class Companions {
 		}
 		if (s.action == CompanionModel.NONE) {
 			if (s.idle > 50 && --s.actionCooldown <= 0) {
-				int[] choices = style == Companion.Style.SHADOW_WOLF
+				int[] choices = style == Companion.Style.MECH
+						? new int[]{CompanionModel.SCAN, CompanionModel.ROCKET, CompanionModel.SHAKE}
+						: style == Companion.Style.SALAMANDER
+						? new int[]{CompanionModel.BASK, CompanionModel.YAWN, CompanionModel.STAND}
+						: style == Companion.Style.HEDGEHOG
+						? new int[]{CompanionModel.SNIFF, CompanionModel.SNACK, CompanionModel.HIDE, CompanionModel.YAWN}
+						: style == Companion.Style.PENGUIN
+						? new int[]{CompanionModel.STAND, CompanionModel.SHAKE, CompanionModel.YAWN}
+						: style == Companion.Style.SHADOW_WOLF
 						? s.shade > 0.5f
 						? new int[]{CompanionModel.HOWL, CompanionModel.HOWL, CompanionModel.PLAYBOW, CompanionModel.VANISH, CompanionModel.YAWN}
 						: new int[]{CompanionModel.HOWL, CompanionModel.PLAYBOW, CompanionModel.VANISH, CompanionModel.YAWN}
@@ -634,6 +658,11 @@ final class Companions {
 			case CompanionModel.HOWL -> 90;
 			case CompanionModel.PLAYBOW -> 60;
 			case CompanionModel.VANISH -> 56;
+			case CompanionModel.SNIFF -> 70;
+			case CompanionModel.SHAKE -> 45;
+			case CompanionModel.ROCKET -> 80;
+			case CompanionModel.SCAN -> 90;
+			case CompanionModel.BASK -> 160;
 			default -> 75;
 		};
 	}
@@ -663,11 +692,13 @@ final class Companions {
 			return;
 		}
 		Companion.Style kind = s.look.companion().style;
-		if (s.happy < 0.3f && kind == Companion.Style.SHADOW_WOLF && s.action == CompanionModel.NONE && s.onGround
+		int shy = kind == Companion.Style.SHADOW_WOLF ? CompanionModel.PLAYBOW : kind == Companion.Style.HEDGEHOG ? CompanionModel.HIDE
+				: kind == Companion.Style.PENGUIN ? CompanionModel.STAND : CompanionModel.NONE;
+		if (s.happy < 0.3f && shy != CompanionModel.NONE && s.action == CompanionModel.NONE && s.onGround
 				&& s.mode == Mode.WALKING && random.nextInt(2) == 0) {
-			// The shadow wolf bows down to play instead of hopping.
-			start(s, CompanionModel.PLAYBOW);
-		} else if (s.happy < 0.3f && s.onGround && s.mode == Mode.WALKING && s.action != CompanionModel.PLAYBOW) {
+			// Instead of hopping: the shadow wolf bows down to play, the hedgehog curls up shyly, the penguin flaps.
+			start(s, shy);
+		} else if (s.happy < 0.3f && s.onGround && s.mode == Mode.WALKING && s.action == CompanionModel.NONE) {
 			s.vy = 0.3;
 			s.onGround = false;
 		}
@@ -675,6 +706,14 @@ final class Companions {
 				&& random.nextInt(3) == 0) {
 			// The red panda rears up, the turtle hides shyly.
 			start(s, kind == Companion.Style.TURTLE ? CompanionModel.HIDE : CompanionModel.STAND);
+		}
+		if (kind == Companion.Style.MECH && s.wear > 0) {
+			// Petting a mech polishes it: the green comes off again.
+			s.wear = Math.max(0, s.wear - 0.004f);
+			if (s.age % 4 == 0) {
+				level.addParticle(ParticleTypes.SCRAPE, s.x + (random.nextDouble() - 0.5) * 0.5, s.y + 0.2 + random.nextDouble() * 0.5,
+						s.z + (random.nextDouble() - 0.5) * 0.5, 0, 0, 0);
+			}
 		}
 		s.happy = 1;
 		s.idle = Math.min(s.idle, 40);
@@ -691,6 +730,84 @@ final class Companions {
 		}
 	}
 
+	/** Hours of wearing until a mech's copper is all green; in the rain or in water it goes eight times as fast. */
+	private static final float WEAR_HOURS = 3;
+
+	/**
+	 * A mech's copper weathering: slowly as it comes along, faster when wet. Yours is kept in the settings (read once,
+	 * written back now and then); others' start new in each session.
+	 */
+	private void weather(ClientLevel level, State s, boolean yours) {
+		if (yours && !s.wearLoaded && wardrobe != null) {
+			s.wear = Mth.clamp(wardrobe.config().companionWear, 0, 1);
+			s.wearLoaded = true;
+		}
+		boolean wet = s.swimming || level.isRainingAt(BlockPos.containing(s.x, s.y + 1, s.z));
+		s.wear = Math.min(1, s.wear + (wet ? 8 : 1) / (WEAR_HOURS * 72000));
+		if (yours && wardrobe != null && s.age % 1200 == 0 && Math.abs(wardrobe.config().companionWear - s.wear) > 0.001f) {
+			wardrobe.config().companionWear = s.wear;
+			wardrobe.save();
+		}
+	}
+
+	/**
+	 * A mech's steam: a puff at each stomp, now and then from its exhaust, a burst as it vents; flames and smoke under its
+	 * boots as it hovers.
+	 */
+	private void mechPuffs(ClientLevel level, State s) {
+		float step = Mth.sin(s.walk);
+		if (s.walking > 0.3f && Math.signum(step) != Math.signum(s.lastStep)) {
+			double side = step > 0 ? -0.09 : 0.09;
+			double rx = Mth.cos(s.yaw) * side, rz = -Mth.sin(s.yaw) * side;
+			level.addParticle(ParticleTypes.WHITE_SMOKE, s.x + rx, s.y + 0.05, s.z + rz, (random.nextDouble() - 0.5) * 0.03, 0.01,
+					(random.nextDouble() - 0.5) * 0.03);
+		}
+		s.lastStep = step;
+		double bx = s.x - Mth.sin(s.yaw) * 0.17, bz = s.z - Mth.cos(s.yaw) * 0.17;
+		if (s.action == CompanionModel.SHAKE ? s.age % 3 == 0 : random.nextInt(90) == 0) {
+			level.addParticle(ParticleTypes.WHITE_SMOKE, bx, s.y + 0.68, bz, (random.nextDouble() - 0.5) * 0.02, 0.05, (random.nextDouble() - 0.5) * 0.02);
+		}
+		if (s.action == CompanionModel.ROCKET) {
+			float a = (float) s.actionAge / s.actionLength;
+			if (a > 0.15f && a < 0.9f) {
+				level.addParticle(random.nextBoolean() ? ParticleTypes.FLAME : ParticleTypes.SMOKE, s.x + (random.nextDouble() - 0.5) * 0.2,
+						s.y + 0.3, s.z + (random.nextDouble() - 0.5) * 0.2, 0, -0.05, 0);
+			}
+		}
+	}
+
+	/**
+	 * A lava salamander's sparks as it runs, the embers it yawns out, and steam hissing off it in the rain or in water.
+	 */
+	private void salamanderSparks(ClientLevel level, State s) {
+		ParticleOptions spark = switch (s.look.companion()) {
+			case SALAMANDER_SOUL -> ParticleTypes.SOUL_FIRE_FLAME;
+			case SALAMANDER_GILDED -> ParticleTypes.WAX_ON;
+			default -> ParticleTypes.SMALL_FLAME;
+		};
+		if (s.speed > 0.04 && random.nextInt(4) == 0) {
+			level.addParticle(spark, s.x + (random.nextDouble() - 0.5) * 0.4, s.y + 0.05, s.z + (random.nextDouble() - 0.5) * 0.4,
+					0, 0.01, 0);
+		}
+		if (s.speed > 0.04 && random.nextInt(30) == 0 && s.look.companion() != Companion.SALAMANDER_SOUL) {
+			level.addParticle(ParticleTypes.LAVA, s.x, s.y + 0.1, s.z, 0, 0, 0);
+		}
+		if (s.action == CompanionModel.YAWN && s.actionAge > 12 && s.actionAge < 38 && s.age % 2 == 0) {
+			double mx = s.x + Mth.sin(s.yaw) * 0.55, mz = s.z + Mth.cos(s.yaw) * 0.55;
+			level.addParticle(random.nextInt(3) == 0 ? ParticleTypes.LARGE_SMOKE : spark, mx, s.y + 0.2, mz,
+					Mth.sin(s.yaw) * 0.03 + (random.nextDouble() - 0.5) * 0.02, 0.04, Mth.cos(s.yaw) * 0.03 + (random.nextDouble() - 0.5) * 0.02);
+		}
+		boolean wet = s.swimming || level.isRainingAt(BlockPos.containing(s.x, s.y + 1, s.z));
+		if (wet && random.nextInt(3) == 0) {
+			level.addParticle(ParticleTypes.CLOUD, s.x + (random.nextDouble() - 0.5) * 0.5, s.y + 0.3, s.z + (random.nextDouble() - 0.5) * 0.5,
+					0, 0.05, 0);
+			if (random.nextInt(25) == 0) {
+				level.playLocalSound(s.x, s.y, s.z, net.minecraft.sounds.SoundEvents.FIRE_EXTINGUISH,
+						net.minecraft.sounds.SoundSource.NEUTRAL, 0.06f, 1.7f + random.nextFloat() * 0.3f, false);
+			}
+		}
+	}
+
 	/** Small touches: a rain cloud drips in the rain, a snowman leaves a few flakes, a golem's steps thud. */
 	private void ambient(ClientLevel level, State s, Player owner) {
 		Companion.Style style = s.look.companion().style;
@@ -698,9 +815,28 @@ final class Companions {
 			level.addParticle(ParticleTypes.FALLING_WATER, s.x + (random.nextDouble() - 0.5) * 0.4, s.y + 0.15,
 					s.z + (random.nextDouble() - 0.5) * 0.4, 0, 0, 0);
 		}
-		if (style == Companion.Style.SNOWMAN && s.speed > 0.05 && random.nextInt(4) == 0) {
+		if (style == Companion.Style.MECH) {
+			mechPuffs(level, s);
+		} else if (style == Companion.Style.SALAMANDER) {
+			salamanderSparks(level, s);
+		}
+		boolean sliding = style == Companion.Style.PENGUIN && s.rolling && random.nextInt(2) == 0;
+		if ((style == Companion.Style.SNOWMAN && s.speed > 0.05 && random.nextInt(4) == 0) || sliding) {
 			level.addParticle(ParticleTypes.SNOWFLAKE, s.x, s.y + 0.1, s.z, (random.nextDouble() - 0.5) * 0.02, 0.02,
 					(random.nextDouble() - 0.5) * 0.02);
+		}
+		if (style == Companion.Style.PENGUIN && s.action == CompanionModel.SHAKE && (s.actionAge == 12 || s.actionAge == 26)) {
+			// Shaking itself fluffy: flakes flying off.
+			for (int i = 0; i < 6; i++) {
+				level.addParticle(ParticleTypes.SNOWFLAKE, s.x + (random.nextDouble() - 0.5) * 0.5, s.y + 0.35,
+						s.z + (random.nextDouble() - 0.5) * 0.5, (random.nextDouble() - 0.5) * 0.12, 0.05,
+						(random.nextDouble() - 0.5) * 0.12);
+			}
+		}
+		if (style == Companion.Style.HEDGEHOG && s.action == CompanionModel.SNIFF && s.actionAge % 14 == 7) {
+			// Snuffling at the ground.
+			level.addParticle(ParticleTypes.WHITE_ASH, s.x + Mth.sin(s.yaw) * 0.3, s.y + 0.08, s.z + Mth.cos(s.yaw) * 0.3,
+					0, 0.01, 0);
 		}
 		if (style == Companion.Style.SHADOW_WOLF) {
 			// Smoke (or embers, soul flames, end sparks) off its paws, more in the dark; rising from its muzzle as it howls.
@@ -715,6 +851,15 @@ final class Companions {
 						(random.nextDouble() - 0.5) * 0.02);
 			}
 		}
+	}
+
+	/** Whether it stands on snow or ice (a penguin slides there). */
+	private static boolean slippery(ClientLevel level, State s) {
+		BlockState at = level.getBlockState(BlockPos.containing(s.x, s.y + 0.05, s.z));
+		BlockState below = level.getBlockState(BlockPos.containing(s.x, s.y - 0.1, s.z));
+		return at.is(net.minecraft.world.level.block.Blocks.SNOW) || below.is(net.minecraft.tags.BlockTags.ICE)
+				|| below.is(net.minecraft.world.level.block.Blocks.SNOW_BLOCK) || below.is(net.minecraft.world.level.block.Blocks.SNOW)
+				|| below.is(net.minecraft.world.level.block.Blocks.POWDER_SNOW);
 	}
 
 	private static ParticleOptions wolfParticle(Companion companion) {
@@ -857,8 +1002,12 @@ final class Companions {
 			poseStack.pushPose();
 			poseStack.translate(dx, dy, dz);
 			poseStack.mulPose(new org.joml.Matrix4f().rotationY(yaw));
-			context.submitNodeCollector().submitCustomGeometry(poseStack, Voxels.TYPE,
+			context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.type(),
 					(p, vc) -> CompanionModel.draw(vc, p, look, pose, light));
+			if (CompanionModel.glows(look.companion().style)) {
+				context.submitNodeCollector().submitCustomGeometry(poseStack, CompanionTexture.glowType(),
+						(p, vc) -> CompanionModel.draw(vc, p, look, pose, light, true));
+			}
 			poseStack.popPose();
 			if (!look.name().isBlank() && dx * dx + dy * dy + dz * dz < NAME_RANGE * NAME_RANGE) {
 				float height = CompanionModel.height(look.companion().style) * (1 - pose.sleep() * 0.2f) + 0.05f;
@@ -888,6 +1037,8 @@ final class Companions {
 		float yaw, yawO, headYaw, headYawO, headPitch, headPitchO;
 		float walk, walkO, walking, walkingO, sit, sitO, sleep, sleepO, fly, flyO, flap, flapO, happy, squash, squashO;
 		boolean onGround = true, hidden, swimming;
+		/** Rolling along as a ball (hedgehog) or sliding on its belly (penguin). */
+		boolean rolling;
 		int age, idle, stuck;
 		/** What it does by itself ({@link CompanionModel#STAND} and so on), for how long so far and in all, and until the next. */
 		int action, actionAge, actionLength, actionCooldown = 100;
@@ -899,6 +1050,10 @@ final class Companions {
 		/** Which side of its player it sits on (1 right, -1 left; the shadow wolf swaps by stepping through the shadows); how dark it is around it (0 to 1). */
 		double side = 1;
 		float shade;
+		/** How weathered it is (0 to 1: a mech's copper going green), whether that was read from your settings yet, and the step it was last on. */
+		float wear;
+		boolean wearLoaded;
+		float lastStep;
 		/** Where it rests while its player stands still (fixed in the world), and for how long it has been there. */
 		Vec3 rest;
 		int restAge;
@@ -940,7 +1095,7 @@ final class Companions {
 					Mth.lerp(partial, sitO, sit), Mth.lerp(partial, sleepO, sleep), Mth.lerp(partial, flyO, fly),
 					Mth.lerp(partial, flapO, flap), Mth.lerp(partial, headYawO, headYaw),
 					Mth.lerp(partial, headPitchO, headPitch), happy, Mth.lerp(partial, squashO, squash), age + partial, action,
-					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade);
+					action == CompanionModel.NONE ? 0 : Math.min(1, (actionAge + partial) / actionLength), actionBlend(partial), shade, wear);
 		}
 
 		/** How much of the action shows: easing in over its first half second and out over its last. */

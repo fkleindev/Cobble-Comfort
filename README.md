@@ -254,16 +254,23 @@ There is also a key for the HUD editor.
   editor lets you tie each kind's charm wherever you like on the item: click to place it, drag to turn the item,
   separately for first person.
 - **Companion:** a wardrobe tab for a little voxel companion that follows you everywhere: a mushroomling, a cloud
-  sheep, a mini dragon, an owl, a mini golem, a red panda, a sea turtle, a kitten in a box and a shadow wolf, each in
-  several variants, plus a pumpkin imp in October and November, a little snowman in December and January and an Easter
-  bunny in April. It walks, hops, floats or flies, follows you up stairs, swims, rides along, sits down when you stand
-  still and falls asleep after a while. Each has its own things to do: the red panda rears up, nibbles bamboo and
-  washes its face; the turtle hides in its shell, munches a berry and yawns; the kitten ducks into its box, peeks out
-  and hops out to stretch; the shadow wolf howls, bows down to play and steps through the shadows to your other side,
-  and fades into the dark at night with glowing eyes and marks. Sneak up and look at it to pet it. Give it a name, a
-  bow, collar, flower or crown. When two players with companions stand together, the companions walk up to each other,
-  sniff, hop with hearts and sometimes play tag. It is only drawn: never in the way, and blocks can still be placed
-  where it stands. Other players with the mod see it through the server plugin.
+  sheep, a mini dragon, an owl, a mini golem, a red panda, a sea turtle, a kitten in a box, a shadow wolf, a hedgehog,
+  a penguin chick, a mini mech and a lava salamander, each in several variants, plus a pumpkin imp in October and
+  November, a little snowman in December and January and an Easter bunny in April. Each is textured in its own
+  material (fur, wool, scales, feathers, stone, shell, cardboard, quills, down, brushed metal, copper, basalt...). It
+  walks, hops, floats or flies, follows you up stairs, swims, rides along, settles down near you when you stop (only
+  getting up once you walk off), strolls about now and then, sits and falls asleep after a while. Each has its own
+  things to do: the red panda rears up, nibbles bamboo and washes its face; the turtle hides in its shell, munches a
+  berry and yawns; the kitten ducks into its box, peeks out and hops out to stretch; the shadow wolf howls, bows down
+  to play, steps through the shadows to your other side and fades into the dark at night; the hedgehog sniffs about,
+  curls up shyly and rolls after you as a ball; the penguin chick waddles, flaps, shakes itself fluffy and slides on
+  its belly over snow and ice; the mini mech stomps with puffs of steam, scans with a beam of light, hovers on rocket
+  boots, lights a headlamp at night and its copper slowly turns green (petting polishes it); the lava salamander glows
+  in the cracks of its basalt scales, flicks its tongue, does push-ups, basks, yawns embers and steams in the rain.
+  Sneak up and look at it to pet it. Give it a name, a bow, collar, flower or crown. When two players with companions
+  stand together, the companions walk up to each other, sniff, hop with hearts and sometimes play tag. It is only
+  drawn: never in the way, and blocks can still be placed where it stands. Other players with the mod see it through
+  the server plugin.
 - **Belt:** a belt at your hips carries what you have with you, all of it swinging as you walk, jump and turn.
   Bundles hang in front and behind as little leather pouches in their colour, puffing up as they fill (up to four:
   hotbar first, then the fullest from the inventory). A sword from the hotbar hangs on the left hip (or a spear, mace
